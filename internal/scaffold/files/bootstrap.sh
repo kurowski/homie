@@ -31,11 +31,25 @@ else
 fi
 
 if ! command -v hm >/dev/null 2>&1; then
-  url="https://github.com/kurowski/homie/releases/${HM_RELEASE}/download/hm-linux-${arch}"
-  echo "Downloading hm from ${url} -> ${bindir}/hm"
-  curl -fsSL "$url" -o "$bindir/hm"
-  chmod +x "$bindir/hm"
-  # TODO: verify SHA256 against the release checksum file
+  # The `latest` keyword has its own URL shape; specific tags use a
+  # different one. Both end with /download.
+  if [ "$HM_RELEASE" = "latest" ]; then
+    base="https://github.com/kurowski/homie/releases/latest/download"
+  else
+    base="https://github.com/kurowski/homie/releases/download/${HM_RELEASE}"
+  fi
+  binary="hm-linux-${arch}"
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' EXIT
+
+  echo "Downloading ${base}/${binary}"
+  curl -fsSL "$base/$binary"     -o "$tmp/$binary"
+  curl -fsSL "$base/SHA256SUMS"  -o "$tmp/SHA256SUMS"
+
+  # --ignore-missing lets us check only the line for our arch.
+  ( cd "$tmp" && sha256sum -c --ignore-missing SHA256SUMS )
+
+  install -m 0755 "$tmp/$binary" "$bindir/hm"
   export PATH="$bindir:$PATH"
 fi
 
