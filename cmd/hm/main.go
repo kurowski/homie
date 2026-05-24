@@ -1,11 +1,18 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 )
+
+// errSilentExit signals "exit non-zero without printing me on top of
+// whatever the command already wrote to stdout." Commands like
+// `hm doctor` that render their own summary use this to avoid a
+// duplicate "Error: ..." line.
+var errSilentExit = errors.New("silent exit")
 
 var version = "dev"
 
@@ -29,7 +36,9 @@ func init() {
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "Error:", err)
+		if !errors.Is(err, errSilentExit) {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+		}
 		os.Exit(1)
 	}
 }

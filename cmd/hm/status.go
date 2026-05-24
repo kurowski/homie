@@ -4,13 +4,18 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"strings"
 
 	"github.com/kurowski/homie/internal/config"
 	"github.com/kurowski/homie/internal/detect"
+	"github.com/kurowski/homie/internal/doctor"
+	"github.com/kurowski/homie/internal/packages"
 	"github.com/kurowski/homie/internal/repo"
 	"github.com/spf13/cobra"
 )
+
+var statusHome string
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
@@ -19,6 +24,7 @@ var statusCmd = &cobra.Command{
 }
 
 func init() {
+	statusCmd.Flags().StringVar(&statusHome, "home", "", "override target home directory (default $HOME)")
 	rootCmd.AddCommand(statusCmd)
 }
 
@@ -64,6 +70,26 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	for _, warning := range cfg.Warnings {
 		fmt.Fprintf(w, "  warning: %s\n", warning)
+	}
+
+	// Run doctor's read-only walk for a one-line health summary.
+	// The deep dive lives in `hm doctor`; status just nudges users
+	// toward it when something looks off.
+	home := statusHome
+	if home == "" {
+		home, _ = os.UserHomeDir()
+	}
+	if home != "" {
+		report := doctor.Run(repoDir, home, cfg, env, packages.For(env))
+		errs, warns := report.Counts()
+		fmt.Fprintln(w)
+		switch {
+		case errs == 0 && warns == 0:
+			fmt.Fprintln(w, "Health: all checks passed.")
+		default:
+			fmt.Fprintf(w, "Health: %s, %s — run `hm doctor` for detail.\n",
+				pluralize(errs, "error"), pluralize(warns, "warning"))
+		}
 	}
 	return nil
 }
