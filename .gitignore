@@ -1,0 +1,7 @@
+/hm
+/dist/
+*.test
+*.out
+.idea/
+.vscode/
+.claude/settings.local.json
