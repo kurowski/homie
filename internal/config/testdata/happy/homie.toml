@@ -1,0 +1,17 @@
+[user]
+name  = "Scout Homes"
+email = "scout@homie.sh"
+
+[profile]
+name          = "personal"
+default_shell = "zsh"
+
+[packages]
+all = ["git", "zsh", "neovim", "tmux", "ripgrep", "fd", "fzf"]
+
+[tags]
+extra = ["laptop"]
+
+[vars]
+WORK_EMAIL = "scout@work.example.com"
+EDITOR     = "nvim"

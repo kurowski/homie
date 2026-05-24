@@ -1,10 +1,14 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"strings"
 
+	"github.com/kurowski/homie/internal/config"
 	"github.com/kurowski/homie/internal/detect"
+	"github.com/kurowski/homie/internal/repo"
 	"github.com/spf13/cobra"
 )
 
@@ -21,6 +25,7 @@ func init() {
 func runStatus(cmd *cobra.Command, args []string) error {
 	env := detect.Detect()
 	w := cmd.OutOrStdout()
+
 	fmt.Fprintln(w, "Environment:")
 	fmt.Fprintf(w, "  Distro:          %s\n", env.Distro)
 	fmt.Fprintf(w, "  Package manager: %s\n", env.PackageManager)
@@ -28,6 +33,37 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(w, "  Container:       %v\n", env.IsContainer)
 	fmt.Fprintf(w, "  Root:            %v\n", env.IsRoot)
 	fmt.Fprintf(w, "  Interactive:     %v\n", env.IsInteractive)
-	fmt.Fprintf(w, "  Tags:            %s\n", strings.Join(env.Tags, ", "))
+	fmt.Fprintf(w, "  Auto tags:       %s\n", strings.Join(env.Tags, ", "))
+
+	repoDir, err := repo.Find()
+	if err != nil {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "No user environment repo found (run `hm init` or set $HM_REPO).")
+		return nil
+	}
+
+	cfg, err := config.Load(repoDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("no homie.toml in %s", repoDir)
+		}
+		return err
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "Repo: %s\n", repoDir)
+	fmt.Fprintf(w, "  User:     %s <%s>\n", cfg.User.Name, cfg.User.Email)
+	if cfg.Profile.Name != "" {
+		fmt.Fprintf(w, "  Profile:  %s\n", cfg.Profile.Name)
+	}
+	if cfg.Profile.DefaultShell != "" {
+		fmt.Fprintf(w, "  Shell:    %s\n", cfg.Profile.DefaultShell)
+	}
+	fmt.Fprintf(w, "  Tags:     %s\n", strings.Join(cfg.AllTags(env), ", "))
+	fmt.Fprintf(w, "  Packages: %s\n", strings.Join(cfg.PackagesFor(env), ", "))
+
+	for _, warning := range cfg.Warnings {
+		fmt.Fprintf(w, "  warning: %s\n", warning)
+	}
 	return nil
 }

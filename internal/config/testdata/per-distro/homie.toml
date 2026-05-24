@@ -1,0 +1,8 @@
+[user]
+name  = "Scout Homes"
+email = "scout@homie.sh"
+
+[packages]
+all    = ["git", "zsh", "neovim"]
+fedora = ["util-linux-user", "git"]    # 'git' is a duplicate, must be deduped
+ubuntu = ["fd-find"]
