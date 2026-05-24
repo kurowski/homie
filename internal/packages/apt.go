@@ -38,11 +38,17 @@ func (a *Apt) IsInstalled(pkg string) bool {
 
 // Install installs pkgs that aren't already installed. Empty input is a
 // no-op; an empty filtered list (everything already installed) is also a
-// no-op without invoking apt-get.
+// no-op without invoking apt-get. Refreshes the package cache once before
+// install so fresh systems (containers, first-boot workstations) don't
+// fail with "Unable to locate package".
 func (a *Apt) Install(pkgs []string) error {
 	todo := filterUninstalled(a, pkgs)
 	if len(todo) == 0 {
 		return nil
+	}
+	updateCmd, updateRest := a.command([]string{"apt-get", "update", "-qq"})
+	if out, err := a.Runner(updateCmd, updateRest...); err != nil {
+		return fmt.Errorf("apt-get update: %w: %s", err, strings.TrimSpace(string(out)))
 	}
 	args := []string{"apt-get", "install", "-y"}
 	args = append(args, todo...)
