@@ -1,0 +1,32 @@
+baseURL = "https://homie.sh/"
+languageCode = "en-us"
+defaultContentLanguage = "en"
+title = "Homie"
+
+# Pretty URLs.
+canonifyURLs = true
+
+# Blowfish dependencies are pulled via Hugo Modules.
+[module]
+[[module.imports]]
+path = "github.com/nunocoracao/blowfish/v2"
+
+# Pagination on list pages.
+[pagination]
+pagerSize = 20
+
+# Goldmark renderer settings — let raw HTML through so we can embed
+# the occasional inline SVG (Scout, terminal glyphs, etc.).
+[markup]
+[markup.goldmark]
+[markup.goldmark.renderer]
+unsafe = true
+[markup.highlight]
+noClasses = false  # use Chroma classes; we style them ourselves
+codeFences = true
+lineNos = false
+guessSyntax = true
+
+# Output formats: HTML + JSON (Blowfish uses JSON for client-side search).
+[outputs]
+home = ["HTML", "RSS", "JSON"]

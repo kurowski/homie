@@ -1,0 +1,41 @@
+[[main]]
+name = "Docs"
+pageRef = "docs"
+weight = 10
+
+[[main]]
+name = "Quick start"
+pageRef = "docs/quickstart"
+weight = 20
+
+[[main]]
+name = "Compare"
+pageRef = "docs/compare"
+weight = 30
+
+[[main]]
+name = "FAQ"
+pageRef = "docs/faq"
+weight = 40
+
+[[main]]
+name = "GitHub"
+url = "https://github.com/kurowski/homie"
+weight = 50
+[main.params]
+icon = "github"
+
+[[footer]]
+name = "GitHub"
+pageRef = "https://github.com/kurowski/homie"
+weight = 10
+
+[[footer]]
+name = "Releases"
+pageRef = "https://github.com/kurowski/homie/releases"
+weight = 20
+
+[[footer]]
+name = "MIT License"
+pageRef = "https://github.com/kurowski/homie/blob/main/LICENSE"
+weight = 30

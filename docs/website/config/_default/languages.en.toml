@@ -1,0 +1,17 @@
+languageCode = "en"
+languageName = "English"
+weight = 1
+title = "Homie"
+
+[params]
+displayName = "EN"
+isoCode = "en"
+rtl = false
+dateFormat = "January 2, 2006"
+description = "A single-binary Linux environment manager. Dotfiles, packages, and setup scripts — all from one repo."
+
+[author]
+name = "Brandt Kurowski"
+links = [
+  { github = "https://github.com/kurowski/homie" },
+]

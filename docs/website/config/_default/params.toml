@@ -1,0 +1,88 @@
+# Blowfish theme parameters.
+# Reference: https://blowfish.page/docs/configuration/
+
+colorScheme = "scout"
+defaultAppearance = "dark"
+autoSwitchAppearance = true
+enableSearch = true
+enableCodeCopy = true
+mainSections = ["docs"]
+disableImageOptimization = false
+
+# Scout in the top-left corner of every page.
+logo = "img/scout.png"
+
+defaultBackgroundImage = ""
+defaultFeaturedImage = ""
+
+# Header / nav.
+[header]
+layout = "basic"
+showMenu = true
+
+# Footer.
+[footer]
+showMenu = true
+showCopyright = true
+showThemeAttribution = false
+showAppearanceSwitcher = true
+showScrollToTop = true
+
+# Homepage layout — "page" lets us write a full marketing landing
+# in content/_index.md instead of a generic list view.
+[homepage]
+layout = "page"
+showRecent = false
+showRecentItems = 0
+showMoreLink = false
+
+# Article (docs page) layout.
+[article]
+showDate = false
+showViews = false
+showLikes = false
+showDateUpdated = false
+showAuthor = false
+showHero = false
+heroStyle = "background"
+layoutBackgroundBlur = false
+layoutBackgroundHeaderSpace = true
+showBreadcrumbs = true
+showDraftLabel = true
+showEdit = false
+editURL = "https://github.com/kurowski/homie/tree/main/docs/website/content"
+editAppendPath = true
+seriesOpened = false
+showHeadingAnchors = true
+showPagination = true
+invertPagination = false
+showReadingTime = false
+showTableOfContents = true
+showRelatedContent = false
+relatedContentLimit = 3
+showTaxonomies = false
+showAuthorsBadges = false
+showWordCount = false
+sharingLinks = []
+showZenMode = false
+
+# List page layout (e.g., /docs/ index page).
+[list]
+showHero = false
+heroStyle = "background"
+layoutBackgroundBlur = true
+layoutBackgroundHeaderSpace = true
+showBreadcrumbs = false
+showSummary = true
+showViews = false
+showLikes = false
+showTableOfContents = false
+showCards = true
+groupByYear = false
+cardView = false
+cardViewScreenWidth = false
+constrainItemsWidth = false
+
+# Sitemap.
+[sitemap]
+excludedKinds = ["taxonomy", "term"]

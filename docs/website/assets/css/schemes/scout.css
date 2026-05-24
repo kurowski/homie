@@ -1,0 +1,52 @@
+/*
+ * Scout color scheme — Homie's house palette.
+ *
+ *   primary   = Scout's house body (cornflower blue) — headlines, links, focus
+ *   secondary = Scout's cap (warm yellow) — accents, hover, callouts
+ *   neutral   = cool blue-tinted gray scale (Tailwind slate) — body text, surfaces
+ *
+ * Blowfish composes colors via rgba(var(--color-X), alpha), so the values
+ * must be comma-separated R, G, B triplets.
+ */
+
+:root {
+  /* Primary: Scout blue */
+  --color-primary-50:  239, 246, 255;
+  --color-primary-100: 219, 234, 254;
+  --color-primary-200: 191, 219, 254;
+  --color-primary-300: 147, 197, 253;
+  --color-primary-400: 109, 168, 238;
+  --color-primary-500:  74, 144, 226;
+  --color-primary-600:  54, 116, 197;
+  --color-primary-700:  44,  93, 160;
+  --color-primary-800:  36,  75, 130;
+  --color-primary-900:  31,  63, 109;
+  --color-primary-950:  20,  39,  74;
+
+  /* Secondary: Scout cap yellow */
+  --color-secondary-50:  255, 250, 235;
+  --color-secondary-100: 254, 243, 199;
+  --color-secondary-200: 253, 230, 138;
+  --color-secondary-300: 252, 211,  77;
+  --color-secondary-400: 245, 200,  66;
+  --color-secondary-500: 226, 178,  51;
+  --color-secondary-600: 196, 152,  35;
+  --color-secondary-700: 156, 120,  29;
+  --color-secondary-800: 126,  96,  26;
+  --color-secondary-900:  99,  74,  24;
+  --color-secondary-950:  58,  42,  10;
+
+  /* Neutral: cool slate gray */
+  --color-neutral:     255, 255, 255;
+  --color-neutral-50:  248, 250, 252;
+  --color-neutral-100: 241, 245, 249;
+  --color-neutral-200: 226, 232, 240;
+  --color-neutral-300: 203, 213, 225;
+  --color-neutral-400: 148, 163, 184;
+  --color-neutral-500: 100, 116, 139;
+  --color-neutral-600:  71,  85, 105;
+  --color-neutral-700:  51,  65,  85;
+  --color-neutral-800:  30,  41,  59;
+  --color-neutral-900:  15,  23,  42;
+  --color-neutral-950:   2,   6,  23;
+}

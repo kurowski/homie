@@ -5,3 +5,8 @@
 .idea/
 .vscode/
 .claude/settings.local.json
+
+# Hugo build output (docs site)
+/docs/website/public/
+/docs/website/resources/
+/docs/website/.hugo_build.lock
