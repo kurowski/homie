@@ -1,0 +1,25 @@
+[user]
+name  = "{{ .Name }}"
+email = "{{ .Email }}"
+
+[profile]
+name          = "{{ .Profile }}"
+default_shell = "{{ .DefaultShell }}"
+
+[packages]
+# Packages installed on every supported distro.
+all = ["git", "zsh", "neovim", "tmux", "ripgrep", "fd-find", "fzf"]
+
+# Per-distro overrides, merged onto `all`.
+fedora = ["util-linux-user"]
+
+[tags]
+# Auto tags from environment detection (distro, arch, container, root,
+# profile name) are added automatically. Anything else you want to
+# branch on in templates goes here.
+extra = []
+
+[vars]
+# Exposed to templates as {{`{{ .Vars.NAME }}`}} and to scripts as
+# environment variables.
+EDITOR = "nvim"

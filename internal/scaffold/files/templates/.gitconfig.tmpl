@@ -1,0 +1,16 @@
+[user]
+    name = {{ .Name }}
+{{- if hasTag "work" }}
+    email = {{ .Vars.WORK_EMAIL }}
+{{- else }}
+    email = {{ .Email }}
+{{- end }}
+
+[core]
+    editor = {{ .Vars.EDITOR }}
+
+[init]
+    defaultBranch = main
+
+[pull]
+    rebase = true
