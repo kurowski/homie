@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/kurowski/homie/internal/render"
 	"github.com/kurowski/homie/internal/repo"
 	"github.com/kurowski/homie/internal/runner"
+	"github.com/kurowski/homie/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -54,45 +54,39 @@ func runApply(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	env := detect.Detect()
-	w := cmd.OutOrStdout()
 
-	var phaseErrors []error
-	phase := func(name string, fn func() []error) {
-		fmt.Fprintf(w, "\n== %s ==\n", name)
-		errs := fn()
-		phaseErrors = append(phaseErrors, errs...)
-	}
+	noTTY, _ := cmd.Root().PersistentFlags().GetBool("no-tty")
+	u := ui.New(cmd.OutOrStdout(), noTTY)
+	defer func() { _ = u.Close() }()
 
-	phase("packages", func() []error { return applyPackages(w, cfg, env) })
-	phase("link", func() []error { return applyLink(w, repoDir, home) })
-	phase("render", func() []error { return applyRender(w, repoDir, home, cfg, env) })
-	phase("scripts", func() []error { return applyScripts(w, repoDir, home, cfg, env) })
+	var errs []error
+	errs = append(errs, applyPackages(u, cfg, env)...)
+	errs = append(errs, applyLink(u, repoDir, home)...)
+	errs = append(errs, applyRender(u, repoDir, home, cfg, env)...)
+	errs = append(errs, applyScripts(u, repoDir, home, cfg, env)...)
 
-	fmt.Fprintf(w, "\n== summary ==\n")
-	if len(phaseErrors) == 0 {
-		fmt.Fprintln(w, "  All phases completed cleanly.")
-		return nil
+	u.Summary(errs)
+	if len(errs) > 0 {
+		return fmt.Errorf("%d error(s) during apply", len(errs))
 	}
-	for _, e := range phaseErrors {
-		fmt.Fprintf(w, "  error    %s\n", e)
-	}
-	return fmt.Errorf("%d error(s) during apply", len(phaseErrors))
+	return nil
 }
 
-func applyPackages(w io.Writer, cfg config.Config, env detect.Env) []error {
+func applyPackages(u ui.UI, cfg config.Config, env detect.Env) []error {
+	u.Phase("packages")
 	if applySkipPackages {
-		fmt.Fprintln(w, "  skipped (--skip-packages)")
+		u.Info("skipped (--skip-packages)")
 		return nil
 	}
 	pkgs := cfg.PackagesFor(env)
 	if len(pkgs) == 0 {
-		fmt.Fprintln(w, "  no packages declared")
+		u.Info("no packages declared")
 		return nil
 	}
 	mgr := packages.For(env)
 	if mgr.Name() == "noop" {
 		// TODO(contrib): add support for additional package managers.
-		fmt.Fprintf(w, "  warning  distro %q not yet supported — see homie.sh/contributing\n", env.Distro)
+		u.Warn(fmt.Sprintf("distro %q not yet supported — see homie.sh/contributing", env.Distro))
 		return nil
 	}
 	if !mgr.IsAvailable() {
@@ -107,52 +101,66 @@ func applyPackages(w io.Writer, cfg config.Config, env detect.Env) []error {
 		}
 	}
 	if len(already) > 0 {
-		fmt.Fprintf(w, "  skip     %d already installed\n", len(already))
+		u.Action("skip", fmt.Sprintf("%d already installed", len(already)))
 	}
 	if len(todo) == 0 {
 		return nil
 	}
-	fmt.Fprintf(w, "  install  %s (via %s)\n", strings.Join(todo, ", "), mgr.Name())
+	u.Action("install", fmt.Sprintf("%s (via %s)", strings.Join(todo, ", "), mgr.Name()))
 	if err := mgr.Install(todo); err != nil {
 		return []error{err}
 	}
 	return nil
 }
 
-func applyLink(w io.Writer, repoDir, home string) []error {
+func applyLink(u ui.UI, repoDir, home string) []error {
+	u.Phase("link")
 	actions, err := link.Plan(repoDir, home)
 	if err != nil {
 		return []error{err}
 	}
 	if len(actions) == 0 {
-		fmt.Fprintln(w, "  no dotfiles")
+		u.Info("no dotfiles")
 		return nil
 	}
 	res := link.Apply(actions, time.Now())
-	printResult(w, home, res)
+	for _, a := range res.Created {
+		u.Action("create", relTarget(home, a.Target))
+	}
+	for _, a := range res.Replaced {
+		u.Action("replace", relTarget(home, a.Target))
+	}
+	for _, b := range res.Backed {
+		u.Action("backup", fmt.Sprintf("%s -> %s", relTarget(home, b.Action.Target), relTarget(home, b.Backup)))
+	}
+	if len(res.Skipped) > 0 {
+		u.Action("skip", fmt.Sprintf("%d already in sync", len(res.Skipped)))
+	}
 	return res.Errors
 }
 
-func applyRender(w io.Writer, repoDir, home string, cfg config.Config, env detect.Env) []error {
+func applyRender(u ui.UI, repoDir, home string, cfg config.Config, env detect.Env) []error {
+	u.Phase("render")
 	res := render.Apply(repoDir, home, cfg, env)
 	if len(res.Rendered) == 0 && len(res.Errors) == 0 {
-		fmt.Fprintln(w, "  no templates")
+		u.Info("no templates")
 		return nil
 	}
 	for _, a := range res.Rendered {
-		fmt.Fprintf(w, "  render   %s\n", relTarget(home, a.Target))
+		u.Action("render", relTarget(home, a.Target))
 	}
 	return res.Errors
 }
 
-func applyScripts(w io.Writer, repoDir, home string, cfg config.Config, env detect.Env) []error {
+func applyScripts(u ui.UI, repoDir, home string, cfg config.Config, env detect.Env) []error {
+	u.Phase("scripts")
 	if applySkipScripts {
-		fmt.Fprintln(w, "  skipped (--skip-scripts)")
+		u.Info("skipped (--skip-scripts)")
 		return nil
 	}
-	res := runner.Run(repoDir, home, cfg, cfg.AllTags(env), w)
+	res := runner.Run(repoDir, home, cfg, cfg.AllTags(env), u.Writer())
 	if len(res.Ran) == 0 {
-		fmt.Fprintln(w, "  no scripts")
+		u.Info("no scripts")
 		return nil
 	}
 	for _, r := range res.Ran {
@@ -160,7 +168,7 @@ func applyScripts(w io.Writer, repoDir, home string, cfg config.Config, env dete
 		if r.Err != nil {
 			status = "fail"
 		}
-		fmt.Fprintf(w, "  %-5s %s\n", status, filepath.Base(r.Path))
+		u.Action(status, filepath.Base(r.Path))
 	}
 	return res.Errors
 }
