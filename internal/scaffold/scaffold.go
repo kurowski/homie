@@ -92,13 +92,13 @@ func Run(targetDir string, a Answers) error {
 
 func (a *Answers) fillDefaults() error {
 	if a.Name == "" {
-		return fmt.Errorf("Name is required")
+		return fmt.Errorf("name is required")
 	}
 	if a.Email == "" {
-		return fmt.Errorf("Email is required")
+		return fmt.Errorf("email is required")
 	}
 	if a.GitHubUser == "" {
-		return fmt.Errorf("GitHubUser is required")
+		return fmt.Errorf("github user is required")
 	}
 	if a.GitHubRepo == "" {
 		a.GitHubRepo = "dotfiles"

@@ -1,0 +1,16 @@
+version: "2"
+
+# Default v2 linter set (errcheck, govet, ineffassign, staticcheck,
+# unused) plus a small errcheck exception for fmt.F* and Close —
+# those write-to-Writer / cleanup calls almost never have a useful
+# error to act on, and noisy "Error return value is not checked"
+# warnings drown out actual issues.
+linters:
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (io.Closer).Close
+        - (*os.File).Close

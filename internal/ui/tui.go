@@ -136,7 +136,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case actionMsg:
 		if p := m.currentPhase(); p != nil {
-			p.actions = append(p.actions, actionLine{kind: msg.kind, target: msg.target})
+			p.actions = append(p.actions, actionLine(msg))
 		}
 		return m, nil
 

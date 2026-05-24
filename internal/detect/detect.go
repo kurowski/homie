@@ -76,7 +76,7 @@ func parseDistro(root fs.FS) string {
 	if err != nil {
 		return "unknown"
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
