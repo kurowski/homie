@@ -7,15 +7,27 @@ description: "Make every Linux box feel like home."
 
 Homie is a single binary that turns a fresh Linux install into _your_
 Linux install — dotfiles, packages, setup scripts, all from one repo
-you own. One command from a bare box to a working environment.
+you own. One command from a bare box to a working environment:
 
 ```sh
-curl https://raw.githubusercontent.com/you/dotfiles/main/bootstrap.sh | bash
+curl https://raw.githubusercontent.com/YOU/dotfiles/main/bootstrap.sh | bash
 ```
 
-That's it. That's the whole setup story.
+That's it! That's the whole setup story.
 
 ---
+
+## Get started
+
+1. Install `hm`:
+   ```sh
+   curl -fsSL https://homie.sh/install.sh | bash
+   ```
+2. `hm init ~/dotfiles` to scaffold a starter repo.
+3. Edit `homie.toml`, commit, and push to your preferred git hosting service.
+4. On any other Linux box: `curl …/bootstrap.sh | bash`.
+
+[Read the quickstart →](/docs/quickstart/)
 
 ## What you get
 
@@ -68,18 +80,7 @@ dotfiles/
 | Provisioning | ✅ | ❌ | ✅ | ❌ | ✅ |
 | State file | ❌ | ✅ | ❌ | ❌ | ✅ |
 | Runtime | ⚡ Native | ⚡ Native | 🐍 Python | 🐪 Perl | ❄️ Nix |
-| Weight | 🐁 | 🐕 | 🐘 | 🐁 | 🐘 |
+| Weight | 🐁 tiny | 🐕 medium | 🐘 heavy | 🐁 tiny | 🐘 heavy |
 
 [See the full comparison →](/docs/compare/)
 
-## Get started
-
-1. Install `hm`:
-   ```sh
-   curl -fsSL https://homie.sh/install.sh | bash
-   ```
-2. `hm init ~/dotfiles` to scaffold a starter repo.
-3. Edit `homie.toml`, commit, push.
-4. On any other Linux box: `curl …/bootstrap.sh | bash`.
-
-[Read the quickstart →](/docs/quickstart/)
