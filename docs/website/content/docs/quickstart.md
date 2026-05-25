@@ -11,18 +11,14 @@ up.
 
 ## 1. Install `hm`
 
-Grab the latest static binary from
-[Releases](https://github.com/kurowski/homie/releases). One file, no
-runtime, no dependencies.
+One static binary, no runtime, no dependencies:
 
 ```sh
-ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
-curl -fsSL -o /tmp/hm \
-  "https://github.com/kurowski/homie/releases/latest/download/hm-linux-${ARCH}"
-chmod +x /tmp/hm
-sudo mv /tmp/hm /usr/local/bin/hm
-hm --version
+curl -fsSL https://homie.sh/install.sh | bash
 ```
+
+Prefer not to pipe a script? See [Install](/docs/install/) for manual
+download, version pinning, and building from source.
 
 ## 2. Scaffold a user environment repo
 

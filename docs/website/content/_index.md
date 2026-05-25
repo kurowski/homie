@@ -74,7 +74,10 @@ dotfiles/
 
 ## Get started
 
-1. Grab the latest binary from [Releases](https://github.com/kurowski/homie/releases).
+1. Install `hm`:
+   ```sh
+   curl -fsSL https://homie.sh/install.sh | bash
+   ```
 2. `hm init ~/dotfiles` to scaffold a starter repo.
 3. Edit `homie.toml`, commit, push.
 4. On any other Linux box: `curl …/bootstrap.sh | bash`.

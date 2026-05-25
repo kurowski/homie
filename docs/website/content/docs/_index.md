@@ -1,6 +1,7 @@
 ---
 title: "Documentation"
 description: "Everything you need to know about Homie."
+orderByWeight: true
 cascade:
   showEdit: false
   showSummary: true
