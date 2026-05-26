@@ -36,8 +36,9 @@ hm init \
 
 ## `hm apply`
 
-Full reconciliation pass — detect → load config → install packages →
-symlink dotfiles → render templates → run scripts → summary.
+Full reconciliation pass — detect → load config → run pre-scripts →
+install packages → symlink dotfiles → render templates → run scripts →
+summary.
 
 ```sh
 hm apply
@@ -92,6 +93,16 @@ separate bash subprocess with `HM_TAGS`, `HM_REPO`, `HM_HOME`, and every
 Scripts are user code — Homie doesn't enforce idempotency. Convention is
 that each script is individually idempotent (e.g. `command -v X && exit
 0` at the top).
+
+Flags:
+
+- `--phase=post` (default) — every script whose name does NOT begin with
+  `pre-`. The "scripts" step of `hm apply`.
+- `--phase=pre` — only `pre-*.sh` scripts. The "pre-scripts" step of
+  `hm apply`; useful for setting up third-party package sources before
+  `hm install`.
+- `--phase=all` — pre-scripts then post-scripts, matching the order
+  `hm apply` uses.
 
 ---
 

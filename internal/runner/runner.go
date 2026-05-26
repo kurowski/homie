@@ -29,6 +29,44 @@ const ScriptsDir = "scripts"
 // Other files (READMEs, libs, partials) sit in scripts/ untouched.
 const Extension = ".sh"
 
+// PrePrefix marks a script as belonging to the pre-package phase. Scripts
+// whose basename starts with this prefix run before `[packages]` install;
+// every other *.sh script runs in the post-package phase.
+const PrePrefix = "pre-"
+
+// Phase selects which set of scripts Run executes. The pre-package phase
+// is for installing third-party package sources (dnf COPRs, apt
+// signed-by keyrings, RPM Fusion, flatpak remotes) that must exist before
+// `[packages]` resolves — see issue #2 for the rationale.
+type Phase int
+
+const (
+	PhasePre  Phase = iota // pre-*.sh
+	PhasePost              // every other *.sh
+)
+
+// String returns the lowercase name used by `hm run --phase=<name>`.
+func (p Phase) String() string {
+	switch p {
+	case PhasePre:
+		return "pre"
+	default:
+		return "post"
+	}
+}
+
+// scriptPhase classifies a script by filename. Lowercase comparison
+// matches the convention but doesn't try to canonicalize — users
+// naming their files `pre-foo.sh` get the pre phase; `Pre-foo.sh`
+// (capital P) does not. Keeping it case-sensitive matches the unix
+// filesystem convention.
+func scriptPhase(name string) Phase {
+	if strings.HasPrefix(name, PrePrefix) {
+		return PhasePre
+	}
+	return PhasePost
+}
+
 // ScriptRun records the outcome of one script invocation.
 type ScriptRun struct {
 	Path string // absolute path of the script
@@ -41,15 +79,15 @@ type Result struct {
 	Errors []error
 }
 
-// Run executes <repoDir>/scripts/*.sh in lexical order. Each script
-// gets HM_REPO, HM_HOME, HM_TAGS (comma-joined) plus every cfg.Vars
-// entry exported in its environment. Stdout and stderr are streamed
-// to out so the user sees progress live.
+// Run executes <repoDir>/scripts/*.sh matching the given phase in
+// lexical order. Each script gets HM_REPO, HM_HOME, HM_TAGS
+// (comma-joined) plus every cfg.Vars entry exported in its environment.
+// Stdout and stderr are streamed to out so the user sees progress live.
 //
 // A missing scripts directory is a no-op (the user repo may legitimately
 // have none). Individual script failures don't abort the run; they're
 // collected in Result.Errors.
-func Run(repoDir, home string, cfg config.Config, tags []string, out io.Writer) Result {
+func Run(repoDir, home string, cfg config.Config, tags []string, phase Phase, out io.Writer) Result {
 	var res Result
 	dir := filepath.Join(repoDir, ScriptsDir)
 	entries, err := os.ReadDir(dir)
@@ -64,6 +102,9 @@ func Run(repoDir, home string, cfg config.Config, tags []string, out io.Writer) 
 	var scripts []string
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), Extension) {
+			continue
+		}
+		if scriptPhase(e.Name()) != phase {
 			continue
 		}
 		scripts = append(scripts, filepath.Join(dir, e.Name()))

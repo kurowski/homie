@@ -26,7 +26,7 @@ var (
 
 var applyCmd = &cobra.Command{
 	Use:   "apply",
-	Short: "Full reconciliation: detect → packages → link → render → scripts",
+	Short: "Full reconciliation: detect → pre-scripts → packages → link → render → scripts",
 	RunE:  runApply,
 }
 
@@ -60,10 +60,11 @@ func runApply(cmd *cobra.Command, args []string) error {
 	defer func() { _ = u.Close() }()
 
 	var errs []error
+	errs = append(errs, applyScriptPhase(u, repoDir, home, cfg, env, runner.PhasePre)...)
 	errs = append(errs, applyPackages(u, cfg, env)...)
 	errs = append(errs, applyLink(u, repoDir, home)...)
 	errs = append(errs, applyRender(u, repoDir, home, cfg, env)...)
-	errs = append(errs, applyScripts(u, repoDir, home, cfg, env)...)
+	errs = append(errs, applyScriptPhase(u, repoDir, home, cfg, env, runner.PhasePost)...)
 
 	u.Summary(errs)
 	if len(errs) > 0 {
@@ -155,15 +156,19 @@ func applyRender(u ui.UI, repoDir, home string, cfg config.Config, env detect.En
 	return res.Errors
 }
 
-func applyScripts(u ui.UI, repoDir, home string, cfg config.Config, env detect.Env) []error {
-	u.Phase("scripts")
+func applyScriptPhase(u ui.UI, repoDir, home string, cfg config.Config, env detect.Env, phase runner.Phase) []error {
+	label := "scripts"
+	if phase == runner.PhasePre {
+		label = "pre-scripts"
+	}
+	u.Phase(label)
 	if applySkipScripts {
 		u.Info("skipped (--skip-scripts)")
 		return nil
 	}
-	res := runner.Run(repoDir, home, cfg, cfg.AllTags(env), u.Writer())
+	res := runner.Run(repoDir, home, cfg, cfg.AllTags(env), phase, u.Writer())
 	if len(res.Ran) == 0 {
-		u.Info("no scripts")
+		u.Info("no " + label)
 		return nil
 	}
 	for _, r := range res.Ran {

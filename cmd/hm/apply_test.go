@@ -115,6 +115,41 @@ func TestApplyEndToEnd(t *testing.T) {
 	}
 }
 
+func TestApplyRunsPreScriptsBeforePackages(t *testing.T) {
+	repo := fixtureRepo(t)
+	home := t.TempDir()
+	t.Setenv("HM_REPO", repo)
+	// pre-*.sh records the time it ran; the post-script in fixtureRepo
+	// records its own. Pre must run strictly before post.
+	writeFile(t, filepath.Join(repo, "scripts", "pre-00-repos.sh"),
+		`date +%s%N > "$HM_HOME/pre-marker"`, 0o755)
+
+	out, err := runApplyCmd(t, []string{"apply", "--home", home, "--skip-packages"})
+	if err != nil {
+		t.Fatalf("apply: %v\n%s", err, out)
+	}
+	preRaw, err := os.ReadFile(filepath.Join(home, "pre-marker"))
+	if err != nil {
+		t.Fatalf("pre-marker missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, "script-ran-marker")); err != nil {
+		t.Errorf("post-script marker missing: %v", err)
+	}
+	if len(strings.TrimSpace(string(preRaw))) == 0 {
+		t.Errorf("pre-marker empty")
+	}
+	// Phase labels appear in the right order in the output stream.
+	pre := strings.Index(out, "pre-scripts")
+	pkgs := strings.Index(out, "packages")
+	post := strings.LastIndex(out, "scripts")
+	if pre < 0 || pkgs < 0 || post < 0 {
+		t.Fatalf("phase labels missing in output:\n%s", out)
+	}
+	if !(pre < pkgs && pkgs < post) {
+		t.Errorf("phase ordering wrong: pre=%d packages=%d scripts=%d\n%s", pre, pkgs, post, out)
+	}
+}
+
 func TestApplyIsIdempotent(t *testing.T) {
 	repo := fixtureRepo(t)
 	home := t.TempDir()

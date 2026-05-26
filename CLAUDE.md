@@ -274,11 +274,11 @@ Rendering rules:
 
 ```
 hm init              # scaffold a new user environment repo (run once, interactively)
-hm apply             # full reconciliation: detect → packages → link → render → scripts
+hm apply             # full reconciliation: detect → pre-scripts → packages → link → render → scripts
 hm link              # dotfiles only
 hm render            # templates only
 hm install           # packages only
-hm run               # scripts only
+hm run               # scripts only (default phase=post; --phase=pre|all)
 hm status            # show sync state, no changes
 hm doctor            # check for broken symlinks, missing deps, common problems
 ```
@@ -288,6 +288,19 @@ root of a user environment repo, or with `HM_REPO` pointing to one.
 
 `hm init` is interactive — prompts for name, email, GitHub username, profile,
 generates the repo scaffold, and prints next steps.
+
+### Pre-package scripts (`scripts/pre-*.sh`)
+
+Scripts under `scripts/` whose basename starts with `pre-` run **before**
+the package install phase. This is for adding third-party package sources
+that `[packages]` would otherwise fail to resolve: dnf COPRs, custom
+`.repo` files + GPG keys (VS Code, 1Password, Docker, HashiCorp), apt
+`signed-by` keyrings, RPM Fusion release RPMs, Flatpak remote setup, etc.
+
+Every other `scripts/*.sh` runs after as today. Both groups are still
+ordered lexically within their phase, and both receive the same env
+(`HM_REPO`, `HM_HOME`, `HM_TAGS`, plus `[vars]`). Idempotency remains the
+script author's job — Homie does not deduplicate.
 
 ---
 
