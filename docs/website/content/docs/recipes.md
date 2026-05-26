@@ -189,6 +189,60 @@ hosts where secrets aren't available, and the template skips itself.
 
 ---
 
+## Third-party package repos via pre-scripts
+
+`[packages]` runs against the native package manager — `dnf` or `apt`.
+To install something that lives in a *third-party* repo (VS Code,
+1Password, HashiCorp, Docker, RPM Fusion, etc.) you need that repo
+registered with the package manager **before** `hm apply`'s install
+step. That's what `scripts/pre-*.sh` is for: every script whose name
+begins with `pre-` runs ahead of the package phase.
+
+Lifecycle, end to end:
+
+```
+detect → pre-scripts → packages → link → render → scripts
+```
+
+Same env (`HM_REPO`, `HM_HOME`, `HM_TAGS`, `[vars]`) as the post-scripts
+you already write. Both groups are ordered lexically inside their phase,
+and each script is responsible for its own idempotency.
+
+`scripts/pre-01-vscode-repo.sh` (Fedora):
+
+```sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Idempotent: skip if already configured.
+test -f /etc/yum.repos.d/vscode.repo && exit 0
+
+sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
+sudo tee /etc/yum.repos.d/vscode.repo > /dev/null <<EOF
+[code]
+name=Visual Studio Code
+baseurl=https://packages.microsoft.com/yumrepos/vscode
+enabled=1
+gpgcheck=1
+gpgkey=https://packages.microsoft.com/keys/microsoft.asc
+EOF
+```
+
+`homie.toml`:
+
+```toml
+[packages]
+fedora = ["code"]
+```
+
+To run only the pre-scripts without touching packages or dotfiles:
+
+```sh
+hm run --phase=pre
+```
+
+---
+
 ## CI verification step
 
 A useful idiom: run `hm status` and `hm doctor` in CI on the user

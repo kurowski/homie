@@ -22,7 +22,7 @@ func writeScript(t *testing.T, repo, name, body string) {
 }
 
 func TestRunNoScriptsDir(t *testing.T) {
-	res := Run(t.TempDir(), t.TempDir(), config.Config{}, nil, new(bytes.Buffer))
+	res := Run(t.TempDir(), t.TempDir(), config.Config{}, nil, PhasePost, new(bytes.Buffer))
 	if len(res.Ran) != 0 || len(res.Errors) != 0 {
 		t.Errorf("expected empty result, got %+v", res)
 	}
@@ -49,7 +49,7 @@ func TestRunLexicalOrderAndEnv(t *testing.T) {
 			"WORK_EMAIL": "scout@work.example.com",
 		},
 	}
-	res := Run(repo, home, cfg, []string{"fedora", "amd64", "personal"}, new(bytes.Buffer))
+	res := Run(repo, home, cfg, []string{"fedora", "amd64", "personal"}, PhasePost, new(bytes.Buffer))
 	if len(res.Errors) != 0 {
 		t.Fatalf("errors: %v", res.Errors)
 	}
@@ -91,7 +91,7 @@ func TestRunCollectsErrorsAndKeepsGoing(t *testing.T) {
 	writeScript(t, repo, "03-ok.sh", `echo third > "$HM_HOME/third"`)
 
 	out := new(bytes.Buffer)
-	res := Run(repo, home, config.Config{}, nil, out)
+	res := Run(repo, home, config.Config{}, nil, PhasePost, out)
 	if len(res.Ran) != 3 {
 		t.Errorf("Ran = %d, want 3 (one error mid-run should not abort)", len(res.Ran))
 	}
@@ -108,11 +108,66 @@ func TestRunCollectsErrorsAndKeepsGoing(t *testing.T) {
 	}
 }
 
+func TestRunPhaseFilter(t *testing.T) {
+	repo := t.TempDir()
+	home := t.TempDir()
+	writeScript(t, repo, "pre-01-repos.sh", `printf "pre1\n" >> "$HM_HOME/log"`)
+	writeScript(t, repo, "pre-02-keys.sh", `printf "pre2\n" >> "$HM_HOME/log"`)
+	writeScript(t, repo, "01-tools.sh", `printf "post1\n" >> "$HM_HOME/log"`)
+	writeScript(t, repo, "02-shell.sh", `printf "post2\n" >> "$HM_HOME/log"`)
+
+	pre := Run(repo, home, config.Config{}, nil, PhasePre, new(bytes.Buffer))
+	if len(pre.Errors) != 0 {
+		t.Fatalf("pre errors: %v", pre.Errors)
+	}
+	if got := scriptNames(pre); !equal(got, []string{"pre-01-repos.sh", "pre-02-keys.sh"}) {
+		t.Errorf("pre Ran = %v, want [pre-01-repos.sh pre-02-keys.sh]", got)
+	}
+
+	post := Run(repo, home, config.Config{}, nil, PhasePost, new(bytes.Buffer))
+	if len(post.Errors) != 0 {
+		t.Fatalf("post errors: %v", post.Errors)
+	}
+	if got := scriptNames(post); !equal(got, []string{"01-tools.sh", "02-shell.sh"}) {
+		t.Errorf("post Ran = %v, want [01-tools.sh 02-shell.sh]", got)
+	}
+
+	// Marker file confirms both phases executed in order: pre1, pre2, post1, post2.
+	data, err := os.ReadFile(filepath.Join(home, "log"))
+	if err != nil {
+		t.Fatalf("log: %v", err)
+	}
+	want := "pre1\npre2\npost1\npost2\n"
+	if string(data) != want {
+		t.Errorf("log =\n%s\nwant:\n%s", data, want)
+	}
+}
+
+func scriptNames(res Result) []string {
+	out := make([]string, 0, len(res.Ran))
+	for _, r := range res.Ran {
+		out = append(out, filepath.Base(r.Path))
+	}
+	return out
+}
+
+func equal(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func TestRunStreamsOutput(t *testing.T) {
 	repo := t.TempDir()
 	writeScript(t, repo, "00-talk.sh", `echo hello`)
 	out := new(bytes.Buffer)
-	res := Run(repo, t.TempDir(), config.Config{}, nil, out)
+	res := Run(repo, t.TempDir(), config.Config{}, nil, PhasePost, out)
 	if len(res.Errors) != 0 {
 		t.Fatalf("errors: %v", res.Errors)
 	}
