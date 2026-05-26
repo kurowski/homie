@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kurowski/homie/internal/config"
 	"github.com/kurowski/homie/internal/detect"
@@ -60,7 +61,13 @@ func runRun(cmd *cobra.Command, args []string) error {
 	w := cmd.OutOrStdout()
 	tags := cfg.AllTags(env)
 	var ran, failed int
-	for _, p := range phases {
+	for i, p := range phases {
+		if len(phases) > 1 {
+			if i > 0 {
+				fmt.Fprintln(w)
+			}
+			fmt.Fprintf(w, "== %s-scripts ==\n", p)
+		}
 		res := runner.Run(repoDir, home, cfg, tags, p, w)
 		ran += len(res.Ran)
 		failed += len(res.Errors)
@@ -74,12 +81,43 @@ func runRun(cmd *cobra.Command, args []string) error {
 	}
 	if ran == 0 {
 		fmt.Fprintln(w, "No scripts to run.")
+		// If the user only asked for one phase but the other has scripts,
+		// nudge them toward the right flag rather than leave them wondering.
+		if len(phases) == 1 {
+			if other := otherPhase(phases[0]); hasScripts(repoDir, other) {
+				fmt.Fprintf(w, "Hint: %s-scripts exist — try `hm run --phase=%s`.\n", other, other)
+			}
+		}
 		return nil
 	}
 	if failed > 0 {
 		return fmt.Errorf("%d script(s) failed", failed)
 	}
 	return nil
+}
+
+// otherPhase returns the phase opposite to p — used to suggest the flag
+// when `hm run` runs the requested phase and finds nothing.
+func otherPhase(p runner.Phase) runner.Phase {
+	if p == runner.PhasePre {
+		return runner.PhasePost
+	}
+	return runner.PhasePre
+}
+
+// hasScripts reports whether any *.sh file in <repoDir>/scripts belongs
+// to the given phase. Errors are swallowed — the caller only uses this
+// to gate an optional hint message.
+func hasScripts(repoDir string, phase runner.Phase) bool {
+	matches, _ := filepath.Glob(filepath.Join(repoDir, runner.ScriptsDir, "*"+runner.Extension))
+	for _, m := range matches {
+		name := filepath.Base(m)
+		isPre := strings.HasPrefix(name, runner.PrePrefix)
+		if (phase == runner.PhasePre) == isPre {
+			return true
+		}
+	}
+	return false
 }
 
 // parseRunPhase resolves the --phase flag to one or two runner.Phase

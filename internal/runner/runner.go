@@ -38,11 +38,14 @@ const PrePrefix = "pre-"
 // is for installing third-party package sources (dnf COPRs, apt
 // signed-by keyrings, RPM Fusion, flatpak remotes) that must exist before
 // `[packages]` resolves — see issue #2 for the rationale.
+//
+// PhasePost is iota (the zero value) so a default-constructed Phase
+// matches `hm run`'s default.
 type Phase int
 
 const (
-	PhasePre  Phase = iota // pre-*.sh
-	PhasePost              // every other *.sh
+	PhasePost Phase = iota // every *.sh whose basename does not start with pre-
+	PhasePre               // pre-*.sh
 )
 
 // String returns the lowercase name used by `hm run --phase=<name>`.
@@ -50,8 +53,10 @@ func (p Phase) String() string {
 	switch p {
 	case PhasePre:
 		return "pre"
-	default:
+	case PhasePost:
 		return "post"
+	default:
+		return fmt.Sprintf("phase(%d)", int(p))
 	}
 }
 

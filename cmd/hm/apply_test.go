@@ -139,9 +139,11 @@ func TestApplyRunsPreScriptsBeforePackages(t *testing.T) {
 		t.Errorf("pre-marker empty")
 	}
 	// Phase labels appear in the right order in the output stream.
-	pre := strings.Index(out, "pre-scripts")
-	pkgs := strings.Index(out, "packages")
-	post := strings.LastIndex(out, "scripts")
+	// Use the full bracketed form so "== scripts ==" doesn't match the
+	// "== pre-scripts ==" header (substring trap).
+	pre := strings.Index(out, "== pre-scripts ==")
+	pkgs := strings.Index(out, "== packages ==")
+	post := strings.Index(out, "== scripts ==")
 	if pre < 0 || pkgs < 0 || post < 0 {
 		t.Fatalf("phase labels missing in output:\n%s", out)
 	}
