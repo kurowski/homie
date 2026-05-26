@@ -57,12 +57,16 @@ Flags:
 
 ## `hm link`
 
-Just the dotfile phase of `apply`. Walks `dotfiles/` and ensures every
-file under it is symlinked into `$HOME` at the matching path.
+Just the dotfile phase of `apply`. Walks `dotfiles/` and any active
+sibling tree named `dotfiles.tag-<X>[.tag-<Y>...]` (only included when
+every named tag is active on this host), then ensures every file under
+those trees is symlinked into `$HOME` at the matching path.
 
 Conflicts (a real file exists at the destination) are backed up to
 `<path>.homie-backup-<timestamp>` before linking — Homie never silently
-overwrites your data.
+overwrites your data. If two trees produce the same target path, `hm
+link` errors out — pick one source or express the override in a
+template.
 
 ---
 

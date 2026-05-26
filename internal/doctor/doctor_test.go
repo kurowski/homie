@@ -201,6 +201,58 @@ func TestRunReportsUnknownDistro(t *testing.T) {
 	}
 }
 
+func TestRunReportsInactiveTaggedTreeDirs(t *testing.T) {
+	repo, home := makeRepo(t)
+	// dotfiles.tag-work exists but the host doesn't have the work tag —
+	// it should surface as informational, not an error or warning.
+	mk := func(rel string) {
+		path := filepath.Join(repo, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("dotfiles.tag-work/.config/work-only")
+	mk("templates.tag-work/.work.tmpl")
+
+	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
+	r := Run(repo, home, sampleCfg(), env,
+		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}})
+
+	// Both info findings should be present, on the correct areas.
+	var dotInfo, tplInfo bool
+	for _, f := range r.Findings {
+		if f.Severity != SeverityInfo {
+			continue
+		}
+		switch f.Area {
+		case "link":
+			if strings.Contains(f.Message, "dotfiles.tag-work") {
+				dotInfo = true
+			}
+		case "render":
+			if strings.Contains(f.Message, "templates.tag-work") {
+				tplInfo = true
+			}
+		}
+	}
+	if !dotInfo {
+		t.Errorf("expected info finding for dotfiles.tag-work, got:\n%+v", r.Findings)
+	}
+	if !tplInfo {
+		t.Errorf("expected info finding for templates.tag-work, got:\n%+v", r.Findings)
+	}
+	// Info findings must not flip HasErrors or count as warnings.
+	if r.HasErrors() {
+		t.Errorf("info findings should not register as errors")
+	}
+	if _, warns := r.Counts(); warns > 0 {
+		t.Errorf("info findings should not count as warnings, got %d warns", warns)
+	}
+}
+
 func TestRunReportsMissingHostname(t *testing.T) {
 	repo, home := makeRepo(t)
 	env := detect.Env{Distro: "ubuntu", PackageManager: "apt"} // Hostname unset

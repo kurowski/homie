@@ -62,7 +62,7 @@ func runApply(cmd *cobra.Command, args []string) error {
 	var errs []error
 	errs = append(errs, applyScriptPhase(u, repoDir, home, cfg, env, runner.PhasePre)...)
 	errs = append(errs, applyPackages(u, cfg, env)...)
-	errs = append(errs, applyLink(u, repoDir, home)...)
+	errs = append(errs, applyLink(u, repoDir, home, cfg, env)...)
 	errs = append(errs, applyRender(u, repoDir, home, cfg, env)...)
 	errs = append(errs, applyScriptPhase(u, repoDir, home, cfg, env, runner.PhasePost)...)
 
@@ -114,9 +114,9 @@ func applyPackages(u ui.UI, cfg config.Config, env detect.Env) []error {
 	return nil
 }
 
-func applyLink(u ui.UI, repoDir, home string) []error {
+func applyLink(u ui.UI, repoDir, home string, cfg config.Config, env detect.Env) []error {
 	u.Phase("link")
-	actions, err := link.Plan(repoDir, home)
+	actions, err := link.Plan(repoDir, home, cfg.AllTags(env))
 	if err != nil {
 		return []error{err}
 	}

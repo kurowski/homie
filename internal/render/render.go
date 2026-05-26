@@ -20,9 +20,13 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"github.com/kurowski/homie/internal/config"
 	"github.com/kurowski/homie/internal/detect"
+	"github.com/kurowski/homie/internal/link"
 )
 
-// TemplatesDir is the directory under the user repo that holds .tmpl files.
+// TemplatesDir is the base directory under the user repo that holds
+// .tmpl files. Sibling directories named `templates.tag-X[.tag-Y...]`
+// are additional, tag-conditional trees — same convention as
+// link.DotfilesDir's dotfiles.tag-X siblings.
 const TemplatesDir = "templates"
 
 // Extension is the suffix stripped from template filenames during rendering.
@@ -112,54 +116,59 @@ type Result struct {
 	Errors   []error
 }
 
-// Apply walks <repoDir>/templates and renders every *.tmpl into <home> with
-// the .tmpl suffix stripped. If the templates directory is missing, Apply
-// returns an empty result with no error. Non-fatal per-file errors are
-// collected in Result.Errors so the rest of `hm apply` can continue.
+// Apply walks every active template tree (<repoDir>/templates plus any
+// tag-gated templates.tag-<X> siblings whose tags are all active) and
+// renders each *.tmpl into <home> with the .tmpl suffix stripped. If no
+// template tree exists, Apply returns an empty result with no error.
+// Non-fatal per-file errors are collected in Result.Errors so the rest
+// of `hm apply` can continue. A collision (two trees producing the same
+// target) is recorded as an error but doesn't abort the run.
 func Apply(repoDir, home string, cfg config.Config, env detect.Env) Result {
 	var res Result
-	src := filepath.Join(repoDir, TemplatesDir)
-	info, err := os.Stat(src)
-	if errors.Is(err, fs.ErrNotExist) {
-		return res
-	}
+	tags := cfg.AllTags(env)
+	roots, err := link.ActiveTrees(repoDir, TemplatesDir, tags)
 	if err != nil {
-		res.Errors = append(res.Errors, fmt.Errorf("stat %s: %w", src, err))
-		return res
-	}
-	if !info.IsDir() {
-		res.Errors = append(res.Errors, fmt.Errorf("%s is not a directory", src))
+		res.Errors = append(res.Errors, err)
 		return res
 	}
 
 	data := BuildData(cfg, env)
-	_ = filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			res.Errors = append(res.Errors, walkErr)
+	claimed := make(map[string]string) // target -> source path that produced it
+	for _, src := range roots {
+		_ = filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				res.Errors = append(res.Errors, walkErr)
+				return nil
+			}
+			if d.IsDir() || !strings.HasSuffix(d.Name(), Extension) {
+				return nil
+			}
+			rel, err := filepath.Rel(src, path)
+			if err != nil {
+				res.Errors = append(res.Errors, err)
+				return nil
+			}
+			target := filepath.Join(home, strings.TrimSuffix(rel, Extension))
+			if prev, ok := claimed[target]; ok {
+				res.Errors = append(res.Errors,
+					fmt.Errorf("%s is claimed by both %s and %s — pick one tree", target, prev, path))
+				return nil
+			}
+			claimed[target] = path
+			written, err := renderFile(path, target, data)
+			if err != nil {
+				res.Errors = append(res.Errors, fmt.Errorf("%s: %w", path, err))
+				return nil
+			}
+			action := Action{Source: path, Target: target}
+			if written {
+				res.Rendered = append(res.Rendered, action)
+			} else {
+				res.Skipped = append(res.Skipped, action)
+			}
 			return nil
-		}
-		if d.IsDir() || !strings.HasSuffix(d.Name(), Extension) {
-			return nil
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			res.Errors = append(res.Errors, err)
-			return nil
-		}
-		target := filepath.Join(home, strings.TrimSuffix(rel, Extension))
-		written, err := renderFile(path, target, data)
-		if err != nil {
-			res.Errors = append(res.Errors, fmt.Errorf("%s: %w", path, err))
-			return nil
-		}
-		action := Action{Source: path, Target: target}
-		if written {
-			res.Rendered = append(res.Rendered, action)
-		} else {
-			res.Skipped = append(res.Skipped, action)
-		}
-		return nil
-	})
+		})
+	}
 	return res
 }
 

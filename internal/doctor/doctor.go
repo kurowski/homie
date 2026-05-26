@@ -29,6 +29,11 @@ type Severity string
 const (
 	SeverityError Severity = "error"
 	SeverityWarn  Severity = "warn"
+	// SeverityInfo is for context the user might want to confirm but
+	// shouldn't act on — for example, tag-gated tree directories that
+	// aren't active on this host. Info findings don't count toward
+	// HasErrors or the warn count.
+	SeverityInfo Severity = "info"
 )
 
 // Finding is one issue surfaced by Run.
@@ -74,7 +79,7 @@ func Run(repoDir, home string, cfg config.Config, env detect.Env, mgr packages.M
 	var r Report
 	r.checkEnv(env)
 	r.checkConfig(cfg)
-	r.checkLinks(repoDir, home)
+	r.checkLinks(repoDir, home, cfg, env)
 	r.checkTemplates(repoDir, home, cfg, env)
 	r.checkPackages(cfg, env, mgr)
 	r.checkScripts(repoDir)
@@ -102,8 +107,8 @@ func (r *Report) checkConfig(cfg config.Config) {
 	}
 }
 
-func (r *Report) checkLinks(repoDir, home string) {
-	actions, err := link.Plan(repoDir, home)
+func (r *Report) checkLinks(repoDir, home string, cfg config.Config, env detect.Env) {
+	actions, err := link.Plan(repoDir, home, cfg.AllTags(env))
 	if err != nil {
 		r.add(SeverityError, "link", fmt.Sprintf("plan dotfiles: %v", err))
 		return
@@ -124,23 +129,35 @@ func (r *Report) checkLinks(repoDir, home string) {
 	}
 	// Detect broken symlinks: a homie-managed symlink whose source file
 	// has been removed from the repo. Plan only surfaces files still in
-	// dotfiles/, so we walk $HOME for symlinks pointing into the repo's
-	// dotfiles dir and flag any whose target is missing.
-	dotfiles := filepath.Join(repoDir, link.DotfilesDir)
-	if _, err := os.Stat(dotfiles); err == nil {
-		broken := findBrokenLinks(home, dotfiles)
-		sort.Strings(broken)
-		for _, p := range broken {
-			r.add(SeverityError, "link",
-				fmt.Sprintf("%s is a broken symlink (source no longer in repo)", p))
-		}
+	// the active trees, so we walk $HOME for symlinks pointing into any
+	// dotfiles* tree under repoDir and flag any whose target is missing.
+	broken := findBrokenLinks(home, filepath.Join(repoDir, link.DotfilesDir))
+	sort.Strings(broken)
+	for _, p := range broken {
+		r.add(SeverityError, "link",
+			fmt.Sprintf("%s is a broken symlink (source no longer in repo)", p))
+	}
+
+	// Surface tag-gated dotfile trees that won't apply on this host so
+	// the user can confirm their multi-tag layout matches expectations.
+	active := cfg.AllTags(env)
+	for _, p := range inactiveTreeDirs(repoDir, link.DotfilesDir, active) {
+		r.add(SeverityInfo, "link",
+			fmt.Sprintf("%s is not active on this host (tags not satisfied)", p))
 	}
 }
 
 // findBrokenLinks walks home and returns paths of symlinks that point
-// into repoDotfiles but whose target file no longer exists.
-func findBrokenLinks(home, repoDotfiles string) []string {
+// into any homie dotfile tree (the bare dotfiles/ dir or a sibling
+// dotfiles.tag-X/...) but whose target file no longer exists.
+//
+// dotfilesBase is the absolute path of <repoDir>/dotfiles. A symlink
+// dest matches when it starts with that path followed by either a path
+// separator (plain) or "." (tag-gated sibling).
+func findBrokenLinks(home, dotfilesBase string) []string {
 	var out []string
+	plainPrefix := dotfilesBase + string(os.PathSeparator)
+	taggedPrefix := dotfilesBase + "."
 	_ = filepath.WalkDir(home, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // unreadable subtrees are not our problem
@@ -156,7 +173,7 @@ func findBrokenLinks(home, repoDotfiles string) []string {
 		if err != nil {
 			return nil
 		}
-		if !strings.HasPrefix(dest, repoDotfiles+string(os.PathSeparator)) {
+		if !strings.HasPrefix(dest, plainPrefix) && !strings.HasPrefix(dest, taggedPrefix) {
 			return nil
 		}
 		if _, err := os.Stat(dest); errors.Is(err, fs.ErrNotExist) {
@@ -167,49 +184,87 @@ func findBrokenLinks(home, repoDotfiles string) []string {
 	return out
 }
 
-func (r *Report) checkTemplates(repoDir, home string, cfg config.Config, env detect.Env) {
-	src := filepath.Join(repoDir, render.TemplatesDir)
-	info, err := os.Stat(src)
-	if errors.Is(err, fs.ErrNotExist) {
-		return
+// inactiveTreeDirs returns the names of tag-gated tree directories
+// (<base>.tag-X[.tag-Y...]) under repoDir whose tag set is NOT satisfied
+// by the active set. Result is sorted by directory name for stable
+// reporting. Used by doctor to inform the user which tag-gated trees
+// won't apply on this host.
+func inactiveTreeDirs(repoDir, base string, activeTags []string) []string {
+	entries, err := os.ReadDir(repoDir)
+	if err != nil {
+		return nil
 	}
-	if err != nil || !info.IsDir() {
+	activeRoots, _ := link.ActiveTrees(repoDir, base, activeTags)
+	activeSet := make(map[string]struct{}, len(activeRoots))
+	for _, r := range activeRoots {
+		activeSet[filepath.Base(r)] = struct{}{}
+	}
+
+	var out []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		required, ok := link.ParseTreeDir(e.Name(), base)
+		if !ok || len(required) == 0 {
+			continue // not a tagged tree, or the bare base dir
+		}
+		if _, isActive := activeSet[e.Name()]; isActive {
+			continue
+		}
+		out = append(out, e.Name())
+	}
+	sort.Strings(out)
+	return out
+}
+
+func (r *Report) checkTemplates(repoDir, home string, cfg config.Config, env detect.Env) {
+	active := cfg.AllTags(env)
+	roots, err := link.ActiveTrees(repoDir, render.TemplatesDir, active)
+	if err != nil {
+		r.add(SeverityError, "render", err.Error())
 		return
 	}
 	data := render.BuildData(cfg, env)
-	_ = filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), render.Extension) {
-			return nil
-		}
-		rel, _ := filepath.Rel(src, path)
-		target := filepath.Join(home, strings.TrimSuffix(rel, render.Extension))
+	for _, src := range roots {
+		_ = filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), render.Extension) {
+				return nil
+			}
+			rel, _ := filepath.Rel(src, path)
+			target := filepath.Join(home, strings.TrimSuffix(rel, render.Extension))
 
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			r.add(SeverityError, "render", fmt.Sprintf("read %s: %v", path, err))
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				r.add(SeverityError, "render", fmt.Sprintf("read %s: %v", path, err))
+				return nil
+			}
+			want, err := render.Render(string(raw), data)
+			if err != nil {
+				r.add(SeverityError, "render", fmt.Sprintf("%s: %v", path, err))
+				return nil
+			}
+			got, err := os.ReadFile(target)
+			if errors.Is(err, fs.ErrNotExist) {
+				r.add(SeverityWarn, "render",
+					fmt.Sprintf("%s not yet rendered — run `hm apply` or `hm render`", target))
+				return nil
+			}
+			if err != nil {
+				r.add(SeverityError, "render", fmt.Sprintf("read %s: %v", target, err))
+				return nil
+			}
+			if string(got) != want {
+				r.add(SeverityWarn, "render",
+					fmt.Sprintf("%s is stale — re-render to pick up template/var changes", target))
+			}
 			return nil
-		}
-		want, err := render.Render(string(raw), data)
-		if err != nil {
-			r.add(SeverityError, "render", fmt.Sprintf("%s: %v", path, err))
-			return nil
-		}
-		got, err := os.ReadFile(target)
-		if errors.Is(err, fs.ErrNotExist) {
-			r.add(SeverityWarn, "render",
-				fmt.Sprintf("%s not yet rendered — run `hm apply` or `hm render`", target))
-			return nil
-		}
-		if err != nil {
-			r.add(SeverityError, "render", fmt.Sprintf("read %s: %v", target, err))
-			return nil
-		}
-		if string(got) != want {
-			r.add(SeverityWarn, "render",
-				fmt.Sprintf("%s is stale — re-render to pick up template/var changes", target))
-		}
-		return nil
-	})
+		})
+	}
+	for _, p := range inactiveTreeDirs(repoDir, render.TemplatesDir, active) {
+		r.add(SeverityInfo, "render",
+			fmt.Sprintf("%s is not active on this host (tags not satisfied)", p))
+	}
 }
 
 func (r *Report) checkPackages(cfg config.Config, env detect.Env, mgr packages.Manager) {

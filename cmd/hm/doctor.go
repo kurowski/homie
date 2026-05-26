@@ -106,6 +106,7 @@ type doctorStyles struct {
 	area        lipgloss.Style
 	errGlyph    lipgloss.Style
 	warnGlyph   lipgloss.Style
+	infoGlyph   lipgloss.Style
 	ok          lipgloss.Style
 	summaryErr  lipgloss.Style
 	summaryWarn lipgloss.Style
@@ -118,6 +119,8 @@ func (s doctorStyles) glyphFor(sev doctor.Severity) (string, lipgloss.Style) {
 		return "✘", s.errGlyph
 	case doctor.SeverityWarn:
 		return "⚠", s.warnGlyph
+	case doctor.SeverityInfo:
+		return "ℹ", s.infoGlyph
 	default:
 		return "•", s.area
 	}
@@ -135,13 +138,14 @@ func newDoctorStyles(w io.Writer, noTTY bool) doctorStyles {
 			Border(lipgloss.NormalBorder(), false, false, true, false).
 			BorderForeground(lipgloss.Color("245")).
 			Padding(0, 1),
-		area:       r.NewStyle().Bold(true).Foreground(lipgloss.Color("117")),
-		errGlyph:   r.NewStyle().Bold(true).Foreground(lipgloss.Color("203")),
-		warnGlyph:  r.NewStyle().Bold(true).Foreground(lipgloss.Color("214")),
-		ok:         r.NewStyle().Bold(true).Foreground(lipgloss.Color("42")),
-		summaryErr: r.NewStyle().Bold(true).Foreground(lipgloss.Color("203")),
+		area:        r.NewStyle().Bold(true).Foreground(lipgloss.Color("117")),
+		errGlyph:    r.NewStyle().Bold(true).Foreground(lipgloss.Color("203")),
+		warnGlyph:   r.NewStyle().Bold(true).Foreground(lipgloss.Color("214")),
+		infoGlyph:   r.NewStyle().Foreground(lipgloss.Color("245")),
+		ok:          r.NewStyle().Bold(true).Foreground(lipgloss.Color("42")),
+		summaryErr:  r.NewStyle().Bold(true).Foreground(lipgloss.Color("203")),
 		summaryWarn: r.NewStyle().Bold(true).Foreground(lipgloss.Color("214")),
-		summaryOK:  r.NewStyle().Bold(true).Foreground(lipgloss.Color("42")),
+		summaryOK:   r.NewStyle().Bold(true).Foreground(lipgloss.Color("42")),
 	}
 }
 

@@ -13,12 +13,19 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
-// DotfilesDir is the directory under the user repo that holds files to
-// be symlinked into $HOME.
+// DotfilesDir is the base directory under the user repo that holds
+// files to be symlinked into $HOME. Sibling directories named
+// `dotfiles.tag-X[.tag-Y...]` are additional, tag-conditional trees;
+// see Plan.
 const DotfilesDir = "dotfiles"
+
+// tagPart is the per-tag prefix inside a tag-conditional dotfiles
+// directory name — e.g. dotfiles.tag-work.tag-kde -> ["work", "kde"].
+const tagPart = "tag-"
 
 // Kind describes what should happen at a target path.
 type Kind string
@@ -53,46 +60,127 @@ type BackupRecord struct {
 	Backup string // absolute path of the backup
 }
 
-// Plan walks <repoDir>/dotfiles and returns one Action per regular file.
-// If the dotfiles directory does not exist, Plan returns an empty slice
-// with no error (the user repo may legitimately have no dotfiles).
-func Plan(repoDir, home string) ([]Action, error) {
-	src := filepath.Join(repoDir, DotfilesDir)
-	info, err := os.Stat(src)
+// Plan walks the active dotfile trees under repoDir and returns one
+// Action per regular file. Trees are:
+//   - <repoDir>/dotfiles (always)
+//   - <repoDir>/dotfiles.tag-<a>[.tag-<b>...] when every named tag is
+//     present in the given tags slice
+//
+// If no dotfile tree exists, Plan returns an empty slice with no error.
+// If two trees contribute the same target path, Plan returns an error
+// — overriding by tag should be expressed in templates, not by stacking
+// dotfile trees. Roots are visited in lexical order so any collision is
+// deterministic.
+func Plan(repoDir, home string, tags []string) ([]Action, error) {
+	roots, err := ActiveTrees(repoDir, DotfilesDir, tags)
+	if err != nil {
+		return nil, err
+	}
+
+	var actions []Action
+	bySource := make(map[string]string) // target -> source that claimed it
+	for _, src := range roots {
+		err := filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if d.IsDir() {
+				return nil
+			}
+			rel, err := filepath.Rel(src, path)
+			if err != nil {
+				return err
+			}
+			target := filepath.Join(home, rel)
+			if prev, ok := bySource[target]; ok {
+				return fmt.Errorf("%s is claimed by both %s and %s — move one into the other tree or use a template", target, prev, path)
+			}
+			bySource[target] = path
+			kind, err := classify(path, target)
+			if err != nil {
+				return err
+			}
+			actions = append(actions, Action{Kind: kind, Source: path, Target: target})
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return actions, nil
+}
+
+// ActiveTrees returns the absolute paths of dotfile/template trees that
+// apply for the given tags. The plain base directory (if it exists) is
+// always first; tag-gated siblings whose required tag set is satisfied
+// follow in lexical name order.
+//
+// base is the bare directory name without a tag suffix — "dotfiles" for
+// dotfile trees, "templates" for template trees. Symmetric naming
+// (templates.tag-X) keeps the convention shared across the two.
+func ActiveTrees(repoDir, base string, tags []string) ([]string, error) {
+	entries, err := os.ReadDir(repoDir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("stat %s: %w", src, err)
-	}
-	if !info.IsDir() {
-		return nil, fmt.Errorf("%s is not a directory", src)
+		return nil, fmt.Errorf("read %s: %w", repoDir, err)
 	}
 
-	var actions []Action
-	err = filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if d.IsDir() {
-			return nil
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(home, rel)
-		kind, err := classify(path, target)
-		if err != nil {
-			return err
-		}
-		actions = append(actions, Action{Kind: kind, Source: path, Target: target})
-		return nil
-	})
-	if err != nil {
-		return nil, err
+	active := make(map[string]struct{}, len(tags))
+	for _, t := range tags {
+		active[t] = struct{}{}
 	}
-	return actions, nil
+
+	var roots []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		required, ok := ParseTreeDir(e.Name(), base)
+		if !ok {
+			continue
+		}
+		if !allActive(required, active) {
+			continue
+		}
+		roots = append(roots, filepath.Join(repoDir, e.Name()))
+	}
+	return roots, nil
+}
+
+// ParseTreeDir returns the tags required by a tagged tree directory
+// named like "<base>.tag-X.tag-Y", or (nil, true) for the bare "<base>"
+// directory. ok is false if name doesn't follow either convention —
+// useful for doctor to distinguish a malformed sibling like
+// "dotfiles.backup" from a legitimate but inactive "dotfiles.tag-work".
+func ParseTreeDir(name, base string) (tags []string, ok bool) {
+	if name == base {
+		return nil, true
+	}
+	rest, hasPrefix := strings.CutPrefix(name, base+".")
+	if !hasPrefix {
+		return nil, false
+	}
+	parts := strings.Split(rest, ".")
+	tags = make([]string, 0, len(parts))
+	for _, p := range parts {
+		tag, hasTag := strings.CutPrefix(p, tagPart)
+		if !hasTag || tag == "" {
+			return nil, false
+		}
+		tags = append(tags, tag)
+	}
+	return tags, true
+}
+
+func allActive(required []string, active map[string]struct{}) bool {
+	for _, t := range required {
+		if _, ok := active[t]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // classify decides what action is needed at target given that source is

@@ -214,6 +214,56 @@ func TestApplySkipsNonTmpl(t *testing.T) {
 	}
 }
 
+func TestApplyTagGatedTemplates(t *testing.T) {
+	repo := t.TempDir()
+	mk := func(rel, body string) {
+		path := filepath.Join(repo, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("templates/base.tmpl", `base {{ .Name }}`)
+	mk("templates.tag-work/work.tmpl", `work {{ .Name }}`)
+	mk("templates.tag-personal/personal.tmpl", `personal {{ .Name }}`)
+
+	cfg := config.Config{User: config.User{Name: "Scout", Email: "scout@homie.sh"}}
+
+	t.Run("no tags renders base only", func(t *testing.T) {
+		home := t.TempDir()
+		res := Apply(repo, home, cfg, detect.Env{})
+		if len(res.Errors) != 0 {
+			t.Fatalf("errors: %v", res.Errors)
+		}
+		if got, err := os.ReadFile(filepath.Join(home, "base")); err != nil {
+			t.Fatalf("base: %v", err)
+		} else if string(got) != "base Scout" {
+			t.Errorf("base content = %q", got)
+		}
+		if _, err := os.Stat(filepath.Join(home, "work")); !os.IsNotExist(err) {
+			t.Errorf("work template should NOT be rendered without the tag")
+		}
+	})
+
+	t.Run("work tag renders the work tree too", func(t *testing.T) {
+		home := t.TempDir()
+		res := Apply(repo, home, cfg, detect.Env{Tags: []string{"work"}})
+		if len(res.Errors) != 0 {
+			t.Fatalf("errors: %v", res.Errors)
+		}
+		for _, want := range []string{"base", "work"} {
+			if _, err := os.Stat(filepath.Join(home, want)); err != nil {
+				t.Errorf("missing rendered file %s: %v", want, err)
+			}
+		}
+		if _, err := os.Stat(filepath.Join(home, "personal")); !os.IsNotExist(err) {
+			t.Errorf("personal template should NOT be rendered on a work host")
+		}
+	})
+}
+
 func TestApplyNoTemplatesDir(t *testing.T) {
 	res := Apply(t.TempDir(), t.TempDir(), config.Config{}, detect.Env{})
 	if len(res.Rendered) != 0 || len(res.Errors) != 0 {
