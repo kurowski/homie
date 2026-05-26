@@ -76,13 +76,14 @@ func (r Report) Counts() (errs, warns int) {
 // Run walks the user repo and host, returning everything that looks off.
 // The Manager is injected so tests can drive package checks without
 // shelling out — `cmd/hm/doctor.go` passes packages.For(env).
-func Run(repoDir, home string, cfg config.Config, env detect.Env, mgr packages.Manager) Report {
+func Run(repoDir, home string, cfg config.Config, env detect.Env, mgr packages.Manager, backendLookup BackendManagerLookup) Report {
 	var r Report
 	r.checkEnv(env)
 	r.checkConfig(cfg)
 	r.checkLinks(repoDir, home, cfg, env)
 	r.checkTemplates(repoDir, home, cfg, env)
 	r.checkPackages(cfg, env, mgr)
+	r.checkBackendPackages(cfg, env, backendLookup)
 	r.checkScripts(repoDir)
 	return r
 }
@@ -279,6 +280,50 @@ func (r *Report) checkTemplates(repoDir, home string, cfg config.Config, env det
 	for _, p := range inactiveTreeDirs(repoDir, render.TemplatesDir, active) {
 		r.add(SeverityInfo, "render",
 			fmt.Sprintf("%s is not active on this host (tags not satisfied)", p))
+	}
+}
+
+// BackendManagerLookup resolves a backend name (e.g. "flatpak", "brew")
+// to a Manager, or nil if the name is unknown. Injected so doctor tests
+// can supply fakes without invoking the real packages.ForBackend.
+type BackendManagerLookup func(name string) packages.Manager
+
+func (r *Report) checkBackendPackages(cfg config.Config, env detect.Env, lookup BackendManagerLookup) {
+	if lookup == nil {
+		return
+	}
+	// Iterate deterministically so warnings appear in a stable order.
+	names := make([]string, 0, len(cfg.Packages.Backends))
+	for n := range cfg.Packages.Backends {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		want := cfg.PackagesForBackend(env, name)
+		if len(want) == 0 {
+			continue
+		}
+		mgr := lookup(name)
+		if mgr == nil {
+			r.add(SeverityWarn, "packages",
+				fmt.Sprintf("backend %q is declared in homie.toml but homie has no Manager for it", name))
+			continue
+		}
+		if !mgr.IsAvailable() {
+			r.add(SeverityWarn, "packages",
+				fmt.Sprintf("%s not on PATH — %d package(s) declared for it will not install", name, len(want)))
+			continue
+		}
+		var missing []string
+		for _, p := range want {
+			if !mgr.IsInstalled(p) {
+				missing = append(missing, p)
+			}
+		}
+		if len(missing) > 0 {
+			r.add(SeverityWarn, "packages",
+				fmt.Sprintf("%s: %d not installed: %s", name, len(missing), strings.Join(missing, ", ")))
+		}
 	}
 }
 

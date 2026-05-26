@@ -58,7 +58,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	mgr := packages.For(env)
 
 	noTTY, _ := cmd.Root().PersistentFlags().GetBool("no-tty")
-	report := doctor.Run(repoDir, home, cfg, env, mgr)
+	report := doctor.Run(repoDir, home, cfg, env, mgr, packages.ForBackend)
 	writeReport(cmd.OutOrStdout(), report, noTTY)
 	if report.HasErrors() {
 		return errSilentExit

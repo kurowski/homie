@@ -44,8 +44,24 @@ func For(env detect.Env) Manager {
 		return &Dnf{Runner: execRunner, Sudo: !env.IsRoot}
 	default:
 		// TODO(contrib): add support for additional package managers
-		// (pacman, zypper, apk, brew). See homie.sh/contributing.
+		// (pacman, zypper, apk). Brew/Flatpak live in ForBackend.
 		return &Noop{Distro: env.Distro}
+	}
+}
+
+// ForBackend returns the Manager for a named non-native backend, or
+// nil if the name isn't recognized. Backends are opt-in: callers
+// invoke this when they see packages declared for the backend in
+// homie.toml, and check IsAvailable before installing so a missing
+// tool degrades to a warning rather than an error.
+func ForBackend(name string) Manager {
+	switch name {
+	case "flatpak":
+		return &Flatpak{Runner: execRunner}
+	case "brew":
+		return &Brew{Runner: execRunner}
+	default:
+		return nil
 	}
 }
 

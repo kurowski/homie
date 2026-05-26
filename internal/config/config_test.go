@@ -175,6 +175,100 @@ func TestPackagesWarnsOnTypos(t *testing.T) {
 	}
 }
 
+func TestPackagesForBackend(t *testing.T) {
+	c, err := Load(filepath.Join("testdata", "backends"), "")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	// Native still works alongside backends.
+	if got := c.PackagesFor(detect.Env{Distro: "fedora"}); !reflect.DeepEqual(got, []string{"git"}) {
+		t.Errorf("PackagesFor(fedora) = %v, want [git]", got)
+	}
+
+	cases := []struct {
+		name    string
+		backend string
+		env     detect.Env
+		want    []string
+	}{
+		{
+			name:    "flatpak base resolves all + distro",
+			backend: "flatpak",
+			env:     detect.Env{Distro: "fedora"},
+			want:    []string{"md.obsidian.Obsidian", "org.localsend.localsend_app"},
+		},
+		{
+			name:    "flatpak picks up tag-keyed entry when tag active",
+			backend: "flatpak",
+			env:     detect.Env{Distro: "fedora", Tags: []string{"work"}},
+			want:    []string{"md.obsidian.Obsidian", "org.localsend.localsend_app", "us.zoom.Zoom"},
+		},
+		{
+			name:    "flatpak skips tag-keyed entry when tag inactive",
+			backend: "flatpak",
+			env:     detect.Env{Distro: "ubuntu"},
+			want:    []string{"md.obsidian.Obsidian"},
+		},
+		{
+			name:    "brew is distro-agnostic via all",
+			backend: "brew",
+			env:     detect.Env{Distro: "fedora"},
+			want:    []string{"fd", "ripgrep"},
+		},
+		{
+			name:    "unknown backend returns nil",
+			backend: "cargo",
+			env:     detect.Env{Distro: "fedora"},
+			want:    nil,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := c.PackagesForBackend(tc.env, tc.backend)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("PackagesForBackend(%q) =\n  got: %v\n want: %v", tc.backend, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestMergeBackends(t *testing.T) {
+	base := Config{
+		Packages: Packages{
+			Backends: map[string]BackendPackages{
+				"flatpak": {
+					Base:  map[string][]string{"all": {"md.obsidian.Obsidian"}},
+					ByTag: map[string]map[string][]string{"work": {"all": {"us.zoom.Zoom"}}},
+				},
+			},
+		},
+	}
+	overlay := Config{
+		Packages: Packages{
+			Backends: map[string]BackendPackages{
+				"flatpak": {
+					Base:  map[string][]string{"all": {"md.obsidian.Obsidian", "io.bassi.Amberol"}}, // overlap on Obsidian
+					ByTag: map[string]map[string][]string{"work": {"all": {"us.zoom.Zoom", "com.slack.Slack"}}},
+				},
+				"brew": {
+					Base: map[string][]string{"all": {"fd"}},
+				},
+			},
+		},
+	}
+	got := merge(base, overlay)
+	if w, want := got.Packages.Backends["flatpak"].Base["all"], []string{"md.obsidian.Obsidian", "io.bassi.Amberol"}; !reflect.DeepEqual(w, want) {
+		t.Errorf("flatpak.Base[all] = %v, want %v (Obsidian deduped)", w, want)
+	}
+	if w, want := got.Packages.Backends["flatpak"].ByTag["work"]["all"], []string{"us.zoom.Zoom", "com.slack.Slack"}; !reflect.DeepEqual(w, want) {
+		t.Errorf("flatpak.ByTag[work][all] = %v, want %v", w, want)
+	}
+	if w, want := got.Packages.Backends["brew"].Base["all"], []string{"fd"}; !reflect.DeepEqual(w, want) {
+		t.Errorf("brew.Base[all] = %v, want %v", w, want)
+	}
+}
+
 func TestPackagesForOrderIsDeterministic(t *testing.T) {
 	c, err := Load(filepath.Join("testdata", "tag-packages"), "")
 	if err != nil {

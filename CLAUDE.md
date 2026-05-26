@@ -282,7 +282,7 @@ Rendering rules:
 
 ```
 hm init              # scaffold a new user environment repo (run once, interactively)
-hm apply             # full reconciliation: detect → pre-scripts → packages → link → render → scripts
+hm apply             # full reconciliation: detect → pre-scripts → packages → brew → flatpak → link → render → scripts
 hm link              # dotfiles only
 hm render            # templates only
 hm install           # packages only
@@ -329,6 +329,40 @@ informational findings.
 Tag names appearing in directory suffixes can't contain `.` (the
 separator between segments). `dotfiles.tag-fedora.42/` parses as two
 segments and rejects on the malformed second one.
+
+### Non-native package backends
+
+Beyond the native package manager (`apt` or `dnf`), `[packages]` accepts
+sub-tables for non-native managers. v1 supports `flatpak` and `brew`:
+
+```toml
+[packages.flatpak]
+all = ["md.obsidian.Obsidian"]
+fedora = ["org.localsend.localsend_app"]
+
+[packages.brew]
+all = ["fd", "ripgrep", "bat"]
+
+[packages."tag:work".flatpak]
+all = ["us.zoom.Zoom"]
+```
+
+Each backend mirrors the base shape: `all`, distro keys, and tag-keyed
+sub-tables (`[packages."tag:X".flatpak]`). Resolution rules and dedup
+are identical to native packages.
+
+Backends are **opt-in by tool presence**. If the backend's CLI tool
+isn't on PATH, `hm apply` logs a warning and skips that phase — it
+doesn't fail. Setting up the flatpak remote (`flatpak remote-add ...`)
+or installing brew lives in `scripts/pre-*.sh` so it runs before the
+backend's install step.
+
+Adding a new backend (cargo, npm, pip, ...) means:
+1. Add the name to `config.KnownBackends`.
+2. Add a `Manager` implementation to `internal/packages` and a case in
+   `packages.ForBackend`.
+3. Add the name to `backendOrder` in `cmd/hm/apply.go` (chosen
+   alphabetically; iteration is deterministic).
 
 ### Pre-package scripts (`scripts/pre-*.sh`)
 

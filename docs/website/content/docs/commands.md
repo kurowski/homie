@@ -37,8 +37,9 @@ hm init \
 ## `hm apply`
 
 Full reconciliation pass — detect → load config → run pre-scripts →
-install packages → symlink dotfiles → render templates → run scripts →
-summary.
+install native packages → install brew packages → install flatpak
+packages → symlink dotfiles → render templates → run scripts → summary.
+Brew/flatpak phases skip with a warning when the tool isn't on PATH.
 
 ```sh
 hm apply
@@ -81,10 +82,13 @@ preserved (so `templates/bin/foo.sh.tmpl` renders executable).
 
 ## `hm install`
 
-Just the package phase. Resolves `[packages].all + [packages].<distro>`
-against the detected package manager and installs any missing entries.
-On unsupported distros, prints a friendly "not yet supported" notice and
-skips.
+Just the package phases. Resolves `[packages].all + [packages].<distro>`
+plus matching `[packages."tag:X"]` against the detected package manager
+and installs missing entries, then runs the non-native backend phases
+(`[packages.brew]`, `[packages.flatpak]`) in the same order. On
+unsupported distros, prints a friendly "not yet supported" notice and
+skips the native phase. When a backend's tool isn't on PATH, prints a
+warning and skips that backend.
 
 ---
 

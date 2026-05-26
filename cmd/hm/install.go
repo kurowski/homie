@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/kurowski/homie/internal/config"
@@ -31,14 +32,36 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	pkgs := cfg.PackagesFor(env)
 	w := cmd.OutOrStdout()
 
-	if len(pkgs) == 0 {
+	native := cfg.PackagesFor(env)
+	declared := len(native) > 0
+	for _, backend := range backendOrder {
+		if len(cfg.PackagesForBackend(env, backend)) > 0 {
+			declared = true
+			break
+		}
+	}
+	if !declared {
 		fmt.Fprintln(w, "No packages declared.")
 		return nil
 	}
 
+	if err := installNative(w, env, native); err != nil {
+		return err
+	}
+	for _, backend := range backendOrder {
+		if err := installBackend(w, cfg, env, backend); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func installNative(w io.Writer, env detect.Env, pkgs []string) error {
+	if len(pkgs) == 0 {
+		return nil
+	}
 	mgr := packages.For(env)
 	if mgr.Name() == "noop" {
 		// TODO(contrib): add support for additional package managers.
@@ -49,7 +72,27 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	if !mgr.IsAvailable() {
 		return fmt.Errorf("package manager %q is not available on PATH", mgr.Name())
 	}
+	return doInstall(w, mgr, pkgs)
+}
 
+func installBackend(w io.Writer, cfg config.Config, env detect.Env, backend string) error {
+	pkgs := cfg.PackagesForBackend(env, backend)
+	if len(pkgs) == 0 {
+		return nil
+	}
+	mgr := packages.ForBackend(backend)
+	if mgr == nil {
+		fmt.Fprintf(w, "  warning  backend %q is not recognized — homie has no Manager for it\n", backend)
+		return nil
+	}
+	if !mgr.IsAvailable() {
+		fmt.Fprintf(w, "  warning  %s not on PATH — skipping (install it or add scripts/pre-*.sh)\n", backend)
+		return nil
+	}
+	return doInstall(w, mgr, pkgs)
+}
+
+func doInstall(w io.Writer, mgr packages.Manager, pkgs []string) error {
 	var todo, already []string
 	for _, p := range pkgs {
 		if mgr.IsInstalled(p) {
@@ -58,16 +101,12 @@ func runInstall(cmd *cobra.Command, args []string) error {
 			todo = append(todo, p)
 		}
 	}
-
 	if len(already) > 0 {
-		fmt.Fprintf(w, "  skip     %d already installed\n", len(already))
+		fmt.Fprintf(w, "  skip     %d already installed (via %s)\n", len(already), mgr.Name())
 	}
 	if len(todo) == 0 {
 		return nil
 	}
 	fmt.Fprintf(w, "  install  %s (via %s)\n", strings.Join(todo, ", "), mgr.Name())
-	if err := mgr.Install(todo); err != nil {
-		return err
-	}
-	return nil
+	return mgr.Install(todo)
 }
