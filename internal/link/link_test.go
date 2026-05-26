@@ -38,7 +38,7 @@ func readSymlink(t *testing.T, p string) string {
 func TestPlanWithoutDotfilesDir(t *testing.T) {
 	repo := t.TempDir()
 	home := t.TempDir()
-	actions, err := Plan(repo, home)
+	actions, err := Plan(repo, home, nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestApplyCreate(t *testing.T) {
 		".config/git/config": "[user]\nname = Scout\n",
 	})
 
-	actions, err := Plan(repo, home)
+	actions, err := Plan(repo, home, nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
@@ -88,11 +88,11 @@ func TestApplyIsIdempotent(t *testing.T) {
 	repo, home := setup(t, map[string]string{".zshrc": "x"})
 
 	// First apply.
-	actions, _ := Plan(repo, home)
+	actions, _ := Plan(repo, home, nil)
 	Apply(actions, time.Now())
 
 	// Second apply must be all skips.
-	actions, _ = Plan(repo, home)
+	actions, _ = Plan(repo, home, nil)
 	if len(actions) != 1 || actions[0].Kind != KindSkip {
 		t.Fatalf("second Plan: %+v, want one skip", actions)
 	}
@@ -118,7 +118,7 @@ func TestApplyReplacesStaleSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	actions, _ := Plan(repo, home)
+	actions, _ := Plan(repo, home, nil)
 	if actions[0].Kind != KindReplace {
 		t.Fatalf("expected KindReplace, got %s", actions[0].Kind)
 	}
@@ -144,7 +144,7 @@ func TestApplyBacksUpRealFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	actions, _ := Plan(repo, home)
+	actions, _ := Plan(repo, home, nil)
 	if actions[0].Kind != KindBackup {
 		t.Fatalf("expected KindBackup, got %s", actions[0].Kind)
 	}
@@ -180,6 +180,106 @@ func TestApplyBacksUpRealFile(t *testing.T) {
 	}
 }
 
+func TestPlanTagGatedDirs(t *testing.T) {
+	repo := t.TempDir()
+	home := t.TempDir()
+	mk := func(rel, content string) {
+		path := filepath.Join(repo, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("dotfiles/.zshrc", "base")
+	mk("dotfiles.tag-work/.config/work-only", "work")
+	mk("dotfiles.tag-personal/.config/personal-only", "personal")
+	mk("dotfiles.tag-work.tag-kde/.config/plasma/rc", "work-and-kde")
+	mk("dotfiles.backup/leftover", "ignored") // not a tag-gated tree; ignored
+	mk("dotfiles.tag-/empty", "ignored")      // empty tag name; not recognized
+
+	cases := []struct {
+		name        string
+		tags        []string
+		wantTargets []string
+	}{
+		{
+			name: "no tags: base only",
+			tags: nil,
+			wantTargets: []string{
+				filepath.Join(home, ".zshrc"),
+			},
+		},
+		{
+			name: "work tag adds work tree",
+			tags: []string{"work"},
+			wantTargets: []string{
+				filepath.Join(home, ".zshrc"),
+				filepath.Join(home, ".config/work-only"),
+			},
+		},
+		{
+			name: "work + kde activates the two-tag tree",
+			tags: []string{"work", "kde"},
+			wantTargets: []string{
+				filepath.Join(home, ".zshrc"),
+				filepath.Join(home, ".config/work-only"),
+				filepath.Join(home, ".config/plasma/rc"),
+			},
+		},
+		{
+			name: "only kde does not activate work-and-kde",
+			tags: []string{"kde"},
+			wantTargets: []string{
+				filepath.Join(home, ".zshrc"),
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			actions, err := Plan(repo, home, tc.tags)
+			if err != nil {
+				t.Fatalf("Plan: %v", err)
+			}
+			got := make([]string, 0, len(actions))
+			for _, a := range actions {
+				got = append(got, a.Target)
+			}
+			sort.Strings(got)
+			want := append([]string(nil), tc.wantTargets...)
+			sort.Strings(want)
+			if strings.Join(got, ",") != strings.Join(want, ",") {
+				t.Errorf("targets:\n got: %v\nwant: %v", got, want)
+			}
+		})
+	}
+}
+
+func TestPlanCollidingTreesError(t *testing.T) {
+	repo := t.TempDir()
+	home := t.TempDir()
+	mk := func(rel, content string) {
+		path := filepath.Join(repo, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("dotfiles/.zshrc", "base")
+	mk("dotfiles.tag-work/.zshrc", "work override")
+
+	_, err := Plan(repo, home, []string{"work"})
+	if err == nil {
+		t.Fatal("expected collision error, got nil")
+	}
+	if !strings.Contains(err.Error(), ".zshrc") {
+		t.Errorf("error missing target path: %v", err)
+	}
+}
+
 func TestPlanMixedKinds(t *testing.T) {
 	repo, home := setup(t, map[string]string{
 		"a": "1",
@@ -200,7 +300,7 @@ func TestPlanMixedKinds(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	actions, err := Plan(repo, home)
+	actions, err := Plan(repo, home, nil)
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}

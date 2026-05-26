@@ -14,10 +14,15 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/kurowski/homie/internal/tree"
 )
 
-// DotfilesDir is the directory under the user repo that holds files to
-// be symlinked into $HOME.
+// DotfilesDir is the base directory under the user repo that holds
+// files to be symlinked into $HOME. Sibling directories named
+// `dotfiles.tag-X[.tag-Y...]` are additional, tag-conditional trees;
+// see Plan. The tree naming convention itself lives in internal/tree,
+// which is shared with templates.
 const DotfilesDir = "dotfiles"
 
 // Kind describes what should happen at a target path.
@@ -53,44 +58,56 @@ type BackupRecord struct {
 	Backup string // absolute path of the backup
 }
 
-// Plan walks <repoDir>/dotfiles and returns one Action per regular file.
-// If the dotfiles directory does not exist, Plan returns an empty slice
-// with no error (the user repo may legitimately have no dotfiles).
-func Plan(repoDir, home string) ([]Action, error) {
-	src := filepath.Join(repoDir, DotfilesDir)
-	info, err := os.Stat(src)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
+// Plan walks the active dotfile trees under repoDir and returns one
+// Action per regular file. Trees are:
+//   - <repoDir>/dotfiles (always)
+//   - <repoDir>/dotfiles.tag-<a>[.tag-<b>...] when every named tag is
+//     present in the given tags slice
+//
+// If no dotfile tree exists, Plan returns an empty slice with no error.
+// If two trees contribute the same target path, Plan fails fast and
+// returns an error — overriding by tag should be expressed in templates,
+// not by stacking dotfile trees. This is stricter than render.Apply,
+// which records per-file collision errors and continues; the asymmetry
+// matches each package's existing error model (Plan/Apply split here,
+// per-file collection there). Roots are visited in lexical order so any
+// collision is deterministic.
+func Plan(repoDir, home string, tags []string) ([]Action, error) {
+	roots, err := tree.Active(repoDir, DotfilesDir, tags)
 	if err != nil {
-		return nil, fmt.Errorf("stat %s: %w", src, err)
-	}
-	if !info.IsDir() {
-		return nil, fmt.Errorf("%s is not a directory", src)
+		return nil, err
 	}
 
 	var actions []Action
-	err = filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if d.IsDir() {
+	bySource := make(map[string]string) // target -> source that claimed it
+	for _, src := range roots {
+		err := filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if d.IsDir() {
+				return nil
+			}
+			rel, err := filepath.Rel(src, path)
+			if err != nil {
+				return err
+			}
+			target := filepath.Join(home, rel)
+			if prev, ok := bySource[target]; ok {
+				return fmt.Errorf("%s is claimed by both %s and %s — move one into the other tree or use a template",
+					tree.RelTo(repoDir, target), tree.RelTo(repoDir, prev), tree.RelTo(repoDir, path))
+			}
+			bySource[target] = path
+			kind, err := classify(path, target)
+			if err != nil {
+				return err
+			}
+			actions = append(actions, Action{Kind: kind, Source: path, Target: target})
 			return nil
-		}
-		rel, err := filepath.Rel(src, path)
+		})
 		if err != nil {
-			return err
+			return nil, err
 		}
-		target := filepath.Join(home, rel)
-		kind, err := classify(path, target)
-		if err != nil {
-			return err
-		}
-		actions = append(actions, Action{Kind: kind, Source: path, Target: target})
-		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
 	return actions, nil
 }

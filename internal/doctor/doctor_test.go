@@ -131,6 +131,35 @@ func TestRunReportsBrokenLink(t *testing.T) {
 	}
 }
 
+func TestRunReportsBrokenLinkIntoTaggedTree(t *testing.T) {
+	repo, home := makeRepo(t)
+	// Source under a tag-gated tree; verifies findBrokenLinks's
+	// taggedPrefix matches `dotfiles.tag-work/...`, not just
+	// `dotfiles/...`.
+	srcDir := filepath.Join(repo, "dotfiles.tag-work")
+	if err := os.MkdirAll(srcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(srcDir, "work-only")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(src, filepath.Join(home, "work-only")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(src); err != nil {
+		t.Fatal(err)
+	}
+
+	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
+	r := Run(repo, home, sampleCfg(), env,
+		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}})
+	msgs := strings.Join(messagesByArea(r, "link"), "\n")
+	if !strings.Contains(msgs, "broken symlink") || !strings.Contains(msgs, "work-only") {
+		t.Errorf("expected broken-symlink message for tag-gated source, got:\n%s", msgs)
+	}
+}
+
 func TestRunReportsMissingPackages(t *testing.T) {
 	repo, home := makeRepo(t)
 	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
@@ -198,6 +227,58 @@ func TestRunReportsUnknownDistro(t *testing.T) {
 	msgs := strings.Join(messagesByArea(r, "env"), "\n")
 	if !strings.Contains(msgs, "not recognized") {
 		t.Errorf("expected unknown-distro warning: %s", msgs)
+	}
+}
+
+func TestRunReportsInactiveTaggedTreeDirs(t *testing.T) {
+	repo, home := makeRepo(t)
+	// dotfiles.tag-work exists but the host doesn't have the work tag —
+	// it should surface as informational, not an error or warning.
+	mk := func(rel string) {
+		path := filepath.Join(repo, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("dotfiles.tag-work/.config/work-only")
+	mk("templates.tag-work/.work.tmpl")
+
+	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
+	r := Run(repo, home, sampleCfg(), env,
+		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}})
+
+	// Both info findings should be present, on the correct areas.
+	var dotInfo, tplInfo bool
+	for _, f := range r.Findings {
+		if f.Severity != SeverityInfo {
+			continue
+		}
+		switch f.Area {
+		case "link":
+			if strings.Contains(f.Message, "dotfiles.tag-work") {
+				dotInfo = true
+			}
+		case "render":
+			if strings.Contains(f.Message, "templates.tag-work") {
+				tplInfo = true
+			}
+		}
+	}
+	if !dotInfo {
+		t.Errorf("expected info finding for dotfiles.tag-work, got:\n%+v", r.Findings)
+	}
+	if !tplInfo {
+		t.Errorf("expected info finding for templates.tag-work, got:\n%+v", r.Findings)
+	}
+	// Info findings must not flip HasErrors or count as warnings.
+	if r.HasErrors() {
+		t.Errorf("info findings should not register as errors")
+	}
+	if _, warns := r.Counts(); warns > 0 {
+		t.Errorf("info findings should not count as warnings, got %d warns", warns)
 	}
 }
 

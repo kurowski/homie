@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/kurowski/homie/internal/config"
+	"github.com/kurowski/homie/internal/detect"
 	"github.com/kurowski/homie/internal/link"
 	"github.com/kurowski/homie/internal/repo"
 	"github.com/spf13/cobra"
@@ -42,7 +44,12 @@ func runLink(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	actions, err := link.Plan(repoDir, home)
+	env := detect.Detect()
+	cfg, err := config.Load(repoDir, env.Hostname)
+	if err != nil {
+		return err
+	}
+	actions, err := link.Plan(repoDir, home, cfg.AllTags(env))
 	if err != nil {
 		return err
 	}

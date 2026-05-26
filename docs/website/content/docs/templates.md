@@ -12,6 +12,36 @@ Rendered files are **real files**, not symlinks — the template is the
 source of truth, the output is the artifact. Source file mode is
 preserved, so `templates/bin/foo.sh.tmpl` renders executable.
 
+### Tag-gated template trees
+
+Sibling directories named `templates.tag-<X>[.tag-<Y>...]` are processed
+only when every named tag is active on the host. Plain `templates/`
+always applies. The dotfiles tree uses the same convention
+(`dotfiles.tag-<X>...`), so the layout is symmetric:
+
+```
+templates/                       # always
+  .gitconfig.tmpl
+templates.tag-work/              # only when hasTag "work"
+  .ssh/config.tmpl
+templates.tag-work.tag-kde/      # AND: both tags must be active
+  .config/plasma/some-template.tmpl
+```
+
+Use this when an entire file is conditional on a tag. For per-line
+conditionals inside a single rendered file, use `{{ if hasTag ... }}`
+within one template — that's what `hasTag` is for. If two trees produce
+the same output path, `hm apply` errors out so the conflict surfaces.
+`hm doctor` lists tag-gated trees that aren't active on the current
+host as informational findings.
+
+Tag names in directory suffixes can't contain `.` — that character is
+how Homie splits multiple tags inside one directory name. So
+`templates.tag-fedora.42/` parses as two segments (`fedora` and `42`),
+and since the second one is malformed (`42` doesn't start with `tag-`),
+the whole directory is rejected. Use only `[A-Za-z0-9_-]`-style tag
+names when naming a tag-gated directory.
+
 ---
 
 ## Syntax

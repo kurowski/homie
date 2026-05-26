@@ -297,6 +297,39 @@ root of a user environment repo, or with `HM_REPO` pointing to one.
 `hm init` is interactive — prompts for name, email, GitHub username, profile,
 generates the repo scaffold, and prints next steps.
 
+### Tag-gated dotfile and template trees
+
+Sibling directories named `dotfiles.tag-<X>[.tag-<Y>...]` and
+`templates.tag-<X>[.tag-<Y>...]` are processed only when every named tag
+is active. Plain `dotfiles/` and `templates/` always apply.
+
+```
+dotfiles/                       # always
+  .zshrc
+dotfiles.tag-work/              # only when hasTag "work"
+  .config/autostart/work.desktop
+dotfiles.tag-work.tag-kde/      # AND: only when both tags active
+  .config/plasma-workspace/...
+templates.tag-personal/         # same convention for templates
+  .gitconfig.tmpl
+```
+
+If two trees produce the same target path, `hm apply` reports an error
+— overriding by tag should be expressed in a single template with
+`{{ if hasTag ... }}`, not by stacking dotfile trees. Two details
+worth knowing:
+- `link.Plan` fails fast on a dotfile collision (no symlinks created).
+- `render.Apply` records each template collision in `Result.Errors`
+  and continues with the rest of the trees.
+
+Either way `hm apply` exits non-zero and surfaces the error. `hm doctor`
+also lists tag-gated trees that aren't active on the current host as
+informational findings.
+
+Tag names appearing in directory suffixes can't contain `.` (the
+separator between segments). `dotfiles.tag-fedora.42/` parses as two
+segments and rejects on the malformed second one.
+
 ### Pre-package scripts (`scripts/pre-*.sh`)
 
 Scripts under `scripts/` whose basename starts with `pre-` run **before**
