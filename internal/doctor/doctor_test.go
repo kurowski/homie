@@ -131,6 +131,35 @@ func TestRunReportsBrokenLink(t *testing.T) {
 	}
 }
 
+func TestRunReportsBrokenLinkIntoTaggedTree(t *testing.T) {
+	repo, home := makeRepo(t)
+	// Source under a tag-gated tree; verifies findBrokenLinks's
+	// taggedPrefix matches `dotfiles.tag-work/...`, not just
+	// `dotfiles/...`.
+	srcDir := filepath.Join(repo, "dotfiles.tag-work")
+	if err := os.MkdirAll(srcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(srcDir, "work-only")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(src, filepath.Join(home, "work-only")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(src); err != nil {
+		t.Fatal(err)
+	}
+
+	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
+	r := Run(repo, home, sampleCfg(), env,
+		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}})
+	msgs := strings.Join(messagesByArea(r, "link"), "\n")
+	if !strings.Contains(msgs, "broken symlink") || !strings.Contains(msgs, "work-only") {
+		t.Errorf("expected broken-symlink message for tag-gated source, got:\n%s", msgs)
+	}
+}
+
 func TestRunReportsMissingPackages(t *testing.T) {
 	repo, home := makeRepo(t)
 	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}

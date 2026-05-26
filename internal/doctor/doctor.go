@@ -154,6 +154,12 @@ func (r *Report) checkLinks(repoDir, home string, cfg config.Config, env detect.
 // dotfilesBase is the absolute path of <repoDir>/dotfiles. A symlink
 // dest matches when it starts with that path followed by either a path
 // separator (plain) or "." (tag-gated sibling).
+//
+// taggedPrefix intentionally matches `dotfiles.<anything>`, not just
+// dirs that pass ParseTreeDir. A stale link into a renamed-away
+// `dotfiles.backup/` is still a broken homie-shaped link the user
+// probably wants to clean up — tightening this to ParseTreeDir would
+// silently lose those reports.
 func findBrokenLinks(home, dotfilesBase string) []string {
 	var out []string
 	plainPrefix := dotfilesBase + string(os.PathSeparator)
@@ -194,10 +200,9 @@ func inactiveTreeDirs(repoDir, base string, activeTags []string) []string {
 	if err != nil {
 		return nil
 	}
-	activeRoots, _ := link.ActiveTrees(repoDir, base, activeTags)
-	activeSet := make(map[string]struct{}, len(activeRoots))
-	for _, r := range activeRoots {
-		activeSet[filepath.Base(r)] = struct{}{}
+	active := make(map[string]struct{}, len(activeTags))
+	for _, t := range activeTags {
+		active[t] = struct{}{}
 	}
 
 	var out []string
@@ -209,10 +214,19 @@ func inactiveTreeDirs(repoDir, base string, activeTags []string) []string {
 		if !ok || len(required) == 0 {
 			continue // not a tagged tree, or the bare base dir
 		}
-		if _, isActive := activeSet[e.Name()]; isActive {
-			continue
+		// "Inactive" means at least one required tag isn't in the
+		// active set — the same test ActiveTrees applies, computed
+		// directly here so we make one ReadDir pass instead of two.
+		satisfied := true
+		for _, t := range required {
+			if _, ok := active[t]; !ok {
+				satisfied = false
+				break
+			}
 		}
-		out = append(out, e.Name())
+		if !satisfied {
+			out = append(out, e.Name())
+		}
 	}
 	sort.Strings(out)
 	return out

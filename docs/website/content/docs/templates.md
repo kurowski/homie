@@ -35,6 +35,13 @@ the same output path, `hm apply` errors out so the conflict surfaces.
 `hm doctor` lists tag-gated trees that aren't active on the current
 host as informational findings.
 
+Tag names in directory suffixes can't contain `.` — that character is
+how Homie splits multiple tags inside one directory name. So
+`templates.tag-fedora.42/` parses as two segments (`fedora` and `42`),
+and since the second one is malformed (`42` doesn't start with `tag-`),
+the whole directory is rejected. Use only `[A-Za-z0-9_-]`-style tag
+names when naming a tag-gated directory.
+
 ---
 
 ## Syntax

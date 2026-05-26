@@ -314,11 +314,21 @@ templates.tag-personal/         # same convention for templates
   .gitconfig.tmpl
 ```
 
-If two trees produce the same target path, `hm apply` errors out —
-overriding by tag should be expressed in a single template with
-`{{ if hasTag ... }}`, not by stacking dotfile trees. `hm doctor`
-surfaces tag-gated trees that aren't active on the current host as
+If two trees produce the same target path, `hm apply` reports an error
+— overriding by tag should be expressed in a single template with
+`{{ if hasTag ... }}`, not by stacking dotfile trees. Two details
+worth knowing:
+- `link.Plan` fails fast on a dotfile collision (no symlinks created).
+- `render.Apply` records each template collision in `Result.Errors`
+  and continues with the rest of the trees.
+
+Either way `hm apply` exits non-zero and surfaces the error. `hm doctor`
+also lists tag-gated trees that aren't active on the current host as
 informational findings.
+
+Tag names appearing in directory suffixes can't contain `.` (the
+separator between segments). `dotfiles.tag-fedora.42/` parses as two
+segments and rejects on the malformed second one.
 
 ### Pre-package scripts (`scripts/pre-*.sh`)
 

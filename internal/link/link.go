@@ -67,10 +67,13 @@ type BackupRecord struct {
 //     present in the given tags slice
 //
 // If no dotfile tree exists, Plan returns an empty slice with no error.
-// If two trees contribute the same target path, Plan returns an error
-// — overriding by tag should be expressed in templates, not by stacking
-// dotfile trees. Roots are visited in lexical order so any collision is
-// deterministic.
+// If two trees contribute the same target path, Plan fails fast and
+// returns an error — overriding by tag should be expressed in templates,
+// not by stacking dotfile trees. This is stricter than render.Apply,
+// which records per-file collision errors and continues; the asymmetry
+// matches each package's existing error model (Plan/Apply split here,
+// per-file collection there). Roots are visited in lexical order so any
+// collision is deterministic.
 func Plan(repoDir, home string, tags []string) ([]Action, error) {
 	roots, err := ActiveTrees(repoDir, DotfilesDir, tags)
 	if err != nil {
@@ -93,7 +96,8 @@ func Plan(repoDir, home string, tags []string) ([]Action, error) {
 			}
 			target := filepath.Join(home, rel)
 			if prev, ok := bySource[target]; ok {
-				return fmt.Errorf("%s is claimed by both %s and %s — move one into the other tree or use a template", target, prev, path)
+				return fmt.Errorf("%s is claimed by both %s and %s — move one into the other tree or use a template",
+					RelTo(repoDir, target), RelTo(repoDir, prev), RelTo(repoDir, path))
 			}
 			bySource[target] = path
 			kind, err := classify(path, target)
@@ -172,6 +176,18 @@ func ParseTreeDir(name, base string) (tags []string, ok bool) {
 		tags = append(tags, tag)
 	}
 	return tags, true
+}
+
+// RelTo returns p as a repo-relative path when it's inside repoDir,
+// otherwise the absolute path unchanged. Used to keep collision error
+// messages readable — the user knows which repo they're in. Exported so
+// render can format its parallel collision messages the same way.
+func RelTo(repoDir, p string) string {
+	rel, err := filepath.Rel(repoDir, p)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return p
+	}
+	return rel
 }
 
 func allActive(required []string, active map[string]struct{}) bool {

@@ -264,6 +264,48 @@ func TestApplyTagGatedTemplates(t *testing.T) {
 	})
 }
 
+func TestApplyCollidingTreesError(t *testing.T) {
+	repo := t.TempDir()
+	home := t.TempDir()
+	mk := func(rel, body string) {
+		path := filepath.Join(repo, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Two trees, both rendering to ~/conf — one from the base, one from
+	// the work-tagged tree.
+	mk("templates/conf.tmpl", `base {{ .Name }}`)
+	mk("templates.tag-work/conf.tmpl", `work {{ .Name }}`)
+	// A non-colliding template in each tree to confirm Apply continues
+	// after recording the collision error.
+	mk("templates/other-base.tmpl", `base other`)
+	mk("templates.tag-work/other-work.tmpl", `work other`)
+
+	cfg := config.Config{User: config.User{Name: "Scout", Email: "scout@homie.sh"}}
+	res := Apply(repo, home, cfg, detect.Env{Tags: []string{"work"}})
+
+	if len(res.Errors) != 1 {
+		t.Fatalf("expected exactly 1 collision error, got %d: %v", len(res.Errors), res.Errors)
+	}
+	msg := res.Errors[0].Error()
+	for _, want := range []string{"claimed by both", "conf", "templates/", "templates.tag-work/"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("collision error missing %q: %s", want, msg)
+		}
+	}
+	// The non-colliding templates from both trees should still render —
+	// render.Apply records per-file errors but doesn't abort the walk.
+	for _, want := range []string{"other-base", "other-work"} {
+		if _, err := os.Stat(filepath.Join(home, want)); err != nil {
+			t.Errorf("non-colliding template %s should have rendered: %v", want, err)
+		}
+	}
+}
+
 func TestApplyNoTemplatesDir(t *testing.T) {
 	res := Apply(t.TempDir(), t.TempDir(), config.Config{}, detect.Env{})
 	if len(res.Rendered) != 0 || len(res.Errors) != 0 {
