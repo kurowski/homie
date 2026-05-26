@@ -200,6 +200,14 @@ all = ["git", "zsh", "neovim", "tmux", "ripgrep", "fd", "fzf"]
 fedora = ["util-linux-user"]
 ubuntu = ["fd-find"]
 
+# Tag-keyed sub-tables contribute only when the matching tag is active.
+[packages."tag:work"]
+fedora = ["kubectl", "helm"]
+ubuntu = ["kubectl"]
+
+[packages."tag:personal"]
+fedora = ["steam", "tailscale"]
+
 [tags]
 extra = ["laptop"]    # merged with auto-detected tags
 

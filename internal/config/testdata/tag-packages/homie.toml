@@ -1,0 +1,20 @@
+[user]
+name  = "Scout Homes"
+email = "scout@homie.sh"
+
+[packages]
+all    = ["git", "zsh"]
+fedora = ["util-linux-user"]
+ubuntu = ["fd-find"]
+
+[packages."tag:work"]
+all    = ["kubectl"]
+fedora = ["helm"]
+ubuntu = ["terraform"]
+
+[packages."tag:personal"]
+fedora = ["steam"]
+
+# Overlap with base: must dedupe.
+[packages."tag:fedora"]
+fedora = ["git", "neovim"]
