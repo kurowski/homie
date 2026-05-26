@@ -20,6 +20,7 @@ import (
 	"github.com/kurowski/homie/internal/packages"
 	"github.com/kurowski/homie/internal/render"
 	"github.com/kurowski/homie/internal/runner"
+	"github.com/kurowski/homie/internal/tree"
 )
 
 // Severity classifies a finding. Errors cause `hm doctor` to exit 1;
@@ -210,7 +211,7 @@ func inactiveTreeDirs(repoDir, base string, activeTags []string) []string {
 		if !e.IsDir() {
 			continue
 		}
-		required, ok := link.ParseTreeDir(e.Name(), base)
+		required, ok := tree.ParseDir(e.Name(), base)
 		if !ok || len(required) == 0 {
 			continue // not a tagged tree, or the bare base dir
 		}
@@ -234,7 +235,7 @@ func inactiveTreeDirs(repoDir, base string, activeTags []string) []string {
 
 func (r *Report) checkTemplates(repoDir, home string, cfg config.Config, env detect.Env) {
 	active := cfg.AllTags(env)
-	roots, err := link.ActiveTrees(repoDir, render.TemplatesDir, active)
+	roots, err := tree.Active(repoDir, render.TemplatesDir, active)
 	if err != nil {
 		r.add(SeverityError, "render", err.Error())
 		return

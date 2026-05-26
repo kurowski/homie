@@ -20,7 +20,7 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"github.com/kurowski/homie/internal/config"
 	"github.com/kurowski/homie/internal/detect"
-	"github.com/kurowski/homie/internal/link"
+	"github.com/kurowski/homie/internal/tree"
 )
 
 // TemplatesDir is the base directory under the user repo that holds
@@ -126,7 +126,7 @@ type Result struct {
 func Apply(repoDir, home string, cfg config.Config, env detect.Env) Result {
 	var res Result
 	tags := cfg.AllTags(env)
-	roots, err := link.ActiveTrees(repoDir, TemplatesDir, tags)
+	roots, err := tree.Active(repoDir, TemplatesDir, tags)
 	if err != nil {
 		res.Errors = append(res.Errors, fmt.Errorf("scan template trees: %w", err))
 		return res
@@ -152,7 +152,7 @@ func Apply(repoDir, home string, cfg config.Config, env detect.Env) Result {
 			if prev, ok := claimed[target]; ok {
 				res.Errors = append(res.Errors,
 					fmt.Errorf("%s is claimed by both %s and %s — pick one tree",
-						link.RelTo(repoDir, target), link.RelTo(repoDir, prev), link.RelTo(repoDir, path)))
+						tree.RelTo(repoDir, target), tree.RelTo(repoDir, prev), tree.RelTo(repoDir, path)))
 				return nil
 			}
 			claimed[target] = path

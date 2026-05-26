@@ -13,19 +13,17 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
+
+	"github.com/kurowski/homie/internal/tree"
 )
 
 // DotfilesDir is the base directory under the user repo that holds
 // files to be symlinked into $HOME. Sibling directories named
 // `dotfiles.tag-X[.tag-Y...]` are additional, tag-conditional trees;
-// see Plan.
+// see Plan. The tree naming convention itself lives in internal/tree,
+// which is shared with templates.
 const DotfilesDir = "dotfiles"
-
-// tagPart is the per-tag prefix inside a tag-conditional dotfiles
-// directory name — e.g. dotfiles.tag-work.tag-kde -> ["work", "kde"].
-const tagPart = "tag-"
 
 // Kind describes what should happen at a target path.
 type Kind string
@@ -75,7 +73,7 @@ type BackupRecord struct {
 // per-file collection there). Roots are visited in lexical order so any
 // collision is deterministic.
 func Plan(repoDir, home string, tags []string) ([]Action, error) {
-	roots, err := ActiveTrees(repoDir, DotfilesDir, tags)
+	roots, err := tree.Active(repoDir, DotfilesDir, tags)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +95,7 @@ func Plan(repoDir, home string, tags []string) ([]Action, error) {
 			target := filepath.Join(home, rel)
 			if prev, ok := bySource[target]; ok {
 				return fmt.Errorf("%s is claimed by both %s and %s — move one into the other tree or use a template",
-					RelTo(repoDir, target), RelTo(repoDir, prev), RelTo(repoDir, path))
+					tree.RelTo(repoDir, target), tree.RelTo(repoDir, prev), tree.RelTo(repoDir, path))
 			}
 			bySource[target] = path
 			kind, err := classify(path, target)
@@ -112,91 +110,6 @@ func Plan(repoDir, home string, tags []string) ([]Action, error) {
 		}
 	}
 	return actions, nil
-}
-
-// ActiveTrees returns the absolute paths of dotfile/template trees that
-// apply for the given tags. The plain base directory (if it exists) is
-// always first; tag-gated siblings whose required tag set is satisfied
-// follow in lexical name order.
-//
-// base is the bare directory name without a tag suffix — "dotfiles" for
-// dotfile trees, "templates" for template trees. Symmetric naming
-// (templates.tag-X) keeps the convention shared across the two.
-func ActiveTrees(repoDir, base string, tags []string) ([]string, error) {
-	entries, err := os.ReadDir(repoDir)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", repoDir, err)
-	}
-
-	active := make(map[string]struct{}, len(tags))
-	for _, t := range tags {
-		active[t] = struct{}{}
-	}
-
-	var roots []string
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		required, ok := ParseTreeDir(e.Name(), base)
-		if !ok {
-			continue
-		}
-		if !allActive(required, active) {
-			continue
-		}
-		roots = append(roots, filepath.Join(repoDir, e.Name()))
-	}
-	return roots, nil
-}
-
-// ParseTreeDir returns the tags required by a tagged tree directory
-// named like "<base>.tag-X.tag-Y", or (nil, true) for the bare "<base>"
-// directory. ok is false if name doesn't follow either convention —
-// useful for doctor to distinguish a malformed sibling like
-// "dotfiles.backup" from a legitimate but inactive "dotfiles.tag-work".
-func ParseTreeDir(name, base string) (tags []string, ok bool) {
-	if name == base {
-		return nil, true
-	}
-	rest, hasPrefix := strings.CutPrefix(name, base+".")
-	if !hasPrefix {
-		return nil, false
-	}
-	parts := strings.Split(rest, ".")
-	tags = make([]string, 0, len(parts))
-	for _, p := range parts {
-		tag, hasTag := strings.CutPrefix(p, tagPart)
-		if !hasTag || tag == "" {
-			return nil, false
-		}
-		tags = append(tags, tag)
-	}
-	return tags, true
-}
-
-// RelTo returns p as a repo-relative path when it's inside repoDir,
-// otherwise the absolute path unchanged. Used to keep collision error
-// messages readable — the user knows which repo they're in. Exported so
-// render can format its parallel collision messages the same way.
-func RelTo(repoDir, p string) string {
-	rel, err := filepath.Rel(repoDir, p)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return p
-	}
-	return rel
-}
-
-func allActive(required []string, active map[string]struct{}) bool {
-	for _, t := range required {
-		if _, ok := active[t]; !ok {
-			return false
-		}
-	}
-	return true
 }
 
 // classify decides what action is needed at target given that source is
