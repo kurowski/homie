@@ -10,7 +10,7 @@ import (
 )
 
 func TestLoadHappyPath(t *testing.T) {
-	c, err := Load(filepath.Join("testdata", "happy"))
+	c, err := Load(filepath.Join("testdata", "happy"), "")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestLoadMissingRequired(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.dir, func(t *testing.T) {
-			_, err := Load(filepath.Join("testdata", tc.dir))
+			_, err := Load(filepath.Join("testdata", tc.dir), "")
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
@@ -59,7 +59,7 @@ func TestLoadMissingRequired(t *testing.T) {
 }
 
 func TestLoadUnknownFieldWarns(t *testing.T) {
-	c, err := Load(filepath.Join("testdata", "unknown-field"))
+	c, err := Load(filepath.Join("testdata", "unknown-field"), "")
 	if err != nil {
 		t.Fatalf("Load should succeed despite unknown field: %v", err)
 	}
@@ -73,14 +73,14 @@ func TestLoadUnknownFieldWarns(t *testing.T) {
 }
 
 func TestLoadMissingFile(t *testing.T) {
-	_, err := Load(t.TempDir())
+	_, err := Load(t.TempDir(), "")
 	if err == nil {
 		t.Fatal("expected error when homie.toml missing")
 	}
 }
 
 func TestPackagesFor(t *testing.T) {
-	c, err := Load(filepath.Join("testdata", "per-distro"))
+	c, err := Load(filepath.Join("testdata", "per-distro"), "")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -123,4 +123,77 @@ func TestAllTagsEmptyProfile(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("AllTags = %v, want %v", got, want)
 	}
+}
+
+func TestLoadHostOverlay(t *testing.T) {
+	dir := filepath.Join("testdata", "host-overlay")
+	t.Run("base only when no hostname", func(t *testing.T) {
+		c, err := Load(dir, "")
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if c.Profile.Name != "" {
+			t.Errorf("Profile.Name = %q, want empty (base has no profile)", c.Profile.Name)
+		}
+		if !reflect.DeepEqual(c.Tags.Extra, []string{"base-extra"}) {
+			t.Errorf("Tags.Extra = %v", c.Tags.Extra)
+		}
+		if !reflect.DeepEqual(c.Packages["fedora"], []string{"git", "zsh"}) {
+			t.Errorf("Packages[fedora] = %v", c.Packages["fedora"])
+		}
+		if c.Vars["WORK_EMAIL"] != "" {
+			t.Errorf("Vars[WORK_EMAIL] should be empty without overlay, got %q", c.Vars["WORK_EMAIL"])
+		}
+	})
+
+	t.Run("coach overlay sets personal profile and appends packages", func(t *testing.T) {
+		c, err := Load(dir, "coach")
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if c.Profile.Name != "personal" {
+			t.Errorf("Profile.Name = %q, want personal", c.Profile.Name)
+		}
+		wantExtra := []string{"base-extra", "laptop"}
+		if !reflect.DeepEqual(c.Tags.Extra, wantExtra) {
+			t.Errorf("Tags.Extra = %v, want %v", c.Tags.Extra, wantExtra)
+		}
+		wantPkgs := []string{"git", "zsh", "steam"}
+		if !reflect.DeepEqual(c.Packages["fedora"], wantPkgs) {
+			t.Errorf("Packages[fedora] = %v, want %v", c.Packages["fedora"], wantPkgs)
+		}
+		if c.Vars["EDITOR"] != "nvim" {
+			t.Errorf("base var EDITOR lost: %q", c.Vars["EDITOR"])
+		}
+	})
+
+	t.Run("work overlay overrides vars and appends work packages", func(t *testing.T) {
+		c, err := Load(dir, "uceap-dev01")
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if c.Profile.Name != "work" {
+			t.Errorf("Profile.Name = %q, want work", c.Profile.Name)
+		}
+		if c.Vars["WORK_EMAIL"] != "scout@work.example.com" {
+			t.Errorf("Vars[WORK_EMAIL] = %q", c.Vars["WORK_EMAIL"])
+		}
+		if c.Vars["EDITOR"] != "nvim" {
+			t.Errorf("base var EDITOR lost: %q", c.Vars["EDITOR"])
+		}
+		wantPkgs := []string{"git", "zsh", "kubectl", "helm"}
+		if !reflect.DeepEqual(c.Packages["fedora"], wantPkgs) {
+			t.Errorf("Packages[fedora] = %v, want %v", c.Packages["fedora"], wantPkgs)
+		}
+	})
+
+	t.Run("unknown hostname falls back to base", func(t *testing.T) {
+		c, err := Load(dir, "nope-no-such-host")
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if c.Profile.Name != "" {
+			t.Errorf("Profile.Name = %q, want empty (no overlay matched)", c.Profile.Name)
+		}
+	})
 }

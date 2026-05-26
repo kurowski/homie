@@ -2,7 +2,10 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"sort"
 
@@ -10,6 +13,10 @@ import (
 	"github.com/kurowski/homie/internal/detect"
 	"github.com/kurowski/homie/internal/repo"
 )
+
+// HostsDir is the directory under the user repo that holds per-host
+// overlay TOML files, looked up as hosts/<hostname>.toml.
+const HostsDir = "hosts"
 
 // Config is the parsed shape of homie.toml.
 type Config struct {
@@ -44,22 +51,86 @@ type Tags struct {
 // Load reads <repoDir>/homie.toml and validates required fields. Unknown
 // fields are recorded as warnings rather than errors so users adding new
 // schema keys for older binaries don't get hard failures.
-func Load(repoDir string) (Config, error) {
-	path := filepath.Join(repoDir, repo.ConfigFilename)
+//
+// If hostname is non-empty and <repoDir>/hosts/<hostname>.toml exists, it
+// is deep-merged onto the base config: profile/user scalars replace when
+// set, packages and tags.extra arrays append, vars override per-key.
+func Load(repoDir, hostname string) (Config, error) {
+	basePath := filepath.Join(repoDir, repo.ConfigFilename)
+	c, err := loadFile(basePath)
+	if err != nil {
+		return Config{}, err
+	}
+
+	if hostname != "" {
+		overlayPath := filepath.Join(repoDir, HostsDir, hostname+".toml")
+		if _, statErr := os.Stat(overlayPath); statErr == nil {
+			overlay, err := loadFile(overlayPath)
+			if err != nil {
+				return Config{}, err
+			}
+			c = merge(c, overlay)
+		} else if !errors.Is(statErr, fs.ErrNotExist) {
+			return Config{}, fmt.Errorf("stat %s: %w", overlayPath, statErr)
+		}
+	}
+
+	if err := c.validate(); err != nil {
+		return Config{}, fmt.Errorf("%s: %w", basePath, err)
+	}
+	return c, nil
+}
+
+// loadFile decodes a single TOML file into a Config, capturing unknown
+// fields as warnings rather than failing. Validation is not performed
+// here — Load applies it after merging the optional host overlay.
+func loadFile(path string) (Config, error) {
 	var c Config
 	md, err := toml.DecodeFile(path, &c)
 	if err != nil {
 		return Config{}, fmt.Errorf("decode %s: %w", path, err)
 	}
-
 	for _, k := range md.Undecoded() {
-		c.Warnings = append(c.Warnings, fmt.Sprintf("unknown field in homie.toml: %s", k.String()))
-	}
-
-	if err := c.validate(); err != nil {
-		return Config{}, fmt.Errorf("%s: %w", path, err)
+		c.Warnings = append(c.Warnings, fmt.Sprintf("unknown field in %s: %s", filepath.Base(path), k.String()))
 	}
 	return c, nil
+}
+
+// merge deep-merges overlay onto base. Scalars in user/profile replace
+// when the overlay sets them non-empty. Packages arrays append per-key.
+// Tags.Extra appends. Vars override per-key.
+func merge(base, overlay Config) Config {
+	if overlay.User.Name != "" {
+		base.User.Name = overlay.User.Name
+	}
+	if overlay.User.Email != "" {
+		base.User.Email = overlay.User.Email
+	}
+	if overlay.Profile.Name != "" {
+		base.Profile.Name = overlay.Profile.Name
+	}
+	if overlay.Profile.DefaultShell != "" {
+		base.Profile.DefaultShell = overlay.Profile.DefaultShell
+	}
+	if len(overlay.Packages) > 0 {
+		if base.Packages == nil {
+			base.Packages = make(map[string][]string, len(overlay.Packages))
+		}
+		for k, v := range overlay.Packages {
+			base.Packages[k] = append(base.Packages[k], v...)
+		}
+	}
+	base.Tags.Extra = append(base.Tags.Extra, overlay.Tags.Extra...)
+	if len(overlay.Vars) > 0 {
+		if base.Vars == nil {
+			base.Vars = make(map[string]string, len(overlay.Vars))
+		}
+		for k, v := range overlay.Vars {
+			base.Vars[k] = v
+		}
+	}
+	base.Warnings = append(base.Warnings, overlay.Warnings...)
+	return base
 }
 
 func (c Config) validate() error {

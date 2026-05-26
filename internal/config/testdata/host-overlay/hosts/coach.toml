@@ -1,0 +1,8 @@
+[profile]
+name = "personal"
+
+[packages]
+fedora = ["steam"]
+
+[tags]
+extra = ["laptop"]
