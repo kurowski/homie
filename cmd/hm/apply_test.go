@@ -145,7 +145,7 @@ func TestApplyRunsPreScriptsBeforePackages(t *testing.T) {
 	if pre < 0 || pkgs < 0 || post < 0 {
 		t.Fatalf("phase labels missing in output:\n%s", out)
 	}
-	if !(pre < pkgs && pkgs < post) {
+	if pre >= pkgs || pkgs >= post {
 		t.Errorf("phase ordering wrong: pre=%d packages=%d scripts=%d\n%s", pre, pkgs, post, out)
 	}
 }
