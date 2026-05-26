@@ -209,11 +209,31 @@ EDITOR     = "nvim"
 ```
 
 `profile.name` becomes an active tag automatically. Auto-detected tags
-include `container`, `root`, `amd64`, `arm64`, and the detected distro name.
+include `container`, `root`, `amd64`, `arm64`, the detected distro name,
+and the short hostname (so `hasTag "coach"` works with no config).
 Vars are exposed to templates as `.Vars.NAME` and to `scripts/*.sh` as
 environment variables.
 
 Required fields: `user.name`, `user.email`. Everything else is optional.
+
+### Per-host overlay
+
+A repo can ship `hosts/<short-hostname>.toml` files alongside `homie.toml`.
+When present, the matching overlay is deep-merged onto the base config
+after load: user/profile scalars replace when set, `[packages].*` arrays
+and `[tags].extra` append, `[vars]` keys override. This lets the same
+checkout serve multiple machines without per-host branches:
+
+```
+dotfiles/
+  homie.toml              # base, applies everywhere
+  hosts/
+    coach.toml            # profile=personal + laptop packages
+    uceap-dev01.toml      # profile=work + work packages and vars
+```
+
+Hostname detection takes the short form (everything before the first dot),
+so an FQDN like `coach.lan` matches `hosts/coach.toml`.
 
 ---
 
@@ -280,6 +300,7 @@ The `detect` package determines:
 | `Distro`          | `ubuntu`, `debian`, `fedora`, `unknown`             |
 | `PackageManager`  | `apt` (Ubuntu/Debian), `dnf` (Fedora), `unknown`    |
 | `Arch`            | `amd64`, `arm64`                                    |
+| `Hostname`        | short hostname (truncated at first `.`)             |
 | `IsContainer`     | bool — via `/proc/1/cgroup`, `/.dockerenv`          |
 | `IsRoot`          | bool                                                |
 | `IsInteractive`   | bool — TTY detection                                |

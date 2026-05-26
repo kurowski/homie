@@ -94,7 +94,7 @@ func TestRunCleanRepoNoFindings(t *testing.T) {
 		available: true,
 		installed: map[string]bool{"git": true, "zsh": true},
 	}
-	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Arch: "amd64"}
+	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Arch: "amd64", Hostname: "test"}
 
 	r := Run(repo, home, sampleCfg(), env, mgr)
 	if len(r.Findings) != 0 {
@@ -119,7 +119,7 @@ func TestRunReportsBrokenLink(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	env := detect.Env{Distro: "ubuntu", PackageManager: "apt"}
+	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
 	r := Run(repo, home, sampleCfg(), env,
 		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}})
 	if !r.HasErrors() {
@@ -133,7 +133,7 @@ func TestRunReportsBrokenLink(t *testing.T) {
 
 func TestRunReportsMissingPackages(t *testing.T) {
 	repo, home := makeRepo(t)
-	env := detect.Env{Distro: "ubuntu", PackageManager: "apt"}
+	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
 	mgr := &fakeMgr{
 		name:      "apt",
 		available: true,
@@ -151,7 +151,7 @@ func TestRunReportsUnrenderedTemplate(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(repo, "templates", "x.tmpl"), []byte("body"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	env := detect.Env{Distro: "ubuntu", PackageManager: "apt"}
+	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
 	r := Run(repo, home, sampleCfg(), env,
 		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}})
 	msgs := strings.Join(messagesByArea(r, "render"), "\n")
@@ -168,7 +168,7 @@ func TestRunReportsStaleTemplate(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(home, "x"), []byte("old"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	env := detect.Env{Distro: "ubuntu", PackageManager: "apt"}
+	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
 	r := Run(repo, home, sampleCfg(), env,
 		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}})
 	msgs := strings.Join(messagesByArea(r, "render"), "\n")
@@ -182,7 +182,7 @@ func TestRunReportsNonExecutableScript(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(repo, "scripts", "01.sh"), []byte("#!/bin/sh\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	env := detect.Env{Distro: "ubuntu", PackageManager: "apt"}
+	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
 	r := Run(repo, home, sampleCfg(), env,
 		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}})
 	msgs := strings.Join(messagesByArea(r, "scripts"), "\n")
@@ -193,10 +193,21 @@ func TestRunReportsNonExecutableScript(t *testing.T) {
 
 func TestRunReportsUnknownDistro(t *testing.T) {
 	repo, home := makeRepo(t)
-	env := detect.Env{Distro: "unknown", PackageManager: "unknown"}
+	env := detect.Env{Distro: "unknown", PackageManager: "unknown", Hostname: "test"}
 	r := Run(repo, home, sampleCfg(), env, &fakeMgr{name: "noop"})
 	msgs := strings.Join(messagesByArea(r, "env"), "\n")
 	if !strings.Contains(msgs, "not recognized") {
 		t.Errorf("expected unknown-distro warning: %s", msgs)
+	}
+}
+
+func TestRunReportsMissingHostname(t *testing.T) {
+	repo, home := makeRepo(t)
+	env := detect.Env{Distro: "ubuntu", PackageManager: "apt"} // Hostname unset
+	r := Run(repo, home, sampleCfg(), env,
+		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}})
+	msgs := strings.Join(messagesByArea(r, "env"), "\n")
+	if !strings.Contains(msgs, "hostname unavailable") {
+		t.Errorf("expected hostname-unavailable warning: %s", msgs)
 	}
 }

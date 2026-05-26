@@ -1,0 +1,12 @@
+[user]
+name  = "Scout Homes"
+email = "scout@homie.sh"
+
+[packages]
+fedora = ["git", "zsh"]
+
+[tags]
+extra = ["base-extra"]
+
+[vars]
+EDITOR = "nvim"

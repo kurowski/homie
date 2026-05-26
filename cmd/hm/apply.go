@@ -49,11 +49,11 @@ func runApply(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("resolve home: %w", err)
 		}
 	}
-	cfg, err := config.Load(repoDir)
+	env := detect.Detect()
+	cfg, err := config.Load(repoDir, env.Hostname)
 	if err != nil {
 		return err
 	}
-	env := detect.Detect()
 
 	noTTY, _ := cmd.Root().PersistentFlags().GetBool("no-tty")
 	u := ui.New(cmd.OutOrStdout(), noTTY)

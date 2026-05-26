@@ -37,11 +37,11 @@ func runRun(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("resolve home: %w", err)
 		}
 	}
-	cfg, err := config.Load(repoDir)
+	env := detect.Detect()
+	cfg, err := config.Load(repoDir, env.Hostname)
 	if err != nil {
 		return err
 	}
-	env := detect.Detect()
 
 	w := cmd.OutOrStdout()
 	res := runner.Run(repoDir, home, cfg, cfg.AllTags(env), w)

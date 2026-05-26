@@ -75,7 +75,7 @@ func TestRunRoundtripsThroughConfigLoad(t *testing.T) {
 	if err := Run(dir, sampleAnswers); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	cfg, err := config.Load(dir)
+	cfg, err := config.Load(dir, "")
 	if err != nil {
 		t.Fatalf("config.Load on scaffolded repo: %v", err)
 	}

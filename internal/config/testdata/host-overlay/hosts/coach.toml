@@ -1,0 +1,9 @@
+[profile]
+name = "personal"
+
+[packages]
+# 'zsh' overlaps with the base list — must not duplicate after merge.
+fedora = ["zsh", "steam"]
+
+[tags]
+extra = ["laptop"]

@@ -1,0 +1,8 @@
+[profile]
+name = "work"
+
+[packages]
+fedora = ["kubectl", "helm"]
+
+[vars]
+WORK_EMAIL = "scout@work.example.com"

@@ -93,7 +93,8 @@ extra = ["laptop"]
 Active tags on every run are the union of:
 
 - **Detected:** the distro (`ubuntu`, `debian`, `fedora`), the arch
-  (`amd64`, `arm64`), plus `container` and `root` when those apply.
+  (`amd64`, `arm64`), the short hostname (so `hasTag "coach"` works with
+  no config), plus `container` and `root` when those apply.
 - **Profile:** `profile.name`, if set.
 - **Extra:** everything in `tags.extra`.
 
@@ -150,6 +151,40 @@ EDITOR = "nvim"
 From there, add per-distro overrides, tags, and vars as your environment
 demands. The schema is intentionally small — anything more dynamic
 belongs in `scripts/`.
+
+---
+
+## Per-host overlay
+
+When the same repo serves multiple machines, ship a `hosts/<short-hostname>.toml`
+alongside `homie.toml`. If the file matching the current host exists, it's
+deep-merged onto the base at load time:
+
+```
+dotfiles/
+  homie.toml              # base, applies everywhere
+  hosts/
+    coach.toml            # profile=personal + laptop packages
+    uceap-dev01.toml      # profile=work + work vars and packages
+```
+
+Merge rules:
+
+- **`[user]` and `[profile]` scalars** in the overlay replace the base
+  when set non-empty.
+- **`[packages].*` arrays** append to the base (overlap is deduped, order
+  preserved).
+- **`[tags].extra`** appends.
+- **`[vars]`** override per-key (base keys not mentioned by the overlay
+  survive).
+
+The hostname used for the lookup is the short form — everything before
+the first dot — so `coach.lan` matches `hosts/coach.toml`. If
+`os.Hostname()` fails or returns something that looks unsafe (a path
+separator), no overlay is loaded and `hm doctor` surfaces a warning.
+
+Validation runs *after* the merge, so an overlay can legitimately fill
+in required `[user]` fields if you'd rather not commit them to the base.
 
 ---
 

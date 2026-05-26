@@ -36,6 +36,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(w, "  Distro:          %s\n", env.Distro)
 	fmt.Fprintf(w, "  Package manager: %s\n", env.PackageManager)
 	fmt.Fprintf(w, "  Arch:            %s\n", env.Arch)
+	fmt.Fprintf(w, "  Hostname:        %s\n", env.Hostname)
 	fmt.Fprintf(w, "  Container:       %v\n", env.IsContainer)
 	fmt.Fprintf(w, "  Root:            %v\n", env.IsRoot)
 	fmt.Fprintf(w, "  Interactive:     %v\n", env.IsInteractive)
@@ -48,7 +49,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	cfg, err := config.Load(repoDir)
+	cfg, err := config.Load(repoDir, env.Hostname)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("no homie.toml in %s", repoDir)

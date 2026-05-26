@@ -26,11 +26,11 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	cfg, err := config.Load(repoDir)
+	env := detect.Detect()
+	cfg, err := config.Load(repoDir, env.Hostname)
 	if err != nil {
 		return err
 	}
-	env := detect.Detect()
 	pkgs := cfg.PackagesFor(env)
 	w := cmd.OutOrStdout()
 

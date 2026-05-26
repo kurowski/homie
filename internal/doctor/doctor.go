@@ -90,6 +90,10 @@ func (r *Report) checkEnv(env detect.Env) {
 		r.add(SeverityWarn, "env",
 			"distro not recognized — see homie.sh/contributing to add support")
 	}
+	if env.Hostname == "" {
+		r.add(SeverityWarn, "env",
+			"hostname unavailable — no host tag will be added and hosts/<name>.toml overlays will not load")
+	}
 }
 
 func (r *Report) checkConfig(cfg config.Config) {
