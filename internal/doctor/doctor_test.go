@@ -46,8 +46,8 @@ func sampleCfg() config.Config {
 	return config.Config{
 		User:    config.User{Name: "Scout Homes", Email: "scout@homie.sh"},
 		Profile: config.Profile{Name: "personal", DefaultShell: "zsh"},
-		Packages: map[string][]string{
-			"all": {"git", "zsh"},
+		Packages: config.Packages{
+			Base: map[string][]string{"all": {"git", "zsh"}},
 		},
 	}
 }

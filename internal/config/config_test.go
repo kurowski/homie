@@ -102,6 +102,70 @@ func TestPackagesFor(t *testing.T) {
 	}
 }
 
+func TestPackagesForWithTagKeyed(t *testing.T) {
+	c, err := Load(filepath.Join("testdata", "tag-packages"), "")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	cases := []struct {
+		name string
+		env  detect.Env
+		want []string
+	}{
+		{
+			name: "no matching tags, base only",
+			env:  detect.Env{Distro: "fedora"}, // no env.Tags, no profile
+			want: []string{"git", "zsh", "util-linux-user"},
+		},
+		{
+			name: "work tag picks up tag:work for the distro",
+			env:  detect.Env{Distro: "fedora", Tags: []string{"work"}},
+			want: []string{"git", "zsh", "util-linux-user", "kubectl", "helm"},
+		},
+		{
+			name: "work tag on ubuntu picks up the ubuntu-specific tag list",
+			env:  detect.Env{Distro: "ubuntu", Tags: []string{"work"}},
+			want: []string{"git", "zsh", "fd-find", "kubectl", "terraform"},
+		},
+		{
+			name: "multiple matching tags including auto-detected distro tag",
+			env:  detect.Env{Distro: "fedora", Tags: []string{"fedora", "work", "personal"}},
+			// AllTags sorts: ["fedora", "personal", "work"]. tag:fedora
+			// overlaps base "git" so dedup keeps it once, contributing only
+			// "neovim".
+			want: []string{"git", "zsh", "util-linux-user", "neovim", "steam", "kubectl", "helm"},
+		},
+		{
+			name: "unknown tag contributes zero",
+			env:  detect.Env{Distro: "fedora", Tags: []string{"no-such-tag"}},
+			want: []string{"git", "zsh", "util-linux-user"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := c.PackagesFor(tc.env)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("PackagesFor =\n  got: %v\n want: %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPackagesForOrderIsDeterministic(t *testing.T) {
+	c, err := Load(filepath.Join("testdata", "tag-packages"), "")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	env := detect.Env{Distro: "fedora", Tags: []string{"fedora", "work", "personal"}}
+	first := c.PackagesFor(env)
+	for i := 0; i < 5; i++ {
+		got := c.PackagesFor(env)
+		if !reflect.DeepEqual(got, first) {
+			t.Fatalf("iteration %d differed:\n got: %v\nwant: %v", i, got, first)
+		}
+	}
+}
+
 func TestAllTags(t *testing.T) {
 	c := Config{
 		Profile: Profile{Name: "personal"},
@@ -138,8 +202,8 @@ func TestLoadHostOverlay(t *testing.T) {
 		if !reflect.DeepEqual(c.Tags.Extra, []string{"base-extra"}) {
 			t.Errorf("Tags.Extra = %v", c.Tags.Extra)
 		}
-		if !reflect.DeepEqual(c.Packages["fedora"], []string{"git", "zsh"}) {
-			t.Errorf("Packages[fedora] = %v", c.Packages["fedora"])
+		if !reflect.DeepEqual(c.Packages.Base["fedora"], []string{"git", "zsh"}) {
+			t.Errorf("Packages[fedora] = %v", c.Packages.Base["fedora"])
 		}
 		if c.Vars["WORK_EMAIL"] != "" {
 			t.Errorf("Vars[WORK_EMAIL] should be empty without overlay, got %q", c.Vars["WORK_EMAIL"])
@@ -161,8 +225,8 @@ func TestLoadHostOverlay(t *testing.T) {
 		// coach.toml lists ["zsh", "steam"]; base has ["git", "zsh"].
 		// Merged result must dedupe `zsh` and preserve insertion order.
 		wantPkgs := []string{"git", "zsh", "steam"}
-		if !reflect.DeepEqual(c.Packages["fedora"], wantPkgs) {
-			t.Errorf("Packages[fedora] = %v, want %v", c.Packages["fedora"], wantPkgs)
+		if !reflect.DeepEqual(c.Packages.Base["fedora"], wantPkgs) {
+			t.Errorf("Packages[fedora] = %v, want %v", c.Packages.Base["fedora"], wantPkgs)
 		}
 		if c.Vars["EDITOR"] != "nvim" {
 			t.Errorf("base var EDITOR lost: %q", c.Vars["EDITOR"])
@@ -184,8 +248,8 @@ func TestLoadHostOverlay(t *testing.T) {
 			t.Errorf("base var EDITOR lost: %q", c.Vars["EDITOR"])
 		}
 		wantPkgs := []string{"git", "zsh", "kubectl", "helm"}
-		if !reflect.DeepEqual(c.Packages["fedora"], wantPkgs) {
-			t.Errorf("Packages[fedora] = %v, want %v", c.Packages["fedora"], wantPkgs)
+		if !reflect.DeepEqual(c.Packages.Base["fedora"], wantPkgs) {
+			t.Errorf("Packages[fedora] = %v, want %v", c.Packages.Base["fedora"], wantPkgs)
 		}
 	})
 
@@ -198,4 +262,35 @@ func TestLoadHostOverlay(t *testing.T) {
 			t.Errorf("Profile.Name = %q, want empty (no overlay matched)", c.Profile.Name)
 		}
 	})
+}
+
+func TestMergeTagKeyedPackages(t *testing.T) {
+	base := Config{
+		Packages: Packages{
+			Base: map[string][]string{"fedora": {"git"}},
+			ByTag: map[string]map[string][]string{
+				"work": {"fedora": {"kubectl"}},
+			},
+		},
+	}
+	overlay := Config{
+		Packages: Packages{
+			Base: map[string][]string{"fedora": {"zsh"}},
+			ByTag: map[string]map[string][]string{
+				"work":     {"fedora": {"kubectl", "helm"}}, // overlap on kubectl
+				"personal": {"fedora": {"steam"}},
+			},
+		},
+	}
+	got := merge(base, overlay)
+
+	if want := []string{"git", "zsh"}; !reflect.DeepEqual(got.Packages.Base["fedora"], want) {
+		t.Errorf("Base[fedora] = %v, want %v", got.Packages.Base["fedora"], want)
+	}
+	if want := []string{"kubectl", "helm"}; !reflect.DeepEqual(got.Packages.ByTag["work"]["fedora"], want) {
+		t.Errorf("ByTag[work][fedora] = %v, want %v (kubectl deduped)", got.Packages.ByTag["work"]["fedora"], want)
+	}
+	if want := []string{"steam"}; !reflect.DeepEqual(got.Packages.ByTag["personal"]["fedora"], want) {
+		t.Errorf("ByTag[personal][fedora] = %v, want %v", got.Packages.ByTag["personal"]["fedora"], want)
+	}
 }

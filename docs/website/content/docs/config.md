@@ -77,6 +77,36 @@ debian = ["fd-find"]
 On unsupported distros, the package phase prints a friendly notice and
 skips. The rest of `hm apply` continues normally.
 
+### Tag-keyed package lists
+
+Sub-tables of the form `[packages."tag:<name>"]` contribute only when
+the matching tag is active for the current host. Useful when a work
+laptop and a personal laptop share a base set but each needs its own
+extras.
+
+```toml
+[packages]
+fedora = ["git", "zsh", "neovim"]            # base, always
+
+[packages."tag:work"]
+fedora = ["kubectl", "helm", "terraform"]
+
+[packages."tag:personal"]
+fedora = ["steam", "tailscale"]
+```
+
+Resolution: the final install set is `[packages]` plus every
+`[packages."tag:X"]` sub-table where `X` is in the active tag set
+(auto-detected, profile-derived, or `[tags].extra`). Each sub-table
+honors the same per-distro split as the base — `[packages."tag:work"].fedora`
+and `[packages."tag:work"].ubuntu` both work.
+
+Order is deterministic: base `all`, base `<distro>`, then each matching
+tag in alphabetical tag-name order (its `all`, then its `<distro>`).
+Duplicates across these sources are removed on insertion, so a package
+named in both base and a tag sub-table installs exactly once. Tags with
+no matching sub-table contribute nothing — they aren't an error.
+
 ---
 
 ## `[tags]`

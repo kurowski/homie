@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 	"github.com/kurowski/homie/internal/detect"
@@ -20,15 +21,93 @@ const HostsDir = "hosts"
 
 // Config is the parsed shape of homie.toml.
 type Config struct {
-	User     User                `toml:"user"`
-	Profile  Profile             `toml:"profile"`
-	Packages map[string][]string `toml:"packages"`
-	Tags     Tags                `toml:"tags"`
-	Vars     map[string]string   `toml:"vars"`
+	User     User              `toml:"user"`
+	Profile  Profile           `toml:"profile"`
+	Packages Packages          `toml:"packages"`
+	Tags     Tags              `toml:"tags"`
+	Vars     map[string]string `toml:"vars"`
 
 	// Warnings holds non-fatal issues encountered while parsing
 	// (e.g. unknown fields). Populated by Load.
 	Warnings []string `toml:"-"`
+}
+
+// Packages is the parsed [packages] table. It distinguishes the base
+// distro-keyed lists (`packages.all`, `packages.fedora`, ...) from
+// tag-conditional sub-tables of the form `[packages."tag:work"]`.
+//
+// The TOML key `tag:<name>` is reserved for tag-keyed sub-tables; any
+// other key under [packages] is treated as a base distro list.
+type Packages struct {
+	// Base maps "all" or a distro key (ubuntu, debian, fedora) to a list
+	// of package names to install on every run for matching distros.
+	Base map[string][]string
+
+	// ByTag maps a tag name (the part after "tag:") to its own
+	// distro-keyed package lists. These contribute only when the tag is
+	// active for the current host.
+	ByTag map[string]map[string][]string
+}
+
+// TagKeyPrefix marks a key inside the [packages] table as a tag-keyed
+// sub-table rather than a base distro list. See Packages.
+const TagKeyPrefix = "tag:"
+
+// UnmarshalTOML decodes a heterogeneous [packages] table where some keys
+// are arrays of strings (base distro lists) and others — those whose
+// name starts with "tag:" — are themselves tables of distro -> list.
+func (p *Packages) UnmarshalTOML(data any) error {
+	m, ok := data.(map[string]any)
+	if !ok {
+		return fmt.Errorf("[packages] must be a table, got %T", data)
+	}
+	p.Base = make(map[string][]string)
+	p.ByTag = make(map[string]map[string][]string)
+	for k, v := range m {
+		if strings.HasPrefix(k, TagKeyPrefix) {
+			sub, ok := v.(map[string]any)
+			if !ok {
+				return fmt.Errorf(`[packages."%s"] must be a table of distro -> list, got %T`, k, v)
+			}
+			tag := strings.TrimPrefix(k, TagKeyPrefix)
+			byDistro := make(map[string][]string, len(sub))
+			for distro, raw := range sub {
+				list, err := stringList(raw)
+				if err != nil {
+					return fmt.Errorf(`[packages."%s"].%s: %w`, k, distro, err)
+				}
+				byDistro[distro] = list
+			}
+			p.ByTag[tag] = byDistro
+			continue
+		}
+		list, err := stringList(v)
+		if err != nil {
+			return fmt.Errorf("packages.%s: %w", k, err)
+		}
+		p.Base[k] = list
+	}
+	return nil
+}
+
+// stringList coerces a decoded TOML value into a []string. The
+// BurntSushi/toml v1 decoder hands UnmarshalTOML the raw value as `any`
+// — homogeneous string arrays come through as []any, so we re-type each
+// element explicitly.
+func stringList(v any) ([]string, error) {
+	arr, ok := v.([]any)
+	if !ok {
+		return nil, fmt.Errorf("expected an array of strings, got %T", v)
+	}
+	out := make([]string, 0, len(arr))
+	for i, item := range arr {
+		s, ok := item.(string)
+		if !ok {
+			return nil, fmt.Errorf("element %d: expected string, got %T", i, item)
+		}
+		out = append(out, s)
+	}
+	return out, nil
 }
 
 // User holds identity from the [user] table. Both fields are required.
@@ -97,8 +176,9 @@ func loadFile(path string) (Config, error) {
 }
 
 // merge deep-merges overlay onto base. Scalars in user/profile replace
-// when the overlay sets them non-empty. Packages arrays append per-key.
-// Tags.Extra appends. Vars override per-key.
+// when the overlay sets them non-empty. Packages arrays append per-key
+// (both base distro lists and tag-keyed sub-tables). Tags.Extra appends.
+// Vars override per-key.
 func merge(base, overlay Config) Config {
 	if overlay.User.Name != "" {
 		base.User.Name = overlay.User.Name
@@ -112,12 +192,25 @@ func merge(base, overlay Config) Config {
 	if overlay.Profile.DefaultShell != "" {
 		base.Profile.DefaultShell = overlay.Profile.DefaultShell
 	}
-	if len(overlay.Packages) > 0 {
-		if base.Packages == nil {
-			base.Packages = make(map[string][]string, len(overlay.Packages))
+	if len(overlay.Packages.Base) > 0 {
+		if base.Packages.Base == nil {
+			base.Packages.Base = make(map[string][]string, len(overlay.Packages.Base))
 		}
-		for k, v := range overlay.Packages {
-			base.Packages[k] = appendUnique(base.Packages[k], v)
+		for k, v := range overlay.Packages.Base {
+			base.Packages.Base[k] = appendUnique(base.Packages.Base[k], v)
+		}
+	}
+	if len(overlay.Packages.ByTag) > 0 {
+		if base.Packages.ByTag == nil {
+			base.Packages.ByTag = make(map[string]map[string][]string, len(overlay.Packages.ByTag))
+		}
+		for tag, byDistro := range overlay.Packages.ByTag {
+			if base.Packages.ByTag[tag] == nil {
+				base.Packages.ByTag[tag] = make(map[string][]string, len(byDistro))
+			}
+			for distro, v := range byDistro {
+				base.Packages.ByTag[tag][distro] = appendUnique(base.Packages.ByTag[tag][distro], v)
+			}
 		}
 	}
 	base.Tags.Extra = append(base.Tags.Extra, overlay.Tags.Extra...)
@@ -163,24 +256,46 @@ func (c Config) validate() error {
 	return nil
 }
 
-// PackagesFor returns the packages to install for the given environment:
-// packages.all merged with packages.<distro>, deduped, in stable order.
+// PackagesFor returns the packages to install for the given environment.
+//
+// The set is the union, in this order, of:
+//  1. packages.all
+//  2. packages.<distro>
+//  3. for each active tag (sorted by tag name for determinism):
+//     a. [packages."tag:<tag>"].all
+//     b. [packages."tag:<tag>"].<distro>
+//
+// Duplicates are removed on insertion so a package mentioned in multiple
+// sub-tables installs exactly once. Tags that have no matching sub-table
+// contribute nothing — they aren't an error.
 func (c Config) PackagesFor(env detect.Env) []string {
 	seen := make(map[string]struct{})
 	var out []string
-	for _, pkg := range c.Packages["all"] {
+	add := func(pkg string) {
 		if _, ok := seen[pkg]; ok {
-			continue
+			return
 		}
 		seen[pkg] = struct{}{}
 		out = append(out, pkg)
 	}
-	for _, pkg := range c.Packages[env.Distro] {
-		if _, ok := seen[pkg]; ok {
+
+	for _, pkg := range c.Packages.Base["all"] {
+		add(pkg)
+	}
+	for _, pkg := range c.Packages.Base[env.Distro] {
+		add(pkg)
+	}
+	for _, tag := range c.AllTags(env) {
+		byDistro := c.Packages.ByTag[tag]
+		if byDistro == nil {
 			continue
 		}
-		seen[pkg] = struct{}{}
-		out = append(out, pkg)
+		for _, pkg := range byDistro["all"] {
+			add(pkg)
+		}
+		for _, pkg := range byDistro[env.Distro] {
+			add(pkg)
+		}
 	}
 	return out
 }
