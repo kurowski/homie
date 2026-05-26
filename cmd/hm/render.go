@@ -44,12 +44,15 @@ func runRender(cmd *cobra.Command, args []string) error {
 
 	res := render.Apply(repoDir, home, cfg, env)
 	w := cmd.OutOrStdout()
-	if len(res.Rendered) == 0 && len(res.Errors) == 0 {
+	if len(res.Rendered) == 0 && len(res.Skipped) == 0 && len(res.Errors) == 0 {
 		fmt.Fprintln(w, "No templates to render.")
 		return nil
 	}
 	for _, a := range res.Rendered {
 		fmt.Fprintf(w, "  render   %s\n", relTarget(home, a.Target))
+	}
+	if len(res.Skipped) > 0 {
+		fmt.Fprintf(w, "  skip     %d already in sync\n", len(res.Skipped))
 	}
 	for _, err := range res.Errors {
 		fmt.Fprintf(w, "  error    %s\n", err)

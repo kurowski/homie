@@ -107,7 +107,8 @@ type Action struct {
 
 // Result aggregates the outcome of Apply.
 type Result struct {
-	Rendered []Action
+	Rendered []Action // actually written this run
+	Skipped  []Action // already in sync; no write performed
 	Errors   []error
 }
 
@@ -146,36 +147,70 @@ func Apply(repoDir, home string, cfg config.Config, env detect.Env) Result {
 			return nil
 		}
 		target := filepath.Join(home, strings.TrimSuffix(rel, Extension))
-		if err := renderFile(path, target, data); err != nil {
+		written, err := renderFile(path, target, data)
+		if err != nil {
 			res.Errors = append(res.Errors, fmt.Errorf("%s: %w", path, err))
 			return nil
 		}
-		res.Rendered = append(res.Rendered, Action{Source: path, Target: target})
+		action := Action{Source: path, Target: target}
+		if written {
+			res.Rendered = append(res.Rendered, action)
+		} else {
+			res.Skipped = append(res.Skipped, action)
+		}
 		return nil
 	})
 	return res
 }
 
-func renderFile(source, target string, data Data) error {
+// renderFile reports whether the target was (re)written. A return of
+// (false, nil) means the target was already in sync with the rendered
+// output and the source's mode — nothing on disk changed.
+func renderFile(source, target string, data Data) (bool, error) {
 	raw, err := os.ReadFile(source)
 	if err != nil {
-		return err
+		return false, err
 	}
 	info, err := os.Stat(source)
 	if err != nil {
-		return err
+		return false, err
 	}
 	out, err := Render(string(raw), data)
 	if err != nil {
-		return err
+		return false, err
+	}
+	outBytes := []byte(out)
+	if inSync(target, outBytes, info.Mode()) {
+		return false, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		return err
+		return false, err
 	}
 	// Remove any existing file or symlink so we don't write through a stale
 	// symlink to wherever it points.
 	if err := os.Remove(target); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
+		return false, err
 	}
-	return os.WriteFile(target, []byte(out), info.Mode())
+	if err := os.WriteFile(target, outBytes, info.Mode()); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// inSync reports whether target is a regular file whose contents and
+// permission bits already match the rendered output. Symlinks count as
+// out-of-sync — they must be replaced with the real rendered file.
+func inSync(target string, want []byte, mode os.FileMode) bool {
+	info, err := os.Lstat(target)
+	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return false
+	}
+	if info.Mode().Perm() != mode.Perm() {
+		return false
+	}
+	have, err := os.ReadFile(target)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(have, want)
 }

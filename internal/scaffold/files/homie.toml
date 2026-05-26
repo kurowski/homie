@@ -10,8 +10,9 @@ default_shell = "{{ .DefaultShell }}"
 # Packages installed on every supported distro.
 all = ["git", "zsh", "neovim", "tmux", "ripgrep", "fd-find", "fzf"]
 
-# Per-distro overrides, merged onto `all`.
-fedora = ["util-linux-user"]
+# Per-distro overrides, merged onto `all`. Examples:
+#   fedora = ["dejavu-sans-mono-fonts"]
+#   ubuntu = ["fonts-dejavu"]
 
 [tags]
 # Auto tags from environment detection (distro, arch, container, root,

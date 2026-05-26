@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kurowski/homie/internal/config"
 	"github.com/kurowski/homie/internal/detect"
@@ -280,5 +281,99 @@ func TestApplyOverwritesStaleSymlink(t *testing.T) {
 	out, _ := os.ReadFile(filepath.Join(home, "config"))
 	if string(out) != "name = Scout" {
 		t.Errorf("rendered content = %q", out)
+	}
+}
+
+func TestApplySkipsAlreadyInSync(t *testing.T) {
+	repo := t.TempDir()
+	home := t.TempDir()
+	writeTemplate(t, repo, ".gitconfig.tmpl", `[user]
+name = {{ .Name }}
+`, 0o644)
+
+	cfg := config.Config{User: config.User{Name: "Scout", Email: "scout@homie.sh"}}
+	env := detect.Env{}
+
+	first := Apply(repo, home, cfg, env)
+	if len(first.Errors) != 0 || len(first.Rendered) != 1 || len(first.Skipped) != 0 {
+		t.Fatalf("first apply: rendered=%d skipped=%d errors=%v",
+			len(first.Rendered), len(first.Skipped), first.Errors)
+	}
+
+	target := filepath.Join(home, ".gitconfig")
+	beforeStat, err := os.Stat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Bump mtime backward so we can detect any rewrite by comparing mtimes.
+	past := beforeStat.ModTime().Add(-time.Hour)
+	if err := os.Chtimes(target, past, past); err != nil {
+		t.Fatal(err)
+	}
+
+	second := Apply(repo, home, cfg, env)
+	if len(second.Errors) != 0 || len(second.Rendered) != 0 || len(second.Skipped) != 1 {
+		t.Fatalf("second apply: rendered=%d skipped=%d errors=%v",
+			len(second.Rendered), len(second.Skipped), second.Errors)
+	}
+	afterStat, err := os.Stat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !afterStat.ModTime().Equal(past) {
+		t.Errorf("target was rewritten (mtime changed): before=%v after=%v", past, afterStat.ModTime())
+	}
+}
+
+func TestApplyRewritesWhenContentDiffers(t *testing.T) {
+	repo := t.TempDir()
+	home := t.TempDir()
+	writeTemplate(t, repo, "config.tmpl", `name = {{ .Name }}`, 0o644)
+
+	target := filepath.Join(home, "config")
+	if err := os.WriteFile(target, []byte("name = Stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.Config{User: config.User{Name: "Scout", Email: "scout@homie.sh"}}
+	res := Apply(repo, home, cfg, detect.Env{})
+	if len(res.Errors) != 0 || len(res.Rendered) != 1 || len(res.Skipped) != 0 {
+		t.Fatalf("rendered=%d skipped=%d errors=%v",
+			len(res.Rendered), len(res.Skipped), res.Errors)
+	}
+	out, _ := os.ReadFile(target)
+	if string(out) != "name = Scout" {
+		t.Errorf("content = %q, want %q", out, "name = Scout")
+	}
+}
+
+func TestApplyRewritesWhenModeDiffers(t *testing.T) {
+	repo := t.TempDir()
+	home := t.TempDir()
+	writeTemplate(t, repo, "bin/foo.sh.tmpl", `#!/bin/sh
+echo {{ .Name }}
+`, 0o755)
+
+	// Run once so the file exists with correct mode.
+	cfg := config.Config{User: config.User{Name: "Scout", Email: "scout@homie.sh"}}
+	if first := Apply(repo, home, cfg, detect.Env{}); len(first.Errors) != 0 {
+		t.Fatalf("first apply errors: %v", first.Errors)
+	}
+
+	// Strip the executable bit; next apply should restore it.
+	target := filepath.Join(home, "bin", "foo.sh")
+	if err := os.Chmod(target, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	res := Apply(repo, home, cfg, detect.Env{})
+	if len(res.Errors) != 0 || len(res.Rendered) != 1 || len(res.Skipped) != 0 {
+		t.Fatalf("rendered=%d skipped=%d errors=%v",
+			len(res.Rendered), len(res.Skipped), res.Errors)
+	}
+	info, _ := os.Stat(target)
+	if info.Mode().Perm()&0o100 == 0 {
+		t.Errorf("executable bit not restored: mode=%v", info.Mode())
 	}
 }

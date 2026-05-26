@@ -142,12 +142,15 @@ func applyLink(u ui.UI, repoDir, home string) []error {
 func applyRender(u ui.UI, repoDir, home string, cfg config.Config, env detect.Env) []error {
 	u.Phase("render")
 	res := render.Apply(repoDir, home, cfg, env)
-	if len(res.Rendered) == 0 && len(res.Errors) == 0 {
+	if len(res.Rendered) == 0 && len(res.Skipped) == 0 && len(res.Errors) == 0 {
 		u.Info("no templates")
 		return nil
 	}
 	for _, a := range res.Rendered {
 		u.Action("render", relTarget(home, a.Target))
+	}
+	if len(res.Skipped) > 0 {
+		u.Action("skip", fmt.Sprintf("%d already in sync", len(res.Skipped)))
 	}
 	return res.Errors
 }
