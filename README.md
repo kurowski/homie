@@ -27,8 +27,10 @@ Homie does it all in one, from one repo, with no daily friction: editing
 
 ## Status
 
-Early. See [`CLAUDE.md`](./CLAUDE.md) for the design brief and
-[`docs/website/`](./docs/website/) for user-facing docs.
+v0.0.2. All MVP milestones complete; install → bootstrap → apply →
+idempotent reapply verified end-to-end on Ubuntu, Debian, and Fedora.
+User-facing docs at <https://homie.sh>; design brief in
+[`CLAUDE.md`](./CLAUDE.md).
 
 ## License
 

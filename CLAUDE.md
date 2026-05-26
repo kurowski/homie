@@ -340,22 +340,18 @@ GitHub Pages on push to `main`.
 
 ---
 
-## What to build first (MVP order)
+## Current state
 
-1. Repo scaffold: `go.mod`, directory layout, `cmd/hm/main.go` with Cobra skeleton
-2. `detect` package
-3. `config` package: decode `homie.toml` into typed struct
-4. `link` package: symlink `dotfiles/` into `$HOME`
-5. `render` package: `# if` block processor + var substitution
-6. `packages` package: `apt` and `dnf` implementations
-7. `runner` package: ordered script execution with idempotency convention
-8. `ui` package: Charm TUI wiring
-9. `hm apply` end-to-end
-10. `hm init` scaffold generator
-11. `bootstrap.sh` template (generated into user repos by `hm init`)
-12. Remaining subcommands (`status`, `doctor`, etc.)
-13. GitHub Actions release pipeline
-14. Documentation website
+v0.0.2 shipped. Every MVP milestone is complete: detect, config, link,
+render, packages (apt + dnf), runner, UI, `hm apply` end-to-end,
+`hm init` scaffold, `bootstrap.sh` template, `hm status` / `hm doctor`,
+GitHub Actions release pipeline, e2e container harness covering
+Ubuntu/Debian/Fedora, and the docs site at homie.sh.
+
+The full curl|bash flow has been verified end-to-end against production
+(homie.sh → GitHub releases → a real user dotfiles repo). Next phase is
+dogfooding on real environments and filing issues against gaps that
+surface.
 
 ---
 
