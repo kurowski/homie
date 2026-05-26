@@ -38,6 +38,11 @@ type Config struct {
 //
 // The TOML key `tag:<name>` is reserved for tag-keyed sub-tables; any
 // other key under [packages] is treated as a base distro list.
+//
+// Base and ByTag are exported because (a) the in-package overlay merge
+// needs to mutate them and (b) tests in sibling packages construct
+// Packages literals directly. Regular runtime reads should go through
+// [Config.PackagesFor] rather than touching these maps.
 type Packages struct {
 	// Base maps "all" or a distro key (ubuntu, debian, fedora) to a list
 	// of package names to install on every run for matching distros.
@@ -47,11 +52,29 @@ type Packages struct {
 	// distro-keyed package lists. These contribute only when the tag is
 	// active for the current host.
 	ByTag map[string]map[string][]string
+
+	// Warnings is populated by UnmarshalTOML for typos and other
+	// non-fatal issues (unknown keys, empty tag names). Load drains
+	// these into Config.Warnings so `hm status` / `hm doctor` surface
+	// them.
+	Warnings []string
 }
 
 // TagKeyPrefix marks a key inside the [packages] table as a tag-keyed
 // sub-table rather than a base distro list. See Packages.
 const TagKeyPrefix = "tag:"
+
+// knownDistroKeys are the keys accepted as base distro lists or as
+// sub-table keys inside `[packages."tag:X"]`. "all" applies to every
+// distro; the others must match a supported distro. Keys outside this
+// set are kept (so newer schemas don't hard-fail older binaries) but
+// generate a warning.
+var knownDistroKeys = map[string]struct{}{
+	"all":    {},
+	"ubuntu": {},
+	"debian": {},
+	"fedora": {},
+}
 
 // UnmarshalTOML decodes a heterogeneous [packages] table where some keys
 // are arrays of strings (base distro lists) and others — those whose
@@ -70,11 +93,17 @@ func (p *Packages) UnmarshalTOML(data any) error {
 				return fmt.Errorf(`[packages."%s"] must be a table of distro -> list, got %T`, k, v)
 			}
 			tag := strings.TrimPrefix(k, TagKeyPrefix)
+			if tag == "" {
+				p.warnf(`[packages."%s"] has an empty tag name — did you mean a real tag like "tag:work"? The entries are loaded but no tag will match.`, k)
+			}
 			byDistro := make(map[string][]string, len(sub))
 			for distro, raw := range sub {
 				list, err := stringList(raw)
 				if err != nil {
 					return fmt.Errorf(`[packages."%s"].%s: %w`, k, distro, err)
+				}
+				if _, known := knownDistroKeys[distro]; !known {
+					p.warnf(`[packages."%s"].%s is not a recognized distro key — known: all, ubuntu, debian, fedora`, k, distro)
 				}
 				byDistro[distro] = list
 			}
@@ -85,9 +114,16 @@ func (p *Packages) UnmarshalTOML(data any) error {
 		if err != nil {
 			return fmt.Errorf("packages.%s: %w", k, err)
 		}
+		if _, known := knownDistroKeys[k]; !known {
+			p.warnf(`packages.%s is not a recognized distro key — known: all, ubuntu, debian, fedora (use [packages."tag:%s"] for a tag-keyed list)`, k, k)
+		}
 		p.Base[k] = list
 	}
 	return nil
+}
+
+func (p *Packages) warnf(format string, args ...any) {
+	p.Warnings = append(p.Warnings, fmt.Sprintf(format, args...))
 }
 
 // stringList coerces a decoded TOML value into a []string. The
@@ -172,6 +208,13 @@ func loadFile(path string) (Config, error) {
 	for _, k := range md.Undecoded() {
 		c.Warnings = append(c.Warnings, fmt.Sprintf("unknown field in %s: %s", filepath.Base(path), k.String()))
 	}
+	// Packages has a custom UnmarshalTOML, so md.Undecoded() can't see
+	// typos inside [packages]. Drain the warnings it collected into the
+	// Config-level slice with the source filename prefixed for context.
+	for _, w := range c.Packages.Warnings {
+		c.Warnings = append(c.Warnings, fmt.Sprintf("%s: %s", filepath.Base(path), w))
+	}
+	c.Packages.Warnings = nil
 	return c, nil
 }
 
@@ -213,7 +256,7 @@ func merge(base, overlay Config) Config {
 			}
 		}
 	}
-	base.Tags.Extra = append(base.Tags.Extra, overlay.Tags.Extra...)
+	base.Tags.Extra = appendUnique(base.Tags.Extra, overlay.Tags.Extra)
 	if len(overlay.Vars) > 0 {
 		if base.Vars == nil {
 			base.Vars = make(map[string]string, len(overlay.Vars))
@@ -284,6 +327,11 @@ func (c Config) PackagesFor(env detect.Env) []string {
 	}
 	for _, pkg := range c.Packages.Base[env.Distro] {
 		add(pkg)
+	}
+	// Skip the AllTags walk (and its sort) when there are no tag-keyed
+	// sub-tables — the common case for repos that don't use the feature.
+	if len(c.Packages.ByTag) == 0 {
+		return out
 	}
 	for _, tag := range c.AllTags(env) {
 		byDistro := c.Packages.ByTag[tag]

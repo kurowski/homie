@@ -151,6 +151,30 @@ func TestPackagesForWithTagKeyed(t *testing.T) {
 	}
 }
 
+func TestPackagesWarnsOnTypos(t *testing.T) {
+	c, err := Load(filepath.Join("testdata", "packages-typos"), "")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	joined := strings.Join(c.Warnings, "\n")
+	for _, want := range []string{
+		"packages.feodra",  // base distro typo
+		`empty tag name`,   // [packages."tag:"]
+		`tag:work"].ubunntu`, // sub-table distro typo
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("warnings missing %q\n  got:\n%s", want, joined)
+		}
+	}
+	// Filename context is preserved on each warning so users can trace
+	// the source when they see a doctor finding.
+	for _, w := range c.Warnings {
+		if !strings.Contains(w, "homie.toml") {
+			t.Errorf("warning missing filename: %q", w)
+		}
+	}
+}
+
 func TestPackagesForOrderIsDeterministic(t *testing.T) {
 	c, err := Load(filepath.Join("testdata", "tag-packages"), "")
 	if err != nil {
