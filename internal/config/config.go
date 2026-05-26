@@ -117,7 +117,7 @@ func merge(base, overlay Config) Config {
 			base.Packages = make(map[string][]string, len(overlay.Packages))
 		}
 		for k, v := range overlay.Packages {
-			base.Packages[k] = append(base.Packages[k], v...)
+			base.Packages[k] = appendUnique(base.Packages[k], v)
 		}
 	}
 	base.Tags.Extra = append(base.Tags.Extra, overlay.Tags.Extra...)
@@ -130,6 +130,26 @@ func merge(base, overlay Config) Config {
 		}
 	}
 	base.Warnings = append(base.Warnings, overlay.Warnings...)
+	return base
+}
+
+// appendUnique appends every entry in extra to base that isn't already
+// present, preserving order. Used by merge so that overlapping package
+// lists between base and overlay don't leave duplicates in
+// Config.Packages — PackagesFor dedupes on read, but `hm status` and any
+// future reader benefits from a clean in-memory shape.
+func appendUnique(base, extra []string) []string {
+	seen := make(map[string]struct{}, len(base)+len(extra))
+	for _, s := range base {
+		seen[s] = struct{}{}
+	}
+	for _, s := range extra {
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		base = append(base, s)
+	}
 	return base
 }
 

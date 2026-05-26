@@ -146,7 +146,7 @@ func TestLoadHostOverlay(t *testing.T) {
 		}
 	})
 
-	t.Run("coach overlay sets personal profile and appends packages", func(t *testing.T) {
+	t.Run("coach overlay sets personal profile, appends packages, dedupes overlap", func(t *testing.T) {
 		c, err := Load(dir, "coach")
 		if err != nil {
 			t.Fatalf("Load: %v", err)
@@ -158,6 +158,8 @@ func TestLoadHostOverlay(t *testing.T) {
 		if !reflect.DeepEqual(c.Tags.Extra, wantExtra) {
 			t.Errorf("Tags.Extra = %v, want %v", c.Tags.Extra, wantExtra)
 		}
+		// coach.toml lists ["zsh", "steam"]; base has ["git", "zsh"].
+		// Merged result must dedupe `zsh` and preserve insertion order.
 		wantPkgs := []string{"git", "zsh", "steam"}
 		if !reflect.DeepEqual(c.Packages["fedora"], wantPkgs) {
 			t.Errorf("Packages[fedora] = %v, want %v", c.Packages["fedora"], wantPkgs)

@@ -198,17 +198,28 @@ func TestDetect(t *testing.T) {
 				Tags: []string{"amd64", "fedora"},
 			},
 		},
+		{
+			name:     "hostname with path separator is rejected",
+			fsys:     fstest.MapFS{"etc/os-release": osRelease("fedora")},
+			uid:      1000,
+			arch:     "amd64",
+			hostname: "../etc/passwd",
+			want: Env{
+				Distro: "fedora", PackageManager: "dnf", Arch: "amd64",
+				Tags: []string{"amd64", "fedora"},
+			},
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			d := Detector{
-				FS:       tc.fsys,
-				Getenv:   func(k string) string { return tc.env[k] },
-				Geteuid:  func() int { return tc.uid },
-				IsTTY:    func() bool { return tc.tty },
-				Arch:     tc.arch,
-				Hostname: func() (string, error) { return tc.hostname, tc.hostErr },
+				FS:             tc.fsys,
+				Getenv:         func(k string) string { return tc.env[k] },
+				Geteuid:        func() int { return tc.uid },
+				IsTTY:          func() bool { return tc.tty },
+				Arch:           tc.arch,
+				LookupHostname: func() (string, error) { return tc.hostname, tc.hostErr },
 			}
 			got := d.Detect()
 			// sort tags to make comparison order-independent

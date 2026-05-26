@@ -29,12 +29,12 @@ type Env struct {
 // Detector reads the environment. Zero value uses the real OS sources.
 // Tests override fields to swap in fake filesystems, env, etc.
 type Detector struct {
-	FS       fs.FS                  // root filesystem (paths are relative — no leading slash)
-	Getenv   func(string) string    // env lookup
-	Geteuid  func() int             // effective uid
-	IsTTY    func() bool            // TTY check for stdout
-	Arch     string                 // GOARCH override
-	Hostname func() (string, error) // os.Hostname override
+	FS             fs.FS                  // root filesystem (paths are relative — no leading slash)
+	Getenv         func(string) string    // env lookup
+	Geteuid        func() int             // effective uid
+	IsTTY          func() bool            // TTY check for stdout
+	Arch           string                 // GOARCH override
+	LookupHostname func() (string, error) // os.Hostname override
 }
 
 // Detect runs the default detector against the real OS environment.
@@ -50,14 +50,16 @@ func (d Detector) Detect() Env {
 	env.IsContainer = detectContainer(d.FS, d.Getenv)
 	env.IsRoot = d.Geteuid() == 0
 	env.IsInteractive = d.IsTTY()
-	env.Hostname = shortHostname(d.Hostname)
+	env.Hostname = shortHostname(d.LookupHostname)
 	env.Tags = autoTags(env)
 	return env
 }
 
 // shortHostname returns the hostname truncated at the first dot, so an FQDN
 // like "coach.lan" tags as "coach" — what users mean when they write
-// `hasTag "coach"`. Returns "" if the underlying call fails.
+// `hasTag "coach"`. Returns "" if the underlying call fails or the value
+// contains a path separator (defense against a malformed hostname being
+// interpolated into a hosts/<name>.toml lookup).
 func shortHostname(hostFn func() (string, error)) string {
 	h, err := hostFn()
 	if err != nil {
@@ -66,6 +68,9 @@ func shortHostname(hostFn func() (string, error)) string {
 	h = strings.TrimSpace(h)
 	if i := strings.IndexByte(h, '.'); i >= 0 {
 		h = h[:i]
+	}
+	if strings.ContainsAny(h, `/\`) {
+		return ""
 	}
 	return h
 }
@@ -86,8 +91,8 @@ func (d Detector) withDefaults() Detector {
 	if d.Arch == "" {
 		d.Arch = runtime.GOARCH
 	}
-	if d.Hostname == nil {
-		d.Hostname = os.Hostname
+	if d.LookupHostname == nil {
+		d.LookupHostname = os.Hostname
 	}
 	return d
 }
