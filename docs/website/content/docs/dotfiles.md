@@ -48,8 +48,9 @@ $ ls -l ~/.zshrc
   the old link and creates a fresh one to the repo. The previous
   target file isn't touched.
 
-`hm link` runs just this phase. `hm doctor` reports broken symlinks
-(a symlink in `$HOME` pointing into your repo, but the source file no
+`hm home` runs the symlink + render phases against this tree without
+touching packages or scripts. `hm doctor` reports broken symlinks (a
+symlink in `$HOME` pointing into your repo, but the source file no
 longer exists).
 
 ---
@@ -59,7 +60,7 @@ longer exists).
 A file at `home/<path>.tmpl` is parsed as a Go [`text/template`](https://pkg.go.dev/text/template)
 and rendered into `~/<path>` (with the `.tmpl` suffix stripped). The
 output is a **real file**, not a symlink — the template is the source
-of truth, the output is the artifact. Re-run `hm apply` (or `hm render`)
+of truth, the output is the artifact. Re-run `hm apply` (or `hm home`)
 to refresh.
 
 Source file mode carries through: `home/bin/foo.sh.tmpl` renders
@@ -336,7 +337,7 @@ The source file's executable bit carries through, so the rendered
 
 ### A symlink that points anywhere except `$HOME`
 
-`hm link` only symlinks into `$HOME` — it can't put a file at, say,
+`hm home` only writes into `$HOME` — it can't put a file at, say,
 `/etc/sudoers.d/scout`. Use a `scripts/*.sh` for that:
 
 ```sh

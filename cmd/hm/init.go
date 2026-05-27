@@ -25,8 +25,27 @@ var (
 var initCmd = &cobra.Command{
 	Use:   "init [target-dir]",
 	Short: "Scaffold a new user environment repo",
-	Args:  cobra.MaximumNArgs(1),
-	RunE:  runInit,
+	Long: `Create a fresh user environment repo at target-dir (or the
+current directory if none given). The scaffold includes:
+
+  - homie.toml      — your identity, profile, packages, vars
+  - bootstrap.sh    — the curl|bash entrypoint for fresh machines
+  - home/.zshrc     — sample plain dotfile (symlinked on apply)
+  - home/.gitconfig.tmpl — sample template (rendered on apply)
+  - scripts/01-shell.sh  — sample setup script
+  - README.md, .gitignore
+
+Interactive by default — prompts for name, email, GitHub user, profile,
+shell. Pass the flags below for a non-interactive run, useful in CI:
+
+  hm init \
+    --name "Scout Homes" --email scout@homie.sh \
+    --github-user scouthomes --profile personal ~/dotfiles
+
+Init refuses to overwrite an existing homie.toml — your work is safe.
+Run ` + "`hm apply`" + ` against the scaffolded repo to materialize it.`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runInit,
 }
 
 func init() {

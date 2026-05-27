@@ -27,8 +27,32 @@ var (
 
 var applyCmd = &cobra.Command{
 	Use:   "apply",
-	Short: "Full reconciliation: detect → pre-scripts → packages → backends → link → render → scripts",
-	RunE:  runApply,
+	Short: "Full reconciliation: detect → pre-scripts → packages → backends → home → scripts",
+	Long: `Apply the user environment repo end-to-end. Each phase is
+idempotent — running twice in a row produces no work on the second run.
+
+Phases, in order:
+
+  1. detect       — distro, arch, container, hostname, tags
+  2. config       — load homie.toml (+ hosts/<hostname>.toml overlay)
+  3. pre-scripts  — scripts/pre-*.sh (third-party repo setup, GPG keys, ...)
+  4. packages     — install [packages] via the native manager (apt/dnf)
+  5. backends     — install each declared backend ([packages.brew],
+                    [packages.flatpak], ...); a phase skips with a
+                    warning when its tool isn't on PATH
+  6. home         — symlink plain files and render *.tmpl files from
+                    home/ (and active home.tag-X/ siblings) into $HOME
+  7. scripts      — scripts/*.sh (non-pre)
+
+Non-fatal errors are collected and surfaced in the summary rather than
+aborting. ` + "`hm apply`" + ` exits non-zero if any error was collected.
+
+Flags ` + "`--skip-packages`" + ` and ` + "`--skip-scripts`" + ` cover the umbrella phases —
+` + "`--skip-packages`" + ` covers native and all backend phases, ` + "`--skip-scripts`" + `
+covers pre-scripts and post-scripts.
+
+See https://homie.sh/docs/commands/ for a fuller treatment.`,
+	RunE: runApply,
 }
 
 func init() {
@@ -66,8 +90,7 @@ func runApply(cmd *cobra.Command, args []string) error {
 	for _, backend := range declaredBackends(cfg) {
 		errs = append(errs, applyBackendPackages(u, cfg, env, backend)...)
 	}
-	errs = append(errs, applyLink(u, repoDir, home, cfg, env)...)
-	errs = append(errs, applyRender(u, repoDir, home, cfg, env)...)
+	errs = append(errs, applyHomePhase(u, repoDir, home, cfg, env)...)
 	errs = append(errs, applyScriptPhase(u, repoDir, home, cfg, env, runner.PhasePost)...)
 
 	u.Summary(errs)
@@ -173,46 +196,43 @@ func applyBackendPackages(u ui.UI, cfg config.Config, env detect.Env, backend st
 	return nil
 }
 
-func applyLink(u ui.UI, repoDir, home string, cfg config.Config, env detect.Env) []error {
-	u.Phase("link")
+// applyHomePhase runs the link + render phases against the unified
+// home tree under one "home" UI section. Action verbs (create / replace
+// / backup / render) disambiguate which step each line came from.
+func applyHomePhase(u ui.UI, repoDir, home string, cfg config.Config, env detect.Env) []error {
+	u.Phase("home")
+	var errs []error
+
 	actions, err := link.Plan(repoDir, home, cfg.AllTags(env))
 	if err != nil {
 		return []error{err}
 	}
-	if len(actions) == 0 {
-		u.Info("no dotfiles")
-		return nil
-	}
-	res := link.Apply(actions, time.Now())
-	for _, a := range res.Created {
+	linkRes := link.Apply(actions, time.Now())
+	for _, a := range linkRes.Created {
 		u.Action("create", relTarget(home, a.Target))
 	}
-	for _, a := range res.Replaced {
+	for _, a := range linkRes.Replaced {
 		u.Action("replace", relTarget(home, a.Target))
 	}
-	for _, b := range res.Backed {
+	for _, b := range linkRes.Backed {
 		u.Action("backup", fmt.Sprintf("%s -> %s", relTarget(home, b.Action.Target), relTarget(home, b.Backup)))
 	}
-	if len(res.Skipped) > 0 {
-		u.Action("skip", fmt.Sprintf("%d already in sync", len(res.Skipped)))
-	}
-	return res.Errors
-}
+	errs = append(errs, linkRes.Errors...)
 
-func applyRender(u ui.UI, repoDir, home string, cfg config.Config, env detect.Env) []error {
-	u.Phase("render")
-	res := render.Apply(repoDir, home, cfg, env)
-	if len(res.Rendered) == 0 && len(res.Skipped) == 0 && len(res.Errors) == 0 {
-		u.Info("no templates")
-		return nil
-	}
-	for _, a := range res.Rendered {
+	renderRes := render.Apply(repoDir, home, cfg, env)
+	for _, a := range renderRes.Rendered {
 		u.Action("render", relTarget(home, a.Target))
 	}
-	if len(res.Skipped) > 0 {
-		u.Action("skip", fmt.Sprintf("%d already in sync", len(res.Skipped)))
+	errs = append(errs, renderRes.Errors...)
+
+	if skipped := len(linkRes.Skipped) + len(renderRes.Skipped); skipped > 0 {
+		u.Action("skip", fmt.Sprintf("%d already in sync", skipped))
 	}
-	return res.Errors
+	if len(linkRes.Created)+len(linkRes.Replaced)+len(linkRes.Backed)+len(linkRes.Skipped)+
+		len(renderRes.Rendered)+len(renderRes.Skipped) == 0 && len(errs) == 0 {
+		u.Info("nothing in home/")
+	}
+	return errs
 }
 
 func applyScriptPhase(u ui.UI, repoDir, home string, cfg config.Config, env detect.Env, phase runner.Phase) []error {

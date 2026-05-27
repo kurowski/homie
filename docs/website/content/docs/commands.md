@@ -38,9 +38,9 @@ hm init \
 
 Full reconciliation pass — detect → load config → run pre-scripts →
 install native packages → install declared backends (alphabetical order:
-`brew`, `flatpak`, ...) → symlink dotfiles → render templates → run
-scripts → summary. Backend phases skip with a warning when the tool
-isn't on PATH or the backend name isn't recognized.
+`brew`, `flatpak`, ...) → materialize `home/` (symlinks + rendered
+templates) → run scripts → summary. Backend phases skip with a warning
+when the tool isn't on PATH or the backend name isn't recognized.
 
 ```sh
 hm apply
@@ -57,29 +57,24 @@ Flags:
 
 ---
 
-## `hm link`
+## `hm home`
 
-Just the symlink phase of `apply`. Walks `home/` and any active sibling
-tree named `home.tag-<X>[.tag-<Y>...]` (only included when every named
-tag is active on this host), then symlinks every plain (non-`.tmpl`)
-file into `$HOME` at the matching path. `.tmpl` files in the same trees
-are owned by `hm render` and skipped here.
+Just the home phase of `apply`. Walks `home/` and any active sibling
+`home.tag-<X>[.tag-<Y>...]/` tree, then for each file:
 
-Conflicts (a real file exists at the destination) are backed up to
-`<path>.homie-backup-<timestamp>` before linking — Homie never silently
-overwrites your data. When two trees claim the same target, the
-more-specific tree (more required tags) wins; same-specificity
-collisions error out so you can disambiguate.
+- **Plain files** are symlinked into `$HOME` at the matching path. If
+  a real file already lives at the destination, it's backed up to
+  `<path>.homie-backup-<timestamp>` before linking — Homie never
+  silently overwrites your data.
+- **Files ending in `.tmpl`** are rendered through Go `text/template` +
+  Sprig with the active data set and written into `$HOME` with the
+  suffix stripped. Source mode is preserved (so `home/bin/foo.sh.tmpl`
+  renders executable).
 
----
-
-## `hm render`
-
-Just the template phase. Walks the same `home/` (and `home.tag-X/`)
-trees, picks files ending in `.tmpl`, renders each through Go
-`text/template` + Sprig with the active data set, and writes the output
-(suffix stripped) into `$HOME`. Source mode is preserved (so
-`home/bin/foo.sh.tmpl` renders executable).
+When two trees claim the same target, the more-specific tree (more
+required tags in its directory name) wins; same-specificity collisions
+error out so you can disambiguate. See [Dotfiles](/docs/dotfiles/) for
+the full model.
 
 ---
 

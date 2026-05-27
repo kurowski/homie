@@ -21,12 +21,31 @@ var (
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run scripts/ in order",
-	Long: `Run executes scripts/*.sh for the given phase.
+	Long: `Run scripts/*.sh in lexical order. Each script gets a clean
+bash subprocess with these environment variables set:
 
-Default phase is "post" — every script whose name does NOT begin with
-"pre-". Use --phase=pre to run only pre-package scripts (third-party
-repo setup, GPG keys, etc.), or --phase=all to run pre-scripts then
-post-scripts as ` + "`hm apply`" + ` does.`,
+  HM_REPO   — absolute path of the user repo
+  HM_HOME   — absolute path being treated as $HOME
+  HM_TAGS   — comma-joined active tag set
+  <each>    — every key from [vars] in homie.toml
+
+Scripts are user code — Homie does not enforce idempotency. The
+convention is for each script to no-op when its work is already done
+(e.g. ` + "`command -v X >/dev/null && exit 0`" + ` at the top).
+
+Phases:
+
+  --phase=post   (default) every script whose name does NOT start with
+                 "pre-". The scripts step of ` + "`hm apply`" + `.
+  --phase=pre    only pre-*.sh scripts — the step that runs ahead of
+                 the package install in ` + "`hm apply`" + `. Used for adding
+                 third-party package sources (dnf COPRs, apt keyrings,
+                 RPM Fusion, flatpak remote setup, ...).
+  --phase=all    pre-scripts then post-scripts, matching the order
+                 ` + "`hm apply`" + ` uses.
+
+A failing script doesn't abort the rest of the phase — failures are
+collected and surfaced in a non-zero exit code at the end.`,
 	RunE: runRun,
 }
 
