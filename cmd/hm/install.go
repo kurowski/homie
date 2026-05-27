@@ -15,7 +15,22 @@ import (
 var installCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Install packages declared in homie.toml",
-	RunE:  runInstall,
+	Long: `Install the packages declared in homie.toml — native first
+(apt or dnf), then each non-native backend (brew, flatpak, ...) in
+alphabetical order. Already-installed packages are filtered out, so
+re-running is cheap.
+
+The native phase resolves [packages].all + [packages].<distro> +
+matching [packages."tag:X"] sub-tables. Each backend phase resolves
+its corresponding [packages.<backend>] tables. A backend whose CLI
+tool isn't on PATH warns and skips — install the tool (or add a
+scripts/pre-*.sh that does) and re-run.
+
+This is the same phase ` + "`hm apply`" + ` runs; use ` + "`hm install`" + ` when you only
+want to update packages without touching dotfiles or scripts.
+
+See https://homie.sh/docs/config/#packages for the table reference.`,
+	RunE: runInstall,
 }
 
 func init() {

@@ -20,7 +20,26 @@ var statusHome string
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show sync state, no changes",
-	RunE:  runStatus,
+	Long: `Print a read-only summary of how the current host looks to
+Homie. No writes, no installs — useful before an apply to verify what
+Homie thinks it should be doing, or in CI to confirm a fresh checkout
+is healthy.
+
+The output covers:
+
+  - Environment: distro, package manager, arch, hostname, container/
+    root/interactive flags, the auto-detected tag set.
+  - Repo:        active homie.toml path, user identity, profile,
+                 the merged active tag set, and the package list that
+                 would install on this host.
+  - Warnings:    anything captured by config load (unknown keys,
+                 typos, etc.).
+  - Health:      a one-line counts summary from ` + "`hm doctor`" + ` — run that
+                 command for the detail.
+
+Exits zero even if doctor reports problems; use ` + "`hm doctor`" + ` for a
+non-zero gate.`,
+	RunE: runStatus,
 }
 
 func init() {
