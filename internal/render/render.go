@@ -173,7 +173,7 @@ func renderFile(source, target string, data Data) (bool, error) {
 	if err := os.Remove(target); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return false, err
 	}
-	if err := os.WriteFile(target, outBytes, info.Mode()); err != nil {
+	if err := os.WriteFile(target, outBytes, info.Mode().Perm()); err != nil {
 		return false, err
 	}
 	return true, nil
