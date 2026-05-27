@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"errors"
-	"fmt"
+	"io"
 	"os"
 
+	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
 )
 
@@ -35,10 +37,24 @@ func init() {
 }
 
 func main() {
-	if err := rootCmd.Execute(); err != nil {
-		if !errors.Is(err, errSilentExit) {
-			fmt.Fprintln(os.Stderr, "Error:", err)
-		}
+	err := fang.Execute(
+		context.Background(),
+		rootCmd,
+		fang.WithVersion(version),
+		fang.WithErrorHandler(homieErrorHandler),
+	)
+	if err != nil {
 		os.Exit(1)
 	}
+}
+
+// homieErrorHandler wraps fang's default styled error rendering with
+// our errSilentExit shortcut: commands that print their own summary
+// (e.g. `hm doctor`) return errSilentExit so we exit non-zero without
+// rendering a duplicate styled error block on top of their output.
+func homieErrorHandler(w io.Writer, styles fang.Styles, err error) {
+	if errors.Is(err, errSilentExit) {
+		return
+	}
+	fang.DefaultErrorHandler(w, styles, err)
 }
