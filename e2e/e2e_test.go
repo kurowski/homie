@@ -92,7 +92,7 @@ func TestApplyAcrossDistros(t *testing.T) {
 			mustExec(t, cid, d.packageCheck...)
 			assertSymlink(t, cid,
 				containerHome+"/.zshrc",
-				containerHome+"/"+userrepoName+"/dotfiles/.zshrc",
+				containerHome+"/"+userrepoName+"/home/.zshrc",
 			)
 			assertContains(t, cid, containerHome+"/.gitconfig", "name = Scout Homes")
 			assertContains(t, cid, containerHome+"/.gitconfig", "email = scout@homie.sh")
