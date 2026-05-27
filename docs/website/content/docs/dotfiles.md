@@ -224,9 +224,9 @@ the same depth, Homie won't guess. Two common shapes:
   active). Narrow one tree (`home.tag-work.tag-laptop/`), or merge
   into a single template with `{{ if hasTag ... }}`.
 
-The override rule is enforced once, in `tree.Resolve`. Both the
-symlink phase and the template phase agree on which source wins for
-each target before any write happens.
+The override is resolved once, before either phase writes anything,
+so the symlink phase and the template phase agree on which source
+wins for each target.
 
 ---
 
