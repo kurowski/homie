@@ -126,7 +126,7 @@ func (r *Report) checkLinks(repoDir, home string, cfg config.Config, env detect.
 				fmt.Sprintf("%s exists as a real file — `hm apply` would back it up", a.Target))
 		case link.KindCreate:
 			r.add(SeverityWarn, "link",
-				fmt.Sprintf("%s not yet linked — run `hm apply` or `hm link`", a.Target))
+				fmt.Sprintf("%s not yet linked — run `hm apply` or `hm home`", a.Target))
 		}
 	}
 	// Detect broken symlinks: a homie-managed symlink whose source file
@@ -237,7 +237,7 @@ func (r *Report) checkTemplates(repoDir, home string, cfg config.Config, env det
 			got, err := os.ReadFile(target)
 			if errors.Is(err, fs.ErrNotExist) {
 				r.add(SeverityWarn, "render",
-					fmt.Sprintf("%s not yet rendered — run `hm apply` or `hm render`", target))
+					fmt.Sprintf("%s not yet rendered — run `hm apply` or `hm home`", target))
 				return nil
 			}
 			if err != nil {

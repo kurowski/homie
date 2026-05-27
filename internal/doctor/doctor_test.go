@@ -202,6 +202,22 @@ func TestRunReportsBackendPackageFindings(t *testing.T) {
 	}
 }
 
+func TestRunReportsUnlinkedDotfile(t *testing.T) {
+	repo, home := makeRepo(t)
+	// Source exists in home/ but hasn't been symlinked into $HOME yet
+	// — link.Plan classifies as KindCreate, doctor reports as a warning.
+	if err := os.WriteFile(filepath.Join(repo, "home", ".zshrc"), []byte("# zsh"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
+	r := Run(repo, home, sampleCfg(), env,
+		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}}, nil)
+	msgs := strings.Join(messagesByArea(r, "link"), "\n")
+	if !strings.Contains(msgs, "not yet linked") {
+		t.Errorf("expected not-yet-linked finding: %s", msgs)
+	}
+}
+
 func TestRunReportsMissingPackages(t *testing.T) {
 	repo, home := makeRepo(t)
 	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}

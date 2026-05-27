@@ -2,16 +2,13 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/kurowski/homie/internal/config"
 	"github.com/kurowski/homie/internal/detect"
-	"github.com/kurowski/homie/internal/link"
-	"github.com/kurowski/homie/internal/render"
 	"github.com/kurowski/homie/internal/repo"
+	"github.com/kurowski/homie/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -68,58 +65,23 @@ func runHomeCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	errs := doHome(cmd.OutOrStdout(), repoDir, home, cfg, env)
+	// Route through the same phase apply uses so the output is
+	// byte-identical between `hm home` and `hm apply`'s home section.
+	noTTY, _ := cmd.Root().PersistentFlags().GetBool("no-tty")
+	u := ui.New(cmd.OutOrStdout(), noTTY)
+	defer func() { _ = u.Close() }()
+
+	errs := applyHomePhase(u, repoDir, home, cfg, env)
+	u.Summary(errs)
 	if len(errs) > 0 {
 		return fmt.Errorf("%d error(s) during home", len(errs))
 	}
 	return nil
 }
 
-// doHome runs the link phase followed by the render phase against the
-// same home tree and streams their actions to w. Shared by `hm home`
-// and `hm apply`'s home phase so the output is identical either way.
-func doHome(w io.Writer, repoDir, home string, cfg config.Config, env detect.Env) []error {
-	var errs []error
-
-	actions, err := link.Plan(repoDir, home, cfg.AllTags(env))
-	if err != nil {
-		fmt.Fprintf(w, "  error    %s\n", err)
-		return []error{err}
-	}
-	linkRes := link.Apply(actions, time.Now())
-	for _, a := range linkRes.Created {
-		fmt.Fprintf(w, "  create   %s\n", relTarget(home, a.Target))
-	}
-	for _, a := range linkRes.Replaced {
-		fmt.Fprintf(w, "  replace  %s\n", relTarget(home, a.Target))
-	}
-	for _, b := range linkRes.Backed {
-		fmt.Fprintf(w, "  backup   %s -> %s\n", relTarget(home, b.Action.Target), relTarget(home, b.Backup))
-	}
-	if n := len(linkRes.Skipped); n > 0 {
-		fmt.Fprintf(w, "  skip     %d symlinks already in sync\n", n)
-	}
-	errs = append(errs, linkRes.Errors...)
-
-	renderRes := render.Apply(repoDir, home, cfg, env)
-	for _, a := range renderRes.Rendered {
-		fmt.Fprintf(w, "  render   %s\n", relTarget(home, a.Target))
-	}
-	if n := len(renderRes.Skipped); n > 0 {
-		fmt.Fprintf(w, "  skip     %d templates already in sync\n", n)
-	}
-	for _, e := range renderRes.Errors {
-		fmt.Fprintf(w, "  error    %s\n", e)
-	}
-	errs = append(errs, renderRes.Errors...)
-
-	if len(linkRes.Created)+len(linkRes.Replaced)+len(linkRes.Backed)+len(linkRes.Skipped)+
-		len(renderRes.Rendered)+len(renderRes.Skipped) == 0 && len(errs) == 0 {
-		fmt.Fprintln(w, "Nothing in home/ to materialize.")
-	}
-	return errs
-}
-
+// relTarget formats target as a ~/-relative path when it's inside
+// home, otherwise returns the absolute path. Shared by apply.go and
+// home.go for consistent action-line formatting.
 func relTarget(home, target string) string {
 	if rel, err := filepath.Rel(home, target); err == nil {
 		return "~/" + rel
