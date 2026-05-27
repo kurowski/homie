@@ -161,9 +161,9 @@ func (r *Report) checkLinks(repoDir, home string, cfg config.Config, env detect.
 // separator (plain) or "." (tag-gated sibling).
 //
 // taggedPrefix intentionally matches `home.<anything>`, not just dirs
-// that pass ParseTreeDir. A stale link into a renamed-away `home.backup/`
+// that pass tree.ParseDir. A stale link into a renamed-away `home.backup/`
 // is still a broken homie-shaped link the user probably wants to clean
-// up — tightening this to ParseTreeDir would silently lose those reports.
+// up — tightening this to tree.ParseDir would silently lose those reports.
 func findBrokenLinks(home, homeBase string) []string {
 	var out []string
 	plainPrefix := homeBase + string(os.PathSeparator)
@@ -194,43 +194,15 @@ func findBrokenLinks(home, homeBase string) []string {
 	return out
 }
 
-// inactiveTreeDirs returns the names of tag-gated tree directories
-// (<base>.tag-X[.tag-Y...]) under repoDir whose tag set is NOT satisfied
-// by the active set. Result is sorted by directory name for stable
-// reporting. Used by doctor to inform the user which tag-gated trees
-// won't apply on this host.
+// inactiveTreeDirs returns the bare names of tag-gated tree directories
+// (<base>.tag-X[.tag-Y...]) under repoDir whose tag set is NOT
+// satisfied by the active set. Result is sorted for stable reporting.
+// Thin wrapper over tree.Classify — the partitioning rule lives there.
 func inactiveTreeDirs(repoDir, base string, activeTags []string) []string {
-	entries, err := os.ReadDir(repoDir)
-	if err != nil {
-		return nil
-	}
-	active := make(map[string]struct{}, len(activeTags))
-	for _, t := range activeTags {
-		active[t] = struct{}{}
-	}
-
-	var out []string
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		required, ok := tree.ParseDir(e.Name(), base)
-		if !ok || len(required) == 0 {
-			continue // not a tagged tree, or the bare base dir
-		}
-		// "Inactive" means at least one required tag isn't in the
-		// active set — the same test ActiveTrees applies, computed
-		// directly here so we make one ReadDir pass instead of two.
-		satisfied := true
-		for _, t := range required {
-			if _, ok := active[t]; !ok {
-				satisfied = false
-				break
-			}
-		}
-		if !satisfied {
-			out = append(out, e.Name())
-		}
+	t, _ := tree.Classify(repoDir, base, activeTags)
+	out := make([]string, 0, len(t.Inactive))
+	for _, p := range t.Inactive {
+		out = append(out, filepath.Base(p))
 	}
 	sort.Strings(out)
 	return out

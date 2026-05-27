@@ -324,16 +324,22 @@ home.tag-work.tag-kde/          # AND: only when both tags active
   .config/plasma-workspace/...
 ```
 
-If two trees produce the same target path, `hm apply` reports an error
-— overriding by tag should be expressed in a single template with
-`{{ if hasTag ... }}`, not by stacking trees. Two details worth knowing:
-- `link.Plan` fails fast on a symlink-source collision (no symlinks created).
-- `render.Apply` records each template collision in `Result.Errors`
-  and continues with the rest of the trees.
+When two trees claim the same `$HOME` target, `tree.Resolve` applies a
+**more-specific-wins** rule. Specificity is the number of required tags
+on the source tree's directory name: bare `home/` is 0, `home.tag-X/`
+is 1, `home.tag-X.tag-Y/` is 2, etc.
 
-Either way `hm apply` exits non-zero and surfaces the error. `hm doctor`
-also lists tag-gated trees that aren't active on the current host as
-informational findings (severity: info, area: home).
+- Different specificity → the deeper tree wins silently, regardless of
+  class (a `home.tag-work/.gitconfig.tmpl` template overrides a base
+  `home/.gitconfig` plain file).
+- Same specificity → `hm apply` errors. Same-specificity collisions
+  include `home/.gitconfig` + `home/.gitconfig.tmpl` (both spec 0) and
+  `home.tag-work/.foo` + `home.tag-personal/.foo` (both spec 1 with
+  both tags somehow active). Fix by narrowing one tree, collapsing into
+  one template, or merging the files.
+
+`hm doctor` also lists tag-gated trees that aren't active on the current
+host as informational findings (severity: info, area: home).
 
 Tag names appearing in directory suffixes can't contain `.` (the
 separator between segments). `dotfiles.tag-fedora.42/` parses as two

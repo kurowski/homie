@@ -1,4 +1,7 @@
-// Package link mirrors a repo's dotfiles/ directory into $HOME as symlinks.
+// Package link mirrors plain files from a repo's home/ tree into $HOME
+// as symlinks. Files ending in .tmpl in the same tree are owned by
+// internal/render; the partition between symlink-it and render-it is
+// purely the .tmpl suffix.
 //
 // Plan walks the source tree and classifies what needs to happen at each
 // destination. Apply executes the plan, backing up real files that would
@@ -51,64 +54,30 @@ type BackupRecord struct {
 	Backup string // absolute path of the backup
 }
 
-// Plan walks the active home trees under repoDir and returns one
-// Action per regular file that is NOT a template. Trees are:
-//   - <repoDir>/home (always)
-//   - <repoDir>/home.tag-<a>[.tag-<b>...] when every named tag is
-//     present in the given tags slice
+// Plan returns one Action per non-template file resolved out of the
+// active home trees (`home/` plus any `home.tag-X[.tag-Y...]/` whose
+// tags are all in the given set). Templates are tree.Resolve's
+// concern; they don't become Actions here but render.Apply consumes
+// the same resolved set so the two stay in sync.
 //
-// Files whose name ends in `.tmpl` are skipped here — they belong to
-// render.Apply, which walks the same trees and picks them up. The
-// `.tmpl` suffix is the disambiguator between "symlink me" and "render
-// me" inside a unified home tree.
-//
-// If no home tree exists, Plan returns an empty slice with no error.
-// If two trees contribute the same target path, Plan fails fast and
-// returns an error — overriding by tag should be expressed in templates,
-// not by stacking home trees. This is stricter than render.Apply,
-// which records per-file collision errors and continues; the asymmetry
-// matches each package's existing error model (Plan/Apply split here,
-// per-file collection there). Roots are visited in lexical order so any
-// collision is deterministic.
+// Collision handling lives in tree.Resolve — the more-specific tree
+// wins per target, and same-specificity collisions return an error
+// from Resolve which Plan passes through unchanged.
 func Plan(repoDir, home string, tags []string) ([]Action, error) {
-	roots, err := tree.Active(repoDir, tree.HomeDir, tags)
+	resolved, err := tree.Resolve(repoDir, home, tags)
 	if err != nil {
 		return nil, err
 	}
-
 	var actions []Action
-	bySource := make(map[string]string) // target -> source that claimed it
-	for _, src := range roots {
-		err := filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			if d.IsDir() {
-				return nil
-			}
-			if tree.IsTemplate(d.Name()) {
-				return nil // render.Apply handles this file
-			}
-			rel, err := filepath.Rel(src, path)
-			if err != nil {
-				return err
-			}
-			target := filepath.Join(home, rel)
-			if prev, ok := bySource[target]; ok {
-				return fmt.Errorf("%s is claimed by both %s and %s — move one into the other tree or use a template",
-					tree.RelTo(repoDir, target), tree.RelTo(repoDir, prev), tree.RelTo(repoDir, path))
-			}
-			bySource[target] = path
-			kind, err := classify(path, target)
-			if err != nil {
-				return err
-			}
-			actions = append(actions, Action{Kind: kind, Source: path, Target: target})
-			return nil
-		})
+	for _, r := range resolved {
+		if r.IsTemplate {
+			continue // render.Apply owns this file
+		}
+		kind, err := classify(r.Source, r.Target)
 		if err != nil {
 			return nil, err
 		}
+		actions = append(actions, Action{Kind: kind, Source: r.Source, Target: r.Target})
 	}
 	return actions, nil
 }

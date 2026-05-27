@@ -30,10 +30,34 @@ home.tag-work.tag-kde/           # AND: both tags must be active
   .config/plasma/some-template.tmpl
 ```
 
-Use this when an entire file is conditional on a tag. For per-line
-conditionals inside a single rendered file, use `{{ if hasTag ... }}`
-within one template — that's what `hasTag` is for. If two trees produce
-the same output path, `hm apply` errors out so the conflict surfaces.
+Use a tag-gated directory when an entire file is conditional on a tag.
+For per-line conditionals inside a single rendered file, use
+`{{ if hasTag ... }}` within one template — that's what `hasTag` is for.
+
+### Overrides
+
+Two trees can legitimately claim the same `$HOME` target. The
+**more-specific tree wins**, where specificity is the number of
+required tags on the directory name (bare `home/` is 0, `home.tag-X/`
+is 1, `home.tag-X.tag-Y/` is 2):
+
+```
+home/.gitconfig               (spec 0) — applies on every host
+home.tag-work/.gitconfig.tmpl (spec 1) — overrides on a work host
+```
+
+On a work host, the templated `.gitconfig` wins. On every other host,
+the plain `home/.gitconfig` symlinks. Works across classes too — a
+template in a more-specific tree overrides a plain file in a less-
+specific one, and vice versa.
+
+If two trees claim the same target at the **same specificity** (e.g.
+`home/.gitconfig` and `home/.gitconfig.tmpl`, or
+`home.tag-work/.foo` and `home.tag-personal/.foo` with both tags active),
+`hm apply` errors — Homie won't guess which one you meant. Disambiguate
+by narrowing one tree (add a tag) or merging the files into a single
+template with `{{ if hasTag ... }}`.
+
 `hm doctor` lists tag-gated trees that aren't active on the current
 host as informational findings.
 

@@ -67,9 +67,9 @@ are owned by `hm render` and skipped here.
 
 Conflicts (a real file exists at the destination) are backed up to
 `<path>.homie-backup-<timestamp>` before linking — Homie never silently
-overwrites your data. If two trees produce the same target path, `hm
-link` errors out — pick one source or express the override in a single
-template with `{{ if hasTag ... }}`.
+overwrites your data. When two trees claim the same target, the
+more-specific tree (more required tags) wins; same-specificity
+collisions error out so you can disambiguate.
 
 ---
 

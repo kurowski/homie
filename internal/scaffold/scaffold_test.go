@@ -24,13 +24,13 @@ func TestRunWritesAllFiles(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 	want := map[string]os.FileMode{
-		"homie.toml":                0o644,
-		"bootstrap.sh":              0o755,
-		"README.md":                 0o644,
-		".gitignore":                0o644,
-		"home/.zshrc":           0o644,
-		"home/.gitconfig.tmpl":  0o644,
-		"scripts/01-shell.sh":       0o755,
+		"homie.toml":           0o644,
+		"bootstrap.sh":         0o755,
+		"README.md":            0o644,
+		".gitignore":           0o644,
+		"home/.zshrc":          0o644,
+		"home/.gitconfig.tmpl": 0o644,
+		"scripts/01-shell.sh":  0o755,
 	}
 	for rel, mode := range want {
 		info, err := os.Stat(filepath.Join(dir, rel))

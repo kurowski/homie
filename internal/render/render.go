@@ -1,5 +1,7 @@
-// Package render evaluates Go text/template files under <repo>/templates/
-// and writes the output to corresponding paths under $HOME.
+// Package render evaluates Go text/template files (those ending in
+// .tmpl) under <repo>/home/ and any active home.tag-X[.tag-Y...]
+// siblings, and writes the output to corresponding paths under $HOME
+// with the .tmpl suffix stripped.
 //
 // Templates use Go's text/template syntax extended with Sprig
 // (https://masterminds.github.io/sprig/) plus a hasTag helper. Unlike
@@ -14,7 +16,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
@@ -22,13 +23,6 @@ import (
 	"github.com/kurowski/homie/internal/detect"
 	"github.com/kurowski/homie/internal/tree"
 )
-
-// Extension is the suffix stripped from template filenames during
-// rendering. Re-exported here for backward source-compat with anything
-// that referenced render.Extension; the canonical value lives in
-// internal/tree as TemplateExtension because both link and render need
-// to agree on it.
-const Extension = tree.TemplateExtension
 
 // Data is what's available inside a template via {{ .Name }} etc.
 // Vars is map[string]any (not map[string]string) so Sprig helpers like
@@ -114,60 +108,39 @@ type Result struct {
 	Errors   []error
 }
 
-// Apply walks every active home tree (<repoDir>/home plus any tag-gated
-// home.tag-<X> siblings whose tags are all active) and renders each
-// *.tmpl into <home> with the .tmpl suffix stripped. Non-template files
-// in the same trees are owned by link.Plan and skipped here. If no home
-// tree exists, Apply returns an empty result with no error. Non-fatal
-// per-file errors are collected in Result.Errors so the rest of `hm
-// apply` can continue. A collision (two trees producing the same target)
-// is recorded as an error but doesn't abort the run.
+// Apply renders every template resolved out of the active home trees
+// into <home> with the .tmpl suffix stripped. Non-template files in
+// the same trees are owned by link.Plan and ignored here.
+//
+// Collision handling lives in tree.Resolve: more-specific tree wins
+// per target, same-specificity collisions return an error from
+// Resolve. If Resolve errors, Apply returns it as the single entry in
+// Result.Errors with no rendering performed; per-file render errors
+// (template parse failures, write errors, etc.) are still collected
+// individually so one bad template doesn't block the rest.
 func Apply(repoDir, home string, cfg config.Config, env detect.Env) Result {
 	var res Result
-	tags := cfg.AllTags(env)
-	roots, err := tree.Active(repoDir, tree.HomeDir, tags)
+	resolved, err := tree.Resolve(repoDir, home, cfg.AllTags(env))
 	if err != nil {
-		res.Errors = append(res.Errors, fmt.Errorf("scan home trees: %w", err))
+		res.Errors = append(res.Errors, err)
 		return res
 	}
-
 	data := BuildData(cfg, env)
-	claimed := make(map[string]string) // target -> source path that produced it
-	for _, src := range roots {
-		_ = filepath.WalkDir(src, func(path string, d fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				res.Errors = append(res.Errors, walkErr)
-				return nil
-			}
-			if d.IsDir() || !tree.IsTemplate(d.Name()) {
-				return nil
-			}
-			rel, err := filepath.Rel(src, path)
-			if err != nil {
-				res.Errors = append(res.Errors, err)
-				return nil
-			}
-			target := filepath.Join(home, strings.TrimSuffix(rel, Extension))
-			if prev, ok := claimed[target]; ok {
-				res.Errors = append(res.Errors,
-					fmt.Errorf("%s is claimed by both %s and %s — pick one tree",
-						tree.RelTo(repoDir, target), tree.RelTo(repoDir, prev), tree.RelTo(repoDir, path)))
-				return nil
-			}
-			claimed[target] = path
-			written, err := renderFile(path, target, data)
-			if err != nil {
-				res.Errors = append(res.Errors, fmt.Errorf("%s: %w", path, err))
-				return nil
-			}
-			action := Action{Source: path, Target: target}
-			if written {
-				res.Rendered = append(res.Rendered, action)
-			} else {
-				res.Skipped = append(res.Skipped, action)
-			}
-			return nil
-		})
+	for _, r := range resolved {
+		if !r.IsTemplate {
+			continue // link.Plan owns this file
+		}
+		written, err := renderFile(r.Source, r.Target, data)
+		if err != nil {
+			res.Errors = append(res.Errors, fmt.Errorf("%s: %w", r.Source, err))
+			continue
+		}
+		action := Action{Source: r.Source, Target: r.Target}
+		if written {
+			res.Rendered = append(res.Rendered, action)
+		} else {
+			res.Skipped = append(res.Skipped, action)
+		}
 	}
 	return res
 }

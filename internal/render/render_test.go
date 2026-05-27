@@ -306,7 +306,7 @@ func TestApplyTagGatedTemplates(t *testing.T) {
 	})
 }
 
-func TestApplyCollidingTreesError(t *testing.T) {
+func TestApplyTemplateOverrideAcrossTrees(t *testing.T) {
 	repo := t.TempDir()
 	home := t.TempDir()
 	mk := func(rel, body string) {
@@ -318,33 +318,56 @@ func TestApplyCollidingTreesError(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// Two trees, both rendering to ~/conf — one from the base, one from
-	// the work-tagged tree.
+	// Same target from two trees of different specificity — the
+	// more-specific work tree wins. Resolve, no collision error.
 	mk("home/conf.tmpl", `base {{ .Name }}`)
 	mk("home.tag-work/conf.tmpl", `work {{ .Name }}`)
-	// A non-colliding template in each tree to confirm Apply continues
-	// after recording the collision error.
-	mk("home/other-base.tmpl", `base other`)
-	mk("home.tag-work/other-work.tmpl", `work other`)
 
 	cfg := config.Config{User: config.User{Name: "Scout", Email: "scout@homie.sh"}}
 	res := Apply(repo, home, cfg, detect.Env{Tags: []string{"work"}})
 
+	if len(res.Errors) != 0 {
+		t.Fatalf("expected no errors (work overrides base), got %v", res.Errors)
+	}
+	got, err := os.ReadFile(filepath.Join(home, "conf"))
+	if err != nil {
+		t.Fatalf("conf: %v", err)
+	}
+	if string(got) != "work Scout" {
+		t.Errorf("conf = %q, want %q (work tree should win the override)", got, "work Scout")
+	}
+}
+
+func TestApplyEqualSpecificityIsAmbiguous(t *testing.T) {
+	repo := t.TempDir()
+	home := t.TempDir()
+	mk := func(rel, body string) {
+		path := filepath.Join(repo, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Two tag dirs at the same specificity claim the same target —
+	// Resolve refuses to guess and returns an error.
+	mk("home.tag-work/conf.tmpl", `work {{ .Name }}`)
+	mk("home.tag-personal/conf.tmpl", `personal {{ .Name }}`)
+
+	cfg := config.Config{User: config.User{Name: "Scout", Email: "scout@homie.sh"}}
+	res := Apply(repo, home, cfg, detect.Env{Tags: []string{"work", "personal"}})
+
 	if len(res.Errors) != 1 {
-		t.Fatalf("expected exactly 1 collision error, got %d: %v", len(res.Errors), res.Errors)
+		t.Fatalf("expected exactly 1 ambiguity error, got %d: %v", len(res.Errors), res.Errors)
 	}
-	msg := res.Errors[0].Error()
-	for _, want := range []string{"claimed by both", "conf", "home/", "home.tag-work/"} {
-		if !strings.Contains(msg, want) {
-			t.Errorf("collision error missing %q: %s", want, msg)
-		}
+	if !strings.Contains(res.Errors[0].Error(), "same specificity") {
+		t.Errorf("error should mention specificity tie: %v", res.Errors[0])
 	}
-	// The non-colliding templates from both trees should still render —
-	// render.Apply records per-file errors but doesn't abort the walk.
-	for _, want := range []string{"other-base", "other-work"} {
-		if _, err := os.Stat(filepath.Join(home, want)); err != nil {
-			t.Errorf("non-colliding template %s should have rendered: %v", want, err)
-		}
+	// Neither template should have rendered — Resolve fails before any
+	// write happens.
+	if _, err := os.Stat(filepath.Join(home, "conf")); !os.IsNotExist(err) {
+		t.Errorf("conf should not exist when Resolve errored")
 	}
 }
 

@@ -266,7 +266,7 @@ func TestPlanSkipsTemplates(t *testing.T) {
 		".zshrc":          "# zshrc",
 		".gitconfig.tmpl": "[user] name = {{ .Name }}",
 		"bin/runme":       "#!/bin/sh\necho hi",
-		"bin/runme.tmpl":  "#!/bin/sh\necho {{ .Name }}",
+		"bin/other.tmpl":  "#!/bin/sh\necho {{ .Name }}",
 	})
 	actions, err := Plan(repo, home, nil)
 	if err != nil {
@@ -283,14 +283,79 @@ func TestPlanSkipsTemplates(t *testing.T) {
 			t.Errorf("expected %s to be symlinked, got actions: %v", want, got)
 		}
 	}
-	for _, dontWant := range []string{".gitconfig.tmpl", ".gitconfig", "bin/runme.tmpl"} {
+	for _, dontWant := range []string{".gitconfig.tmpl", ".gitconfig", "bin/other.tmpl", "bin/other"} {
 		if got[dontWant] {
-			t.Errorf("Plan should not handle %s — it's render's job (or its stripped form)", dontWant)
+			t.Errorf("Plan should not produce a symlink action for %s — render owns templates and their stripped targets", dontWant)
 		}
 	}
 }
 
-func TestPlanCollidingTreesError(t *testing.T) {
+func TestPlanCrossClassCollisionError(t *testing.T) {
+	// Same $HOME target reached by one plain file and one template —
+	// link.Plan must fail fast so apply doesn't symlink-then-overwrite
+	// (and the next apply doesn't back up the rendered file).
+	cases := []struct {
+		name  string
+		files map[string]string
+	}{
+		{
+			name: "plain and template in the same tree",
+			files: map[string]string{
+				".gitconfig":      "[user]",
+				".gitconfig.tmpl": "[user] name = {{ .Name }}",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, home := setup(t, tc.files)
+			_, err := Plan(repo, home, nil)
+			if err == nil {
+				t.Fatal("expected collision error, got nil")
+			}
+			if !strings.Contains(err.Error(), "claimed by both") {
+				t.Errorf("error missing 'claimed by both': %v", err)
+			}
+			if !strings.Contains(err.Error(), ".gitconfig") {
+				t.Errorf("error missing target path: %v", err)
+			}
+		})
+	}
+}
+
+func TestPlanCrossClassOverrideAcrossTrees(t *testing.T) {
+	// Plain file in home/ (spec 0) overridden by a template in
+	// home.tag-work/ (spec 1). render handles the template; link's
+	// Plan should NOT produce a symlink action for the plain version
+	// because it lost the override.
+	repo := t.TempDir()
+	home := t.TempDir()
+	mk := func(rel, body string) {
+		path := filepath.Join(repo, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("home/.gitconfig", "[user]")
+	mk("home.tag-work/.gitconfig.tmpl", "[user] name = {{ .Name }}")
+
+	actions, err := Plan(repo, home, []string{"work"})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	for _, a := range actions {
+		if filepath.Base(a.Target) == ".gitconfig" {
+			t.Errorf("link should not action .gitconfig — render owns it via the work override; got source %s", a.Source)
+		}
+	}
+}
+
+func TestPlanSameClassOverrideAcrossTrees(t *testing.T) {
+	// Plain in home/ (spec 0) overridden by plain in home.tag-work/
+	// (spec 1). One Action, sourced from the work tree.
 	repo := t.TempDir()
 	home := t.TempDir()
 	mk := func(rel, content string) {
@@ -305,12 +370,43 @@ func TestPlanCollidingTreesError(t *testing.T) {
 	mk("home/.zshrc", "base")
 	mk("home.tag-work/.zshrc", "work override")
 
-	_, err := Plan(repo, home, []string{"work"})
-	if err == nil {
-		t.Fatal("expected collision error, got nil")
+	actions, err := Plan(repo, home, []string{"work"})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
 	}
-	if !strings.Contains(err.Error(), ".zshrc") {
-		t.Errorf("error missing target path: %v", err)
+	if len(actions) != 1 {
+		t.Fatalf("expected exactly 1 action, got %d: %+v", len(actions), actions)
+	}
+	wantSrc := filepath.Join(repo, "home.tag-work", ".zshrc")
+	if actions[0].Source != wantSrc {
+		t.Errorf("winning source = %s, want %s (more-specific tag dir)", actions[0].Source, wantSrc)
+	}
+}
+
+func TestPlanEqualSpecificityIsAmbiguous(t *testing.T) {
+	// Two sibling tag dirs at the same specificity claim the same
+	// target — Resolve can't pick a winner and must error.
+	repo := t.TempDir()
+	home := t.TempDir()
+	mk := func(rel, body string) {
+		path := filepath.Join(repo, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("home.tag-work/.gitconfig", "work")
+	mk("home.tag-personal/.gitconfig", "personal")
+
+	// Both tags active on this (hypothetical) host.
+	_, err := Plan(repo, home, []string{"work", "personal"})
+	if err == nil {
+		t.Fatal("expected equal-specificity ambiguity error, got nil")
+	}
+	if !strings.Contains(err.Error(), "same specificity") {
+		t.Errorf("error should explain it's a specificity tie: %v", err)
 	}
 }
 

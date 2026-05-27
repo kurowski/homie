@@ -89,7 +89,7 @@ func TestApplyEndToEnd(t *testing.T) {
 		t.Fatalf("readlink: %v", err)
 	}
 	if target != filepath.Join(repo, "home", ".zshrc") {
-		t.Errorf(".zshrc points to %s, want repo home file", target)
+		t.Errorf(".zshrc points to %s, want path under repo home/", target)
 	}
 
 	// 2. Template rendered with substitutions.
