@@ -8,6 +8,7 @@ import (
 
 	"github.com/kurowski/homie/internal/config"
 	"github.com/kurowski/homie/internal/detect"
+	"github.com/kurowski/homie/internal/packages"
 )
 
 // fakeMgr is a minimal packages.Manager for doctor tests.
@@ -96,7 +97,7 @@ func TestRunCleanRepoNoFindings(t *testing.T) {
 	}
 	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Arch: "amd64", Hostname: "test"}
 
-	r := Run(repo, home, sampleCfg(), env, mgr)
+	r := Run(repo, home, sampleCfg(), env, mgr, nil)
 	if len(r.Findings) != 0 {
 		t.Fatalf("expected clean report, got: %+v", r.Findings)
 	}
@@ -121,7 +122,7 @@ func TestRunReportsBrokenLink(t *testing.T) {
 
 	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
 	r := Run(repo, home, sampleCfg(), env,
-		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}})
+		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}}, nil)
 	if !r.HasErrors() {
 		t.Fatalf("expected error for broken symlink, got %+v", r.Findings)
 	}
@@ -153,10 +154,55 @@ func TestRunReportsBrokenLinkIntoTaggedTree(t *testing.T) {
 
 	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
 	r := Run(repo, home, sampleCfg(), env,
-		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}})
+		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}}, nil)
 	msgs := strings.Join(messagesByArea(r, "link"), "\n")
 	if !strings.Contains(msgs, "broken symlink") || !strings.Contains(msgs, "work-only") {
 		t.Errorf("expected broken-symlink message for tag-gated source, got:\n%s", msgs)
+	}
+}
+
+func TestRunReportsBackendPackageFindings(t *testing.T) {
+	repo, home := makeRepo(t)
+	cfg := config.Config{
+		User:    config.User{Name: "Scout Homes", Email: "scout@homie.sh"},
+		Profile: config.Profile{Name: "personal", DefaultShell: "zsh"},
+		Packages: config.Packages{
+			Base: map[string][]string{"all": {"git", "zsh"}},
+			Backends: map[string]config.BackendPackages{
+				"flatpak": {Base: map[string][]string{"all": {"md.obsidian.Obsidian", "us.zoom.Zoom"}}},
+				"brew":    {Base: map[string][]string{"all": {"fd"}}},
+				"cargo":   {Base: map[string][]string{"all": {"cargo-edit"}}},
+			},
+		},
+	}
+	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
+	native := &fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}}
+
+	// flatpak: tool available, one of two installed -> warn missing.
+	// brew:    tool not available -> warn (skipping).
+	// cargo:   unknown backend -> warn (no manager).
+	lookup := func(name string) packages.Manager {
+		switch name {
+		case "flatpak":
+			return &fakeMgr{name: "flatpak", available: true, installed: map[string]bool{"md.obsidian.Obsidian": true}}
+		case "brew":
+			return &fakeMgr{name: "brew", available: false}
+		}
+		return nil
+	}
+	r := Run(repo, home, cfg, env, native, lookup)
+	msgs := strings.Join(messagesByArea(r, "packages"), "\n")
+	for _, want := range []string{
+		"flatpak: 1 not installed: us.zoom.Zoom",
+		"brew not on PATH",
+		`backend "cargo" is declared`,
+	} {
+		if !strings.Contains(msgs, want) {
+			t.Errorf("missing finding %q in:\n%s", want, msgs)
+		}
+	}
+	if r.HasErrors() {
+		t.Errorf("backend warnings should not register as errors")
 	}
 }
 
@@ -168,7 +214,7 @@ func TestRunReportsMissingPackages(t *testing.T) {
 		available: true,
 		installed: map[string]bool{"git": true}, // zsh missing
 	}
-	r := Run(repo, home, sampleCfg(), env, mgr)
+	r := Run(repo, home, sampleCfg(), env, mgr, nil)
 	msgs := strings.Join(messagesByArea(r, "packages"), "\n")
 	if !strings.Contains(msgs, "zsh") {
 		t.Errorf("expected zsh in missing packages, got: %s", msgs)
@@ -182,7 +228,7 @@ func TestRunReportsUnrenderedTemplate(t *testing.T) {
 	}
 	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
 	r := Run(repo, home, sampleCfg(), env,
-		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}})
+		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}}, nil)
 	msgs := strings.Join(messagesByArea(r, "render"), "\n")
 	if !strings.Contains(msgs, "not yet rendered") {
 		t.Errorf("expected not-yet-rendered finding: %s", msgs)
@@ -199,7 +245,7 @@ func TestRunReportsStaleTemplate(t *testing.T) {
 	}
 	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
 	r := Run(repo, home, sampleCfg(), env,
-		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}})
+		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}}, nil)
 	msgs := strings.Join(messagesByArea(r, "render"), "\n")
 	if !strings.Contains(msgs, "stale") {
 		t.Errorf("expected stale finding: %s", msgs)
@@ -213,7 +259,7 @@ func TestRunReportsNonExecutableScript(t *testing.T) {
 	}
 	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
 	r := Run(repo, home, sampleCfg(), env,
-		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}})
+		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}}, nil)
 	msgs := strings.Join(messagesByArea(r, "scripts"), "\n")
 	if !strings.Contains(msgs, "not executable") {
 		t.Errorf("expected non-executable finding: %s", msgs)
@@ -223,7 +269,7 @@ func TestRunReportsNonExecutableScript(t *testing.T) {
 func TestRunReportsUnknownDistro(t *testing.T) {
 	repo, home := makeRepo(t)
 	env := detect.Env{Distro: "unknown", PackageManager: "unknown", Hostname: "test"}
-	r := Run(repo, home, sampleCfg(), env, &fakeMgr{name: "noop"})
+	r := Run(repo, home, sampleCfg(), env, &fakeMgr{name: "noop"}, nil)
 	msgs := strings.Join(messagesByArea(r, "env"), "\n")
 	if !strings.Contains(msgs, "not recognized") {
 		t.Errorf("expected unknown-distro warning: %s", msgs)
@@ -248,7 +294,7 @@ func TestRunReportsInactiveTaggedTreeDirs(t *testing.T) {
 
 	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
 	r := Run(repo, home, sampleCfg(), env,
-		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}})
+		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}}, nil)
 
 	// Both info findings should be present, on the correct areas.
 	var dotInfo, tplInfo bool
@@ -286,7 +332,7 @@ func TestRunReportsMissingHostname(t *testing.T) {
 	repo, home := makeRepo(t)
 	env := detect.Env{Distro: "ubuntu", PackageManager: "apt"} // Hostname unset
 	r := Run(repo, home, sampleCfg(), env,
-		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}})
+		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}}, nil)
 	msgs := strings.Join(messagesByArea(r, "env"), "\n")
 	if !strings.Contains(msgs, "hostname unavailable") {
 		t.Errorf("expected hostname-unavailable warning: %s", msgs)

@@ -184,6 +184,53 @@ belongs in `scripts/`.
 
 ---
 
+### Non-native backends
+
+Beyond the native package manager, `[packages]` accepts sub-tables for
+non-native managers. v1 ships `flatpak` and `brew`; the namespace is
+reserved for `cargo`, `npm`, `pip`, etc. to follow.
+
+```toml
+[packages.flatpak]
+all = ["md.obsidian.Obsidian"]
+fedora = ["org.localsend.localsend_app"]
+
+[packages.brew]
+all = ["fd", "ripgrep", "bat"]
+```
+
+Each backend mirrors the base shape — `all`, distro keys, and tag-keyed
+sub-tables — and follows the same resolution and dedup rules. Combined
+with tag-keyed packages:
+
+```toml
+[packages."tag:work".flatpak]
+all = ["us.zoom.Zoom"]
+```
+
+Backends are **opt-in by tool presence**. If the backend's CLI tool
+isn't on PATH, `hm apply` logs a warning and skips that phase — it
+doesn't fail. Setting up a flatpak remote or installing brew belongs in
+`scripts/pre-*.sh` so it runs before the backend's install step.
+
+The Flatpak backend installs from the `flathub` remote. References from
+`flathub-beta`, GNOME nightly, or a custom remote aren't supported by
+`[packages.flatpak]`; install those via `scripts/*.sh`.
+
+Unknown backend names (a typo, or one that doesn't exist yet) decode
+with a warning rather than hard-failing the load — `hm doctor` and
+`hm apply` surface them so the file stays forward-compatible with
+newer `hm` binaries.
+
+The `hm apply` lifecycle becomes:
+`detect → pre-scripts → packages → backends → link → render → scripts`,
+where "backends" iterates whatever non-native backends you declared,
+in alphabetical order. Backends run after native packages so a brew or
+flatpak installed by `[packages]` is available before its own phase
+fires.
+
+---
+
 ## Per-host overlay
 
 When the same repo serves multiple machines, ship a `hosts/<short-hostname>.toml`

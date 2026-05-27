@@ -1,0 +1,19 @@
+[user]
+name  = "Scout Homes"
+email = "scout@homie.sh"
+
+[packages]
+fedora = ["git"]
+
+[packages.flatpak]
+all = ["md.obsidian.Obsidian"]
+fedora = ["org.localsend.localsend_app"]
+
+[packages.brew]
+all = ["fd", "ripgrep"]
+
+[packages."tag:work"]
+fedora = ["kubectl"]
+
+[packages."tag:work".flatpak]
+all = ["us.zoom.Zoom"]

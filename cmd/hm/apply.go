@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -26,13 +27,13 @@ var (
 
 var applyCmd = &cobra.Command{
 	Use:   "apply",
-	Short: "Full reconciliation: detect → pre-scripts → packages → link → render → scripts",
+	Short: "Full reconciliation: detect → pre-scripts → packages → backends → link → render → scripts",
 	RunE:  runApply,
 }
 
 func init() {
 	applyCmd.Flags().StringVar(&applyHome, "home", "", "override target home directory (default $HOME)")
-	applyCmd.Flags().BoolVar(&applySkipPackages, "skip-packages", false, "skip the package-install phase")
+	applyCmd.Flags().BoolVar(&applySkipPackages, "skip-packages", false, "skip the native and non-native (brew, flatpak) package phases")
 	applyCmd.Flags().BoolVar(&applySkipScripts, "skip-scripts", false, "skip the run-scripts phase")
 	rootCmd.AddCommand(applyCmd)
 }
@@ -62,6 +63,9 @@ func runApply(cmd *cobra.Command, args []string) error {
 	var errs []error
 	errs = append(errs, applyScriptPhase(u, repoDir, home, cfg, env, runner.PhasePre)...)
 	errs = append(errs, applyPackages(u, cfg, env)...)
+	for _, backend := range declaredBackends(cfg) {
+		errs = append(errs, applyBackendPackages(u, cfg, env, backend)...)
+	}
 	errs = append(errs, applyLink(u, repoDir, home, cfg, env)...)
 	errs = append(errs, applyRender(u, repoDir, home, cfg, env)...)
 	errs = append(errs, applyScriptPhase(u, repoDir, home, cfg, env, runner.PhasePost)...)
@@ -108,6 +112,61 @@ func applyPackages(u ui.UI, cfg config.Config, env detect.Env) []error {
 		return nil
 	}
 	u.Action("install", fmt.Sprintf("%s (via %s)", strings.Join(todo, ", "), mgr.Name()))
+	if err := mgr.Install(todo); err != nil {
+		return []error{err}
+	}
+	return nil
+}
+
+// declaredBackends returns the names of non-native package backends
+// mentioned in cfg, in alphabetical order. The set is whatever the
+// user actually declared — known (flatpak, brew) and unknown
+// (cargo/npm/etc., kept around for forward compatibility) all flow
+// through the same install loop. applyBackendPackages handles the
+// "no Manager" case for unknowns by warning and skipping.
+func declaredBackends(cfg config.Config) []string {
+	names := make([]string, 0, len(cfg.Packages.Backends))
+	for n := range cfg.Packages.Backends {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func applyBackendPackages(u ui.UI, cfg config.Config, env detect.Env, backend string) []error {
+	pkgs := cfg.PackagesForBackend(env, backend)
+	if len(pkgs) == 0 {
+		return nil // nothing to do; don't even announce the phase
+	}
+	u.Phase(backend)
+	if applySkipPackages {
+		u.Info("skipped (--skip-packages)")
+		return nil
+	}
+	mgr := packages.ForBackend(backend)
+	if mgr == nil {
+		u.Warn(fmt.Sprintf("backend %q is not recognized — homie has no Manager for it", backend))
+		return nil
+	}
+	if !mgr.IsAvailable() {
+		u.Warn(fmt.Sprintf("%s not on PATH — install it (or add a scripts/pre-*.sh that installs it) to apply these packages", backend))
+		return nil
+	}
+	var todo, already []string
+	for _, p := range pkgs {
+		if mgr.IsInstalled(p) {
+			already = append(already, p)
+		} else {
+			todo = append(todo, p)
+		}
+	}
+	if len(already) > 0 {
+		u.Action("skip", fmt.Sprintf("%d already installed", len(already)))
+	}
+	if len(todo) == 0 {
+		return nil
+	}
+	u.Action("install", fmt.Sprintf("%s (via %s)", strings.Join(todo, ", "), backend))
 	if err := mgr.Install(todo); err != nil {
 		return []error{err}
 	}

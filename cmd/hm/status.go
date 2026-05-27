@@ -81,7 +81,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		home, _ = os.UserHomeDir()
 	}
 	if home != "" {
-		report := doctor.Run(repoDir, home, cfg, env, packages.For(env))
+		report := doctor.Run(repoDir, home, cfg, env, packages.For(env), packages.ForBackend)
 		errs, warns := report.Counts()
 		fmt.Fprintln(w)
 		switch {

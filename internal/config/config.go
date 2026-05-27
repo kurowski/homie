@@ -32,17 +32,21 @@ type Config struct {
 	Warnings []string `toml:"-"`
 }
 
-// Packages is the parsed [packages] table. It distinguishes the base
-// distro-keyed lists (`packages.all`, `packages.fedora`, ...) from
-// tag-conditional sub-tables of the form `[packages."tag:work"]`.
+// Packages is the parsed [packages] table. It distinguishes:
+//   - base distro-keyed lists (`packages.all`, `packages.fedora`, ...)
+//   - tag-conditional sub-tables (`[packages."tag:work"]`)
+//   - non-native backend sub-tables (`[packages.flatpak]`, `[packages.brew]`)
+//   - both combined (`[packages."tag:work".flatpak]`)
 //
-// The TOML key `tag:<name>` is reserved for tag-keyed sub-tables; any
+// The TOML key `tag:<name>` is reserved for tag-keyed sub-tables; the
+// keys named in KnownBackends are reserved for non-native managers; any
 // other key under [packages] is treated as a base distro list.
 //
-// Base and ByTag are exported because (a) the in-package overlay merge
-// needs to mutate them and (b) tests in sibling packages construct
-// Packages literals directly. Regular runtime reads should go through
-// [Config.PackagesFor] rather than touching these maps.
+// Base, ByTag, and Backends are exported because (a) the in-package
+// overlay merge needs to mutate them and (b) tests in sibling packages
+// construct Packages literals directly. Regular runtime reads should go
+// through [Config.PackagesFor] / [Config.PackagesForBackend] rather
+// than touching these maps.
 type Packages struct {
 	// Base maps "all" or a distro key (ubuntu, debian, fedora) to a list
 	// of package names to install on every run for matching distros.
@@ -53,6 +57,11 @@ type Packages struct {
 	// active for the current host.
 	ByTag map[string]map[string][]string
 
+	// Backends holds non-native managers (flatpak, brew) keyed by name.
+	// Each backend mirrors the Base/ByTag shape so tag-conditional and
+	// distro-conditional resolution work identically.
+	Backends map[string]BackendPackages
+
 	// Warnings is populated by UnmarshalTOML for typos and other
 	// non-fatal issues (unknown keys, empty tag names). Load drains
 	// these into Config.Warnings so `hm status` / `hm doctor` surface
@@ -60,9 +69,29 @@ type Packages struct {
 	Warnings []string
 }
 
+// BackendPackages is the parsed shape of a single non-native backend
+// (`[packages.flatpak]`, `[packages.brew]`, ...). Same Base + ByTag
+// model as the native side, so PackagesForBackend can reuse the
+// resolution rule.
+type BackendPackages struct {
+	Base  map[string][]string
+	ByTag map[string]map[string][]string
+}
+
 // TagKeyPrefix marks a key inside the [packages] table as a tag-keyed
 // sub-table rather than a base distro list. See Packages.
 const TagKeyPrefix = "tag:"
+
+// KnownBackends lists the non-native package backends Homie recognizes.
+// Names here are reserved as sub-table keys under [packages] and
+// [packages."tag:X"]; the corresponding Manager lives in
+// internal/packages.ForBackend. Adding a new backend means:
+//  1. adding its name here, and
+//  2. teaching packages.ForBackend to return its Manager.
+var KnownBackends = map[string]struct{}{
+	"flatpak": {},
+	"brew":    {},
+}
 
 // knownDistroKeys are the keys accepted as base distro lists or as
 // sub-table keys inside `[packages."tag:X"]`. "all" applies to every
@@ -76,9 +105,18 @@ var knownDistroKeys = map[string]struct{}{
 	"fedora": {},
 }
 
-// UnmarshalTOML decodes a heterogeneous [packages] table where some keys
-// are arrays of strings (base distro lists) and others — those whose
-// name starts with "tag:" — are themselves tables of distro -> list.
+// UnmarshalTOML decodes a heterogeneous [packages] table. Each top-level
+// key is dispatched by value shape:
+//
+//   - array of strings → base distro list. Unknown distro names warn.
+//   - table named "tag:X" → tag sub-table; its members are decoded by
+//     the same shape rule (arrays are distro lists for the tag, tables
+//     are tag-keyed backend lists).
+//   - any other table → non-native backend sub-table. Backend names
+//     outside KnownBackends are accepted into Backends with a warning
+//     so the file is forward-compatible with newer hm binaries; the
+//     warning surfaces typos and gives `hm doctor` something to report
+//     at apply time.
 func (p *Packages) UnmarshalTOML(data any) error {
 	m, ok := data.(map[string]any)
 	if !ok {
@@ -86,28 +124,38 @@ func (p *Packages) UnmarshalTOML(data any) error {
 	}
 	p.Base = make(map[string][]string)
 	p.ByTag = make(map[string]map[string][]string)
+	p.Backends = make(map[string]BackendPackages)
+
 	for k, v := range m {
 		if strings.HasPrefix(k, TagKeyPrefix) {
 			sub, ok := v.(map[string]any)
 			if !ok {
-				return fmt.Errorf(`[packages."%s"] must be a table of distro -> list, got %T`, k, v)
+				return fmt.Errorf(`[packages."%s"] must be a table, got %T`, k, v)
 			}
 			tag := strings.TrimPrefix(k, TagKeyPrefix)
 			if tag == "" {
 				p.warnf(`[packages."%s"] has an empty tag name — did you mean a real tag like "tag:work"? The entries are loaded but no tag will match.`, k)
 			}
-			byDistro := make(map[string][]string, len(sub))
-			for distro, raw := range sub {
-				list, err := stringList(raw)
-				if err != nil {
-					return fmt.Errorf(`[packages."%s"].%s: %w`, k, distro, err)
-				}
-				if _, known := knownDistroKeys[distro]; !known {
-					p.warnf(`[packages."%s"].%s is not a recognized distro key — known: all, ubuntu, debian, fedora`, k, distro)
-				}
-				byDistro[distro] = list
+			if err := p.absorbTagTable(tag, sub, fmt.Sprintf(`[packages."%s"]`, k)); err != nil {
+				return err
 			}
-			p.ByTag[tag] = byDistro
+			continue
+		}
+		// Non-tag key: a table is a backend, an array is a distro list.
+		// Dispatch by value shape so unknown backend names get a warning
+		// instead of a hard error, matching homie.toml's "unknown fields
+		// are warnings, not errors" forward-compat promise.
+		if sub, isTable := v.(map[string]any); isTable {
+			if !isBackendName(k) {
+				p.warnf(`packages.%s looks like a backend but isn't recognized — known: flatpak, brew. Entries are loaded but no Manager will install them.`, k)
+			}
+			lists, err := p.decodeDistroLists(sub, fmt.Sprintf("[packages.%s]", k))
+			if err != nil {
+				return err
+			}
+			be := p.Backends[k]
+			be.Base = lists
+			p.Backends[k] = be
 			continue
 		}
 		list, err := stringList(v)
@@ -120,6 +168,72 @@ func (p *Packages) UnmarshalTOML(data any) error {
 		p.Base[k] = list
 	}
 	return nil
+}
+
+// absorbTagTable processes the body of a [packages."tag:X"] sub-table:
+// arrays become this tag's distro lists, tables become this tag's
+// per-backend entries. Note the asymmetry — backend entries inside a
+// tag table land in Backends[name].ByTag[tag] rather than ByTag[tag];
+// if a tag table holds *only* backend sub-tables, ByTag[tag] stays
+// unset because there are no native packages to register for it.
+func (p *Packages) absorbTagTable(tag string, sub map[string]any, ctx string) error {
+	tagBase := make(map[string][]string)
+	for k, v := range sub {
+		// Same shape-dispatch rule as the top level: tables are
+		// backends (known or unknown-with-warning), arrays are
+		// distro lists.
+		if sub2, isTable := v.(map[string]any); isTable {
+			if !isBackendName(k) {
+				p.warnf(`%s.%s looks like a backend but isn't recognized — known: flatpak, brew. Entries are loaded but no Manager will install them.`, ctx, k)
+			}
+			lists, err := p.decodeDistroLists(sub2, fmt.Sprintf("%s.%s", ctx, k))
+			if err != nil {
+				return err
+			}
+			be := p.Backends[k]
+			if be.ByTag == nil {
+				be.ByTag = make(map[string]map[string][]string)
+			}
+			be.ByTag[tag] = lists
+			p.Backends[k] = be
+			continue
+		}
+		list, err := stringList(v)
+		if err != nil {
+			return fmt.Errorf("%s.%s: %w", ctx, k, err)
+		}
+		if _, known := knownDistroKeys[k]; !known {
+			p.warnf(`%s.%s is not a recognized distro key — known: all, ubuntu, debian, fedora`, ctx, k)
+		}
+		tagBase[k] = list
+	}
+	if len(tagBase) > 0 {
+		p.ByTag[tag] = tagBase
+	}
+	return nil
+}
+
+// decodeDistroLists turns a TOML sub-table into a distro-keyed list
+// map, warning on keys outside the known distro set. Shared by base
+// and tag-scoped backend tables.
+func (p *Packages) decodeDistroLists(m map[string]any, ctx string) (map[string][]string, error) {
+	lists := make(map[string][]string, len(m))
+	for k, v := range m {
+		list, err := stringList(v)
+		if err != nil {
+			return nil, fmt.Errorf("%s.%s: %w", ctx, k, err)
+		}
+		if _, known := knownDistroKeys[k]; !known {
+			p.warnf(`%s.%s is not a recognized distro key — known: all, ubuntu, debian, fedora`, ctx, k)
+		}
+		lists[k] = list
+	}
+	return lists, nil
+}
+
+func isBackendName(k string) bool {
+	_, ok := KnownBackends[k]
+	return ok
 }
 
 func (p *Packages) warnf(format string, args ...any) {
@@ -256,6 +370,32 @@ func merge(base, overlay Config) Config {
 			}
 		}
 	}
+	if len(overlay.Packages.Backends) > 0 {
+		if base.Packages.Backends == nil {
+			base.Packages.Backends = make(map[string]BackendPackages, len(overlay.Packages.Backends))
+		}
+		for name, overlayBe := range overlay.Packages.Backends {
+			baseBe := base.Packages.Backends[name]
+			if baseBe.Base == nil {
+				baseBe.Base = make(map[string][]string, len(overlayBe.Base))
+			}
+			for k, v := range overlayBe.Base {
+				baseBe.Base[k] = appendUnique(baseBe.Base[k], v)
+			}
+			if len(overlayBe.ByTag) > 0 && baseBe.ByTag == nil {
+				baseBe.ByTag = make(map[string]map[string][]string, len(overlayBe.ByTag))
+			}
+			for tag, byDistro := range overlayBe.ByTag {
+				if baseBe.ByTag[tag] == nil {
+					baseBe.ByTag[tag] = make(map[string][]string, len(byDistro))
+				}
+				for distro, v := range byDistro {
+					baseBe.ByTag[tag][distro] = appendUnique(baseBe.ByTag[tag][distro], v)
+				}
+			}
+			base.Packages.Backends[name] = baseBe
+		}
+	}
 	base.Tags.Extra = appendUnique(base.Tags.Extra, overlay.Tags.Extra)
 	if len(overlay.Vars) > 0 {
 		if base.Vars == nil {
@@ -299,7 +439,8 @@ func (c Config) validate() error {
 	return nil
 }
 
-// PackagesFor returns the packages to install for the given environment.
+// PackagesFor returns the native packages to install for the given
+// environment.
 //
 // The set is the union, in this order, of:
 //  1. packages.all
@@ -312,6 +453,23 @@ func (c Config) validate() error {
 // sub-tables installs exactly once. Tags that have no matching sub-table
 // contribute nothing — they aren't an error.
 func (c Config) PackagesFor(env detect.Env) []string {
+	return c.resolvePackages(env, c.Packages.Base, c.Packages.ByTag)
+}
+
+// PackagesForBackend returns the packages declared for the named
+// non-native backend (e.g. "flatpak", "brew") using the same resolution
+// rule as PackagesFor — base entries plus matching tag-keyed entries,
+// deduped, in deterministic order. Returns nil if the backend isn't
+// mentioned in homie.toml.
+func (c Config) PackagesForBackend(env detect.Env, backend string) []string {
+	be, ok := c.Packages.Backends[backend]
+	if !ok {
+		return nil
+	}
+	return c.resolvePackages(env, be.Base, be.ByTag)
+}
+
+func (c Config) resolvePackages(env detect.Env, base map[string][]string, byTag map[string]map[string][]string) []string {
 	seen := make(map[string]struct{})
 	var out []string
 	add := func(pkg string) {
@@ -322,19 +480,20 @@ func (c Config) PackagesFor(env detect.Env) []string {
 		out = append(out, pkg)
 	}
 
-	for _, pkg := range c.Packages.Base["all"] {
+	for _, pkg := range base["all"] {
 		add(pkg)
 	}
-	for _, pkg := range c.Packages.Base[env.Distro] {
+	for _, pkg := range base[env.Distro] {
 		add(pkg)
 	}
-	// Skip the AllTags walk (and its sort) when there are no tag-keyed
-	// sub-tables — the common case for repos that don't use the feature.
-	if len(c.Packages.ByTag) == 0 {
+	// Skip the AllTags walk (and its sort) when no tag-keyed entries
+	// exist for this source — the common case for repos that don't use
+	// the feature.
+	if len(byTag) == 0 {
 		return out
 	}
 	for _, tag := range c.AllTags(env) {
-		byDistro := c.Packages.ByTag[tag]
+		byDistro := byTag[tag]
 		if byDistro == nil {
 			continue
 		}
