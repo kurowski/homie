@@ -50,8 +50,8 @@ func TestDoctorReportsBrokenSymlinkAsError(t *testing.T) {
 	if _, err := runApplyCmd(t, []string{"apply", "--home", home, "--skip-packages", "--skip-scripts"}); err != nil {
 		t.Fatalf("apply: %v", err)
 	}
-	// Yank the source dotfile out from under the symlink in $HOME.
-	if err := os.Remove(filepath.Join(repo, "dotfiles", ".zshrc")); err != nil {
+	// Yank the source file out from under the symlink in $HOME.
+	if err := os.Remove(filepath.Join(repo, "home", ".zshrc")); err != nil {
 		t.Fatal(err)
 	}
 

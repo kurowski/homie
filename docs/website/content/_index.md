@@ -59,15 +59,13 @@ EDITOR = "nvim"
 ```
 
 ```text
-dotfiles/
+dotfiles/             ← your repo (call it whatever you like)
   homie.toml
   bootstrap.sh
-  dotfiles/        ← symlinked into $HOME
+  home/               ← files into $HOME — .tmpl renders, the rest symlinks
     .zshrc
-    .gitconfig
-  templates/       ← rendered into $HOME with var-sub + conditionals
     .gitconfig.tmpl
-  scripts/         ← ordered setup steps
+  scripts/            ← ordered setup steps
     01-shell.sh
     02-tools.sh
 ```

@@ -1,7 +1,7 @@
 // Package scaffold generates a fresh user environment repo. It's the
 // guts of `hm init`: take a few answers, materialize a working
-// homie.toml + bootstrap.sh + sample dotfile/template/script so the
-// user has a runnable repo immediately.
+// homie.toml + bootstrap.sh + sample home/ tree + script so the user
+// has a runnable repo immediately.
 //
 // The source files live under files/ and are embedded into the binary
 // so `hm init` has no runtime dependency on the Homie tool repo's
@@ -48,8 +48,8 @@ var manifest = []entry{
 	// `all:` so it doesn't actually matter, but renaming `gitignore` to
 	// `.gitignore` at write time keeps git happy.
 	{"files/gitignore", ".gitignore", 0o644, false},
-	{"files/dotfiles/.zshrc", "dotfiles/.zshrc", 0o644, false},
-	{"files/templates/.gitconfig.tmpl", "templates/.gitconfig.tmpl", 0o644, false},
+	{"files/home/.zshrc", "home/.zshrc", 0o644, false},
+	{"files/home/.gitconfig.tmpl", "home/.gitconfig.tmpl", 0o644, false},
 	{"files/scripts/01-shell.sh", "scripts/01-shell.sh", 0o755, false},
 }
 

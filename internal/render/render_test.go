@@ -9,6 +9,7 @@ import (
 
 	"github.com/kurowski/homie/internal/config"
 	"github.com/kurowski/homie/internal/detect"
+	"github.com/kurowski/homie/internal/tree"
 )
 
 var sampleData = Data{
@@ -142,11 +143,11 @@ func TestBuildData(t *testing.T) {
 	}
 }
 
-// writeTemplate writes a .tmpl file under repo/templates/<rel> and returns
+// writeTemplate writes a .tmpl file under repo/home/<rel> and returns
 // the resulting target path under home.
 func writeTemplate(t *testing.T, repo, rel, body string, mode os.FileMode) {
 	t.Helper()
-	path := filepath.Join(repo, TemplatesDir, rel)
+	path := filepath.Join(repo, tree.HomeDir, rel)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +200,7 @@ func TestApplySkipsNonTmpl(t *testing.T) {
 	repo := t.TempDir()
 	home := t.TempDir()
 	// File without .tmpl extension should be ignored.
-	tplDir := filepath.Join(repo, TemplatesDir)
+	tplDir := filepath.Join(repo, tree.HomeDir)
 	if err := os.MkdirAll(tplDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -214,6 +215,47 @@ func TestApplySkipsNonTmpl(t *testing.T) {
 	}
 }
 
+func TestApplyOnlyPicksTemplates(t *testing.T) {
+	// A unified home/ tree containing a mix of plain and .tmpl files —
+	// Apply should write only the rendered (suffix-stripped) outputs.
+	// The plain files are link's responsibility and must not appear
+	// as render outputs.
+	repo := t.TempDir()
+	home := t.TempDir()
+	mk := func(rel, body string) {
+		path := filepath.Join(repo, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("home/.zshrc", "# plain — not for render")
+	mk("home/.gitconfig.tmpl", "name = {{ .Name }}")
+	mk("home/bin/runme", "#!/bin/sh\necho hi")
+	mk("home/bin/runme.sh.tmpl", "#!/bin/sh\necho {{ .Name }}")
+
+	cfg := config.Config{User: config.User{Name: "Scout", Email: "scout@homie.sh"}}
+	res := Apply(repo, home, cfg, detect.Env{})
+	if len(res.Errors) != 0 {
+		t.Fatalf("errors: %v", res.Errors)
+	}
+	// Both .tmpl files render to suffix-stripped paths.
+	for _, rel := range []string{".gitconfig", "bin/runme.sh"} {
+		if _, err := os.Stat(filepath.Join(home, rel)); err != nil {
+			t.Errorf("expected rendered %s: %v", rel, err)
+		}
+	}
+	// The plain files in the tree must NOT show up as render outputs.
+	if _, err := os.Stat(filepath.Join(home, ".zshrc")); !os.IsNotExist(err) {
+		t.Errorf("render should not write .zshrc — that's link's job")
+	}
+	if _, err := os.Stat(filepath.Join(home, "bin/runme")); !os.IsNotExist(err) {
+		t.Errorf("render should not write bin/runme — that's link's job")
+	}
+}
+
 func TestApplyTagGatedTemplates(t *testing.T) {
 	repo := t.TempDir()
 	mk := func(rel, body string) {
@@ -225,9 +267,9 @@ func TestApplyTagGatedTemplates(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	mk("templates/base.tmpl", `base {{ .Name }}`)
-	mk("templates.tag-work/work.tmpl", `work {{ .Name }}`)
-	mk("templates.tag-personal/personal.tmpl", `personal {{ .Name }}`)
+	mk("home/base.tmpl", `base {{ .Name }}`)
+	mk("home.tag-work/work.tmpl", `work {{ .Name }}`)
+	mk("home.tag-personal/personal.tmpl", `personal {{ .Name }}`)
 
 	cfg := config.Config{User: config.User{Name: "Scout", Email: "scout@homie.sh"}}
 
@@ -264,7 +306,7 @@ func TestApplyTagGatedTemplates(t *testing.T) {
 	})
 }
 
-func TestApplyCollidingTreesError(t *testing.T) {
+func TestApplyTemplateOverrideAcrossTrees(t *testing.T) {
 	repo := t.TempDir()
 	home := t.TempDir()
 	mk := func(rel, body string) {
@@ -276,37 +318,60 @@ func TestApplyCollidingTreesError(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// Two trees, both rendering to ~/conf — one from the base, one from
-	// the work-tagged tree.
-	mk("templates/conf.tmpl", `base {{ .Name }}`)
-	mk("templates.tag-work/conf.tmpl", `work {{ .Name }}`)
-	// A non-colliding template in each tree to confirm Apply continues
-	// after recording the collision error.
-	mk("templates/other-base.tmpl", `base other`)
-	mk("templates.tag-work/other-work.tmpl", `work other`)
+	// Same target from two trees of different specificity — the
+	// more-specific work tree wins. Resolve, no collision error.
+	mk("home/conf.tmpl", `base {{ .Name }}`)
+	mk("home.tag-work/conf.tmpl", `work {{ .Name }}`)
 
 	cfg := config.Config{User: config.User{Name: "Scout", Email: "scout@homie.sh"}}
 	res := Apply(repo, home, cfg, detect.Env{Tags: []string{"work"}})
 
-	if len(res.Errors) != 1 {
-		t.Fatalf("expected exactly 1 collision error, got %d: %v", len(res.Errors), res.Errors)
+	if len(res.Errors) != 0 {
+		t.Fatalf("expected no errors (work overrides base), got %v", res.Errors)
 	}
-	msg := res.Errors[0].Error()
-	for _, want := range []string{"claimed by both", "conf", "templates/", "templates.tag-work/"} {
-		if !strings.Contains(msg, want) {
-			t.Errorf("collision error missing %q: %s", want, msg)
-		}
+	got, err := os.ReadFile(filepath.Join(home, "conf"))
+	if err != nil {
+		t.Fatalf("conf: %v", err)
 	}
-	// The non-colliding templates from both trees should still render —
-	// render.Apply records per-file errors but doesn't abort the walk.
-	for _, want := range []string{"other-base", "other-work"} {
-		if _, err := os.Stat(filepath.Join(home, want)); err != nil {
-			t.Errorf("non-colliding template %s should have rendered: %v", want, err)
-		}
+	if string(got) != "work Scout" {
+		t.Errorf("conf = %q, want %q (work tree should win the override)", got, "work Scout")
 	}
 }
 
-func TestApplyNoTemplatesDir(t *testing.T) {
+func TestApplyEqualSpecificityIsAmbiguous(t *testing.T) {
+	repo := t.TempDir()
+	home := t.TempDir()
+	mk := func(rel, body string) {
+		path := filepath.Join(repo, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Two tag dirs at the same specificity claim the same target —
+	// Resolve refuses to guess and returns an error.
+	mk("home.tag-work/conf.tmpl", `work {{ .Name }}`)
+	mk("home.tag-personal/conf.tmpl", `personal {{ .Name }}`)
+
+	cfg := config.Config{User: config.User{Name: "Scout", Email: "scout@homie.sh"}}
+	res := Apply(repo, home, cfg, detect.Env{Tags: []string{"work", "personal"}})
+
+	if len(res.Errors) != 1 {
+		t.Fatalf("expected exactly 1 ambiguity error, got %d: %v", len(res.Errors), res.Errors)
+	}
+	if !strings.Contains(res.Errors[0].Error(), "same specificity") {
+		t.Errorf("error should mention specificity tie: %v", res.Errors[0])
+	}
+	// Neither template should have rendered — Resolve fails before any
+	// write happens.
+	if _, err := os.Stat(filepath.Join(home, "conf")); !os.IsNotExist(err) {
+		t.Errorf("conf should not exist when Resolve errored")
+	}
+}
+
+func TestApplyNoHomeDir(t *testing.T) {
 	res := Apply(t.TempDir(), t.TempDir(), config.Config{}, detect.Env{})
 	if len(res.Rendered) != 0 || len(res.Errors) != 0 {
 		t.Errorf("expected empty result, got %+v", res)

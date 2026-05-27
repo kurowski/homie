@@ -5,8 +5,8 @@ weight: 30
 ---
 
 `homie.toml` lives at the root of your user environment repo. It is the
-only configuration Homie reads. Everything else — dotfiles, templates,
-scripts — is on disk, where you can see and version it.
+only configuration Homie reads. Everything else — your `home/` tree and
+`scripts/` — is on disk, where you can see and version it.
 
 Minimal valid file:
 

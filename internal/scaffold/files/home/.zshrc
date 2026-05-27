@@ -1,4 +1,5 @@
-# zshrc — symlinked into $HOME by `hm link`.
+# zshrc — symlinked into $HOME by `hm link` (it lives in home/ and has
+# no .tmpl suffix, so Homie symlinks it instead of rendering it).
 # Edit this file directly; the symlink at ~/.zshrc tracks it.
 
 export EDITOR=nvim

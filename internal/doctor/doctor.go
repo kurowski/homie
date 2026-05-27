@@ -112,7 +112,7 @@ func (r *Report) checkConfig(cfg config.Config) {
 func (r *Report) checkLinks(repoDir, home string, cfg config.Config, env detect.Env) {
 	actions, err := link.Plan(repoDir, home, cfg.AllTags(env))
 	if err != nil {
-		r.add(SeverityError, "link", fmt.Sprintf("plan dotfiles: %v", err))
+		r.add(SeverityError, "link", fmt.Sprintf("plan home: %v", err))
 		return
 	}
 	for _, a := range actions {
@@ -132,40 +132,42 @@ func (r *Report) checkLinks(repoDir, home string, cfg config.Config, env detect.
 	// Detect broken symlinks: a homie-managed symlink whose source file
 	// has been removed from the repo. Plan only surfaces files still in
 	// the active trees, so we walk $HOME for symlinks pointing into any
-	// dotfiles* tree under repoDir and flag any whose target is missing.
-	broken := findBrokenLinks(home, filepath.Join(repoDir, link.DotfilesDir))
+	// home* tree under repoDir and flag any whose target is missing.
+	broken := findBrokenLinks(home, filepath.Join(repoDir, tree.HomeDir))
 	sort.Strings(broken)
 	for _, p := range broken {
 		r.add(SeverityError, "link",
 			fmt.Sprintf("%s is a broken symlink (source no longer in repo)", p))
 	}
 
-	// Surface tag-gated dotfile trees that won't apply on this host so
-	// the user can confirm their multi-tag layout matches expectations.
+	// Surface tag-gated home trees that won't apply on this host so the
+	// user can confirm their multi-tag layout matches expectations.
+	// Reported under area "home" rather than "link" because the trees
+	// hold both symlink sources and templates; the finding is about the
+	// directory itself, not the link mechanism.
 	active := cfg.AllTags(env)
-	for _, p := range inactiveTreeDirs(repoDir, link.DotfilesDir, active) {
-		r.add(SeverityInfo, "link",
+	for _, p := range inactiveTreeDirs(repoDir, tree.HomeDir, active) {
+		r.add(SeverityInfo, "home",
 			fmt.Sprintf("%s is not active on this host (tags not satisfied)", p))
 	}
 }
 
 // findBrokenLinks walks home and returns paths of symlinks that point
-// into any homie dotfile tree (the bare dotfiles/ dir or a sibling
-// dotfiles.tag-X/...) but whose target file no longer exists.
+// into any homie home tree (the bare home/ dir or a sibling
+// home.tag-X/...) but whose target file no longer exists.
 //
-// dotfilesBase is the absolute path of <repoDir>/dotfiles. A symlink
-// dest matches when it starts with that path followed by either a path
+// homeBase is the absolute path of <repoDir>/home. A symlink dest
+// matches when it starts with that path followed by either a path
 // separator (plain) or "." (tag-gated sibling).
 //
-// taggedPrefix intentionally matches `dotfiles.<anything>`, not just
-// dirs that pass ParseTreeDir. A stale link into a renamed-away
-// `dotfiles.backup/` is still a broken homie-shaped link the user
-// probably wants to clean up — tightening this to ParseTreeDir would
-// silently lose those reports.
-func findBrokenLinks(home, dotfilesBase string) []string {
+// taggedPrefix intentionally matches `home.<anything>`, not just dirs
+// that pass tree.ParseDir. A stale link into a renamed-away `home.backup/`
+// is still a broken homie-shaped link the user probably wants to clean
+// up — tightening this to tree.ParseDir would silently lose those reports.
+func findBrokenLinks(home, homeBase string) []string {
 	var out []string
-	plainPrefix := dotfilesBase + string(os.PathSeparator)
-	taggedPrefix := dotfilesBase + "."
+	plainPrefix := homeBase + string(os.PathSeparator)
+	taggedPrefix := homeBase + "."
 	_ = filepath.WalkDir(home, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // unreadable subtrees are not our problem
@@ -192,43 +194,15 @@ func findBrokenLinks(home, dotfilesBase string) []string {
 	return out
 }
 
-// inactiveTreeDirs returns the names of tag-gated tree directories
-// (<base>.tag-X[.tag-Y...]) under repoDir whose tag set is NOT satisfied
-// by the active set. Result is sorted by directory name for stable
-// reporting. Used by doctor to inform the user which tag-gated trees
-// won't apply on this host.
+// inactiveTreeDirs returns the bare names of tag-gated tree directories
+// (<base>.tag-X[.tag-Y...]) under repoDir whose tag set is NOT
+// satisfied by the active set. Result is sorted for stable reporting.
+// Thin wrapper over tree.Classify — the partitioning rule lives there.
 func inactiveTreeDirs(repoDir, base string, activeTags []string) []string {
-	entries, err := os.ReadDir(repoDir)
-	if err != nil {
-		return nil
-	}
-	active := make(map[string]struct{}, len(activeTags))
-	for _, t := range activeTags {
-		active[t] = struct{}{}
-	}
-
-	var out []string
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		required, ok := tree.ParseDir(e.Name(), base)
-		if !ok || len(required) == 0 {
-			continue // not a tagged tree, or the bare base dir
-		}
-		// "Inactive" means at least one required tag isn't in the
-		// active set — the same test ActiveTrees applies, computed
-		// directly here so we make one ReadDir pass instead of two.
-		satisfied := true
-		for _, t := range required {
-			if _, ok := active[t]; !ok {
-				satisfied = false
-				break
-			}
-		}
-		if !satisfied {
-			out = append(out, e.Name())
-		}
+	t, _ := tree.Classify(repoDir, base, activeTags)
+	out := make([]string, 0, len(t.Inactive))
+	for _, p := range t.Inactive {
+		out = append(out, filepath.Base(p))
 	}
 	sort.Strings(out)
 	return out
@@ -236,7 +210,7 @@ func inactiveTreeDirs(repoDir, base string, activeTags []string) []string {
 
 func (r *Report) checkTemplates(repoDir, home string, cfg config.Config, env detect.Env) {
 	active := cfg.AllTags(env)
-	roots, err := tree.Active(repoDir, render.TemplatesDir, active)
+	roots, err := tree.Active(repoDir, tree.HomeDir, active)
 	if err != nil {
 		r.add(SeverityError, "render", err.Error())
 		return
@@ -244,11 +218,11 @@ func (r *Report) checkTemplates(repoDir, home string, cfg config.Config, env det
 	data := render.BuildData(cfg, env)
 	for _, src := range roots {
 		_ = filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), render.Extension) {
+			if err != nil || d.IsDir() || !tree.IsTemplate(d.Name()) {
 				return nil
 			}
 			rel, _ := filepath.Rel(src, path)
-			target := filepath.Join(home, strings.TrimSuffix(rel, render.Extension))
+			target := filepath.Join(home, strings.TrimSuffix(rel, tree.TemplateExtension))
 
 			raw, err := os.ReadFile(path)
 			if err != nil {
@@ -277,10 +251,10 @@ func (r *Report) checkTemplates(repoDir, home string, cfg config.Config, env det
 			return nil
 		})
 	}
-	for _, p := range inactiveTreeDirs(repoDir, render.TemplatesDir, active) {
-		r.add(SeverityInfo, "render",
-			fmt.Sprintf("%s is not active on this host (tags not satisfied)", p))
-	}
+	// No inactive-trees finding here — checkLinks already emits one per
+	// home.tag-X dir under the "home" area; emitting again from this
+	// method would double-report (templates now share the same trees as
+	// dotfiles).
 }
 
 // BackendManagerLookup resolves a backend name (e.g. "flatpak", "brew")

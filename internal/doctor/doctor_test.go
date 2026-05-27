@@ -28,10 +28,7 @@ func makeRepo(t *testing.T) (repo, home string) {
 	root := t.TempDir()
 	repo = filepath.Join(root, "repo")
 	home = filepath.Join(root, "home")
-	if err := os.MkdirAll(filepath.Join(repo, "dotfiles"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(repo, "templates"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(repo, "home"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(filepath.Join(repo, "scripts"), 0o755); err != nil {
@@ -67,7 +64,7 @@ func TestRunCleanRepoNoFindings(t *testing.T) {
 	repo, home := makeRepo(t)
 
 	// Linked dotfile.
-	src := filepath.Join(repo, "dotfiles", ".zshrc")
+	src := filepath.Join(repo, "home", ".zshrc")
 	if err := os.WriteFile(src, []byte("# zsh"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +75,7 @@ func TestRunCleanRepoNoFindings(t *testing.T) {
 	// Rendered template — content matches what render.Render would
 	// produce for the empty template.
 	tmpl := "static body\n"
-	if err := os.WriteFile(filepath.Join(repo, "templates", "x.tmpl"), []byte(tmpl), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(repo, "home", "x.tmpl"), []byte(tmpl), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(home, "x"), []byte(tmpl), 0o644); err != nil {
@@ -108,7 +105,7 @@ func TestRunCleanRepoNoFindings(t *testing.T) {
 
 func TestRunReportsBrokenLink(t *testing.T) {
 	repo, home := makeRepo(t)
-	src := filepath.Join(repo, "dotfiles", ".zshrc")
+	src := filepath.Join(repo, "home", ".zshrc")
 	if err := os.WriteFile(src, []byte("ok"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -135,9 +132,8 @@ func TestRunReportsBrokenLink(t *testing.T) {
 func TestRunReportsBrokenLinkIntoTaggedTree(t *testing.T) {
 	repo, home := makeRepo(t)
 	// Source under a tag-gated tree; verifies findBrokenLinks's
-	// taggedPrefix matches `dotfiles.tag-work/...`, not just
-	// `dotfiles/...`.
-	srcDir := filepath.Join(repo, "dotfiles.tag-work")
+	// taggedPrefix matches `home.tag-work/...`, not just `home/...`.
+	srcDir := filepath.Join(repo, "home.tag-work")
 	if err := os.MkdirAll(srcDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +219,7 @@ func TestRunReportsMissingPackages(t *testing.T) {
 
 func TestRunReportsUnrenderedTemplate(t *testing.T) {
 	repo, home := makeRepo(t)
-	if err := os.WriteFile(filepath.Join(repo, "templates", "x.tmpl"), []byte("body"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(repo, "home", "x.tmpl"), []byte("body"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
@@ -237,7 +233,7 @@ func TestRunReportsUnrenderedTemplate(t *testing.T) {
 
 func TestRunReportsStaleTemplate(t *testing.T) {
 	repo, home := makeRepo(t)
-	if err := os.WriteFile(filepath.Join(repo, "templates", "x.tmpl"), []byte("new"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(repo, "home", "x.tmpl"), []byte("new"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(home, "x"), []byte("old"), 0o644); err != nil {
@@ -278,8 +274,11 @@ func TestRunReportsUnknownDistro(t *testing.T) {
 
 func TestRunReportsInactiveTaggedTreeDirs(t *testing.T) {
 	repo, home := makeRepo(t)
-	// dotfiles.tag-work exists but the host doesn't have the work tag —
-	// it should surface as informational, not an error or warning.
+	// home.tag-work exists with both a symlink-shaped file and a
+	// template-shaped file — the directory is inactive on this host
+	// (no work tag), so we expect exactly one info finding for the dir,
+	// emitted under the "home" area rather than separate link/render
+	// areas (templates and dotfiles now share the same tree).
 	mk := func(rel string) {
 		path := filepath.Join(repo, rel)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -289,35 +288,28 @@ func TestRunReportsInactiveTaggedTreeDirs(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	mk("dotfiles.tag-work/.config/work-only")
-	mk("templates.tag-work/.work.tmpl")
+	mk("home.tag-work/.config/work-only")
+	mk("home.tag-work/.work.tmpl")
 
 	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
 	r := Run(repo, home, sampleCfg(), env,
 		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}}, nil)
 
-	// Both info findings should be present, on the correct areas.
-	var dotInfo, tplInfo bool
+	var infos []string
 	for _, f := range r.Findings {
 		if f.Severity != SeverityInfo {
 			continue
 		}
-		switch f.Area {
-		case "link":
-			if strings.Contains(f.Message, "dotfiles.tag-work") {
-				dotInfo = true
-			}
-		case "render":
-			if strings.Contains(f.Message, "templates.tag-work") {
-				tplInfo = true
-			}
+		if f.Area != "home" {
+			t.Errorf("inactive tree info finding should be in area=home, got area=%q msg=%q", f.Area, f.Message)
 		}
+		infos = append(infos, f.Message)
 	}
-	if !dotInfo {
-		t.Errorf("expected info finding for dotfiles.tag-work, got:\n%+v", r.Findings)
+	if len(infos) != 1 {
+		t.Fatalf("expected exactly 1 info finding for home.tag-work, got %d: %v", len(infos), infos)
 	}
-	if !tplInfo {
-		t.Errorf("expected info finding for templates.tag-work, got:\n%+v", r.Findings)
+	if !strings.Contains(infos[0], "home.tag-work") {
+		t.Errorf("expected finding to name home.tag-work, got: %s", infos[0])
 	}
 	// Info findings must not flip HasErrors or count as warnings.
 	if r.HasErrors() {

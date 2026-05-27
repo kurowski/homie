@@ -12,8 +12,9 @@ Downloads `hm`, clones this repo into `~/{{ .GitHubRepo }}`, and runs `hm apply`
 
 ## Daily use
 
-Edit files in `dotfiles/` directly — they're symlinked into `$HOME`, no
-indirection layer. Commit and push when you're happy.
+Edit files in `home/` directly — plain files are symlinked into `$HOME`
+with no indirection layer; files ending in `.tmpl` are rendered through
+Go `text/template` + Sprig. Commit and push when you're happy.
 
 ```sh
 hm apply     # full reconciliation
@@ -23,10 +24,11 @@ hm doctor    # check for broken symlinks and other drift
 
 ## Layout
 
-| Path          | Purpose                                                   |
-|---------------|-----------------------------------------------------------|
-| `homie.toml`  | Identity, profile, packages, tags, vars                   |
-| `dotfiles/`   | Files symlinked into `$HOME`                              |
-| `templates/`  | Files rendered into `$HOME` via Go text/template + Sprig  |
-| `scripts/`    | Ordered setup scripts (`scripts/*.sh`)                    |
-| `bootstrap.sh`| Curl-bash entrypoint that fetches `hm` and runs `apply`   |
+| Path              | Purpose                                                       |
+|-------------------|---------------------------------------------------------------|
+| `homie.toml`      | Identity, profile, packages, tags, vars                       |
+| `home/`           | Files into `$HOME` — `.tmpl` is rendered, everything else is symlinked |
+| `home.tag-X/`     | Same, but only on hosts where tag X is active                 |
+| `hosts/<name>.toml` | Per-host overlay merged onto `homie.toml`                   |
+| `scripts/`        | Ordered setup scripts (`scripts/*.sh`, `scripts/pre-*.sh`)    |
+| `bootstrap.sh`    | Curl-bash entrypoint that fetches `hm` and runs `apply`       |

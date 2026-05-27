@@ -59,25 +59,27 @@ Flags:
 
 ## `hm link`
 
-Just the dotfile phase of `apply`. Walks `dotfiles/` and any active
-sibling tree named `dotfiles.tag-<X>[.tag-<Y>...]` (only included when
-every named tag is active on this host), then ensures every file under
-those trees is symlinked into `$HOME` at the matching path.
+Just the symlink phase of `apply`. Walks `home/` and any active sibling
+tree named `home.tag-<X>[.tag-<Y>...]` (only included when every named
+tag is active on this host), then symlinks every plain (non-`.tmpl`)
+file into `$HOME` at the matching path. `.tmpl` files in the same trees
+are owned by `hm render` and skipped here.
 
 Conflicts (a real file exists at the destination) are backed up to
 `<path>.homie-backup-<timestamp>` before linking — Homie never silently
-overwrites your data. If two trees produce the same target path, `hm
-link` errors out — pick one source or express the override in a
-template.
+overwrites your data. When two trees claim the same target, the
+more-specific tree (more required tags) wins; same-specificity
+collisions error out so you can disambiguate.
 
 ---
 
 ## `hm render`
 
-Just the template phase. Walks `templates/*.tmpl`, renders each through
-Go `text/template` + Sprig with the active data set, and writes the
-output (without the `.tmpl` suffix) into `$HOME`. Source mode is
-preserved (so `templates/bin/foo.sh.tmpl` renders executable).
+Just the template phase. Walks the same `home/` (and `home.tag-X/`)
+trees, picks files ending in `.tmpl`, renders each through Go
+`text/template` + Sprig with the active data set, and writes the output
+(suffix stripped) into `$HOME`. Source mode is preserved (so
+`home/bin/foo.sh.tmpl` renders executable).
 
 ---
 
