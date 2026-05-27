@@ -282,7 +282,7 @@ Rendering rules:
 
 ```
 hm init              # scaffold a new user environment repo (run once, interactively)
-hm apply             # full reconciliation: detect → pre-scripts → packages → brew → flatpak → link → render → scripts
+hm apply             # full reconciliation: detect → pre-scripts → packages → backends (alphabetical) → link → render → scripts
 hm link              # dotfiles only
 hm render            # templates only
 hm install           # packages only
@@ -357,12 +357,23 @@ doesn't fail. Setting up the flatpak remote (`flatpak remote-add ...`)
 or installing brew lives in `scripts/pre-*.sh` so it runs before the
 backend's install step.
 
+The Flatpak backend assumes packages come from the `flathub` remote.
+References from `flathub-beta`, GNOME nightly, or custom remotes are
+not supported by `[packages.flatpak]` — add them via `scripts/*.sh`.
+
+Unknown backend names in `[packages]` (e.g. a typo, or `cargo` before
+it ships) decode into `Packages.Backends` with a warning rather than
+hard-failing the load. `hm apply` and `hm doctor` report them at apply
+time, keeping the file forward-compatible with newer hm binaries.
+
 Adding a new backend (cargo, npm, pip, ...) means:
-1. Add the name to `config.KnownBackends`.
-2. Add a `Manager` implementation to `internal/packages` and a case in
-   `packages.ForBackend`.
-3. Add the name to `backendOrder` in `cmd/hm/apply.go` (chosen
-   alphabetically; iteration is deterministic).
+1. Add the name to `config.KnownBackends` (silences the "looks like a
+   backend but isn't recognized" warning).
+2. Add a `Manager` implementation to `internal/packages` and a case
+   in `packages.ForBackend`.
+
+The apply lifecycle iterates whatever backends the user declared
+(alphabetical order), so no third registry to update.
 
 ### Pre-package scripts (`scripts/pre-*.sh`)
 

@@ -105,12 +105,18 @@ var knownDistroKeys = map[string]struct{}{
 	"fedora": {},
 }
 
-// UnmarshalTOML decodes a heterogeneous [packages] table. Keys can be:
-//   - array of strings — base distro list
-//   - table named "tag:X" — tag sub-table (whose members are decoded
-//     by the same rules: arrays are distro lists, backend tables are
-//     tag-keyed backend lists)
-//   - table named in KnownBackends — non-native backend sub-table
+// UnmarshalTOML decodes a heterogeneous [packages] table. Each top-level
+// key is dispatched by value shape:
+//
+//   - array of strings → base distro list. Unknown distro names warn.
+//   - table named "tag:X" → tag sub-table; its members are decoded by
+//     the same shape rule (arrays are distro lists for the tag, tables
+//     are tag-keyed backend lists).
+//   - any other table → non-native backend sub-table. Backend names
+//     outside KnownBackends are accepted into Backends with a warning
+//     so the file is forward-compatible with newer hm binaries; the
+//     warning surfaces typos and gives `hm doctor` something to report
+//     at apply time.
 func (p *Packages) UnmarshalTOML(data any) error {
 	m, ok := data.(map[string]any)
 	if !ok {
@@ -121,8 +127,7 @@ func (p *Packages) UnmarshalTOML(data any) error {
 	p.Backends = make(map[string]BackendPackages)
 
 	for k, v := range m {
-		switch {
-		case strings.HasPrefix(k, TagKeyPrefix):
+		if strings.HasPrefix(k, TagKeyPrefix) {
 			sub, ok := v.(map[string]any)
 			if !ok {
 				return fmt.Errorf(`[packages."%s"] must be a table, got %T`, k, v)
@@ -134,10 +139,15 @@ func (p *Packages) UnmarshalTOML(data any) error {
 			if err := p.absorbTagTable(tag, sub, fmt.Sprintf(`[packages."%s"]`, k)); err != nil {
 				return err
 			}
-		case isBackendName(k):
-			sub, ok := v.(map[string]any)
-			if !ok {
-				return fmt.Errorf("[packages.%s] must be a table of distro -> list, got %T", k, v)
+			continue
+		}
+		// Non-tag key: a table is a backend, an array is a distro list.
+		// Dispatch by value shape so unknown backend names get a warning
+		// instead of a hard error, matching homie.toml's "unknown fields
+		// are warnings, not errors" forward-compat promise.
+		if sub, isTable := v.(map[string]any); isTable {
+			if !isBackendName(k) {
+				p.warnf(`packages.%s looks like a backend but isn't recognized — known: flatpak, brew. Entries are loaded but no Manager will install them.`, k)
 			}
 			lists, err := p.decodeDistroLists(sub, fmt.Sprintf("[packages.%s]", k))
 			if err != nil {
@@ -146,30 +156,35 @@ func (p *Packages) UnmarshalTOML(data any) error {
 			be := p.Backends[k]
 			be.Base = lists
 			p.Backends[k] = be
-		default:
-			list, err := stringList(v)
-			if err != nil {
-				return fmt.Errorf("packages.%s: %w", k, err)
-			}
-			if _, known := knownDistroKeys[k]; !known {
-				p.warnf(`packages.%s is not a recognized distro key — known: all, ubuntu, debian, fedora (use [packages."tag:%s"] for a tag-keyed list)`, k, k)
-			}
-			p.Base[k] = list
+			continue
 		}
+		list, err := stringList(v)
+		if err != nil {
+			return fmt.Errorf("packages.%s: %w", k, err)
+		}
+		if _, known := knownDistroKeys[k]; !known {
+			p.warnf(`packages.%s is not a recognized distro key — known: all, ubuntu, debian, fedora (use [packages."tag:%s"] for a tag-keyed list)`, k, k)
+		}
+		p.Base[k] = list
 	}
 	return nil
 }
 
 // absorbTagTable processes the body of a [packages."tag:X"] sub-table:
-// arrays become this tag's distro lists, backend sub-tables become this
-// tag's per-backend entries.
+// arrays become this tag's distro lists, tables become this tag's
+// per-backend entries. Note the asymmetry — backend entries inside a
+// tag table land in Backends[name].ByTag[tag] rather than ByTag[tag];
+// if a tag table holds *only* backend sub-tables, ByTag[tag] stays
+// unset because there are no native packages to register for it.
 func (p *Packages) absorbTagTable(tag string, sub map[string]any, ctx string) error {
 	tagBase := make(map[string][]string)
 	for k, v := range sub {
-		if isBackendName(k) {
-			sub2, ok := v.(map[string]any)
-			if !ok {
-				return fmt.Errorf("%s.%s must be a table, got %T", ctx, k, v)
+		// Same shape-dispatch rule as the top level: tables are
+		// backends (known or unknown-with-warning), arrays are
+		// distro lists.
+		if sub2, isTable := v.(map[string]any); isTable {
+			if !isBackendName(k) {
+				p.warnf(`%s.%s looks like a backend but isn't recognized — known: flatpak, brew. Entries are loaded but no Manager will install them.`, ctx, k)
 			}
 			lists, err := p.decodeDistroLists(sub2, fmt.Sprintf("%s.%s", ctx, k))
 			if err != nil {

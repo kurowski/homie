@@ -45,10 +45,15 @@ func (f *fakeRunner) run(name string, args ...string) ([]byte, error) {
 		}
 		return []byte(b.String()), nil
 	case name == "brew" && len(args) >= 2 && args[0] == "list" && args[1] == "--formula":
-		if len(args) == 3 && f.brewOK[args[2]] {
-			return nil, nil
+		// Bulk listing form: `brew list --formula -1` — dump every
+		// installed formula, one per line. The cached IsInstalled relies
+		// on this form rather than per-package shellouts.
+		var b strings.Builder
+		for formula := range f.brewOK {
+			b.WriteString(formula)
+			b.WriteByte('\n')
 		}
-		return []byte("Error: No such keg: " + args[len(args)-1]), errors.New("exit 1")
+		return []byte(b.String()), nil
 	}
 	if f.failCmd != "" && strings.HasPrefix(name+" "+strings.Join(args, " "), f.failCmd) {
 		return []byte("boom"), errors.New("exit 1")
@@ -240,6 +245,52 @@ func TestBrewInstallFiltersInstalled(t *testing.T) {
 	}
 	if strings.Contains(args, " fd") || strings.HasSuffix(args, "fd") {
 		t.Errorf("fd was installed; must not appear: %q", args)
+	}
+}
+
+func TestFlatpakListIsCachedAcrossCalls(t *testing.T) {
+	f := &fakeRunner{flatpakOK: map[string]bool{"md.obsidian.Obsidian": true}}
+	fp := &Flatpak{Runner: f.run}
+	// Bucket + Install pattern from apply.go — N IsInstalled calls then
+	// an Install that internally calls filterUninstalled (another N
+	// IsInstalled calls). Together: 2N checks, but only one `flatpak
+	// list` shellout because the result is cached.
+	refs := []string{"md.obsidian.Obsidian", "us.zoom.Zoom", "io.bassi.Amberol"}
+	for _, r := range refs {
+		fp.IsInstalled(r)
+	}
+	if err := fp.Install(refs); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	var lists int
+	for _, c := range f.calls {
+		if c.name == "flatpak" && len(c.args) > 0 && c.args[0] == "list" {
+			lists++
+		}
+	}
+	if lists != 1 {
+		t.Errorf("flatpak list invoked %d times, want exactly 1 (cache should serve repeat lookups)", lists)
+	}
+}
+
+func TestBrewListIsCachedAcrossCalls(t *testing.T) {
+	f := &fakeRunner{brewOK: map[string]bool{"fd": true}}
+	b := &Brew{Runner: f.run}
+	formulae := []string{"fd", "ripgrep", "bat"}
+	for _, name := range formulae {
+		b.IsInstalled(name)
+	}
+	if err := b.Install(formulae); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	var lists int
+	for _, c := range f.calls {
+		if c.name == "brew" && len(c.args) > 0 && c.args[0] == "list" {
+			lists++
+		}
+	}
+	if lists != 1 {
+		t.Errorf("brew list invoked %d times, want exactly 1", lists)
 	}
 }
 

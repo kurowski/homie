@@ -1,9 +1,12 @@
 package packages
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
 // Brew is the package manager backend for Homebrew-on-Linux. Useful on
@@ -11,6 +14,11 @@ import (
 // discouraged and brew is the default install path.
 type Brew struct {
 	Runner Runner
+
+	// loadOnce + installed cache the parsed result of one `brew list`
+	// invocation per Manager instance. See Flatpak for the rationale.
+	loadOnce  sync.Once
+	installed map[string]struct{}
 }
 
 // Name returns "brew".
@@ -25,11 +33,27 @@ func (b *Brew) IsAvailable() bool {
 }
 
 // IsInstalled reports whether the named formula is currently installed.
-// `brew list --formula <name>` exits non-zero when the formula isn't
-// present.
+// The installed set is loaded lazily on first call (one `brew list
+// --formula` shellout) and reused thereafter for the lifetime of this
+// Manager instance.
 func (b *Brew) IsInstalled(formula string) bool {
-	_, err := b.Runner("brew", "list", "--formula", formula)
-	return err == nil
+	b.loadOnce.Do(b.loadInstalled)
+	_, ok := b.installed[formula]
+	return ok
+}
+
+func (b *Brew) loadInstalled() {
+	b.installed = make(map[string]struct{})
+	out, err := b.Runner("brew", "list", "--formula", "-1")
+	if err != nil {
+		return
+	}
+	sc := bufio.NewScanner(bytes.NewReader(out))
+	for sc.Scan() {
+		if name := strings.TrimSpace(sc.Text()); name != "" {
+			b.installed[name] = struct{}{}
+		}
+	}
 }
 
 // Install installs formulae that aren't already installed. Empty input

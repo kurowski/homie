@@ -37,9 +37,10 @@ hm init \
 ## `hm apply`
 
 Full reconciliation pass — detect → load config → run pre-scripts →
-install native packages → install brew packages → install flatpak
-packages → symlink dotfiles → render templates → run scripts → summary.
-Brew/flatpak phases skip with a warning when the tool isn't on PATH.
+install native packages → install declared backends (alphabetical order:
+`brew`, `flatpak`, ...) → symlink dotfiles → render templates → run
+scripts → summary. Backend phases skip with a warning when the tool
+isn't on PATH or the backend name isn't recognized.
 
 ```sh
 hm apply

@@ -35,8 +35,9 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	w := cmd.OutOrStdout()
 
 	native := cfg.PackagesFor(env)
+	backends := declaredBackends(cfg)
 	declared := len(native) > 0
-	for _, backend := range backendOrder {
+	for _, backend := range backends {
 		if len(cfg.PackagesForBackend(env, backend)) > 0 {
 			declared = true
 			break
@@ -50,7 +51,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 	if err := installNative(w, env, native); err != nil {
 		return err
 	}
-	for _, backend := range backendOrder {
+	for _, backend := range backends {
 		if err := installBackend(w, cfg, env, backend); err != nil {
 			return err
 		}

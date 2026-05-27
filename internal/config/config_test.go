@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -230,6 +231,69 @@ func TestPackagesForBackend(t *testing.T) {
 				t.Errorf("PackagesForBackend(%q) =\n  got: %v\n want: %v", tc.backend, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestUnknownBackendIsWarnedNotErrored(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "homie.toml"), []byte(`
+[user]
+name  = "Scout Homes"
+email = "scout@homie.sh"
+
+[packages.cargo]
+all = ["cargo-edit"]
+
+[packages."tag:work".npm]
+all = ["typescript"]
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load(dir, "")
+	if err != nil {
+		t.Fatalf("Load should accept unknown backend tables as a forward-compat warning, got: %v", err)
+	}
+	// Unknown backends are parsed into Backends so doctor can warn about
+	// them at apply time and so the file still round-trips.
+	if got := c.Packages.Backends["cargo"].Base["all"]; !reflect.DeepEqual(got, []string{"cargo-edit"}) {
+		t.Errorf("cargo.Base[all] = %v, want [cargo-edit]", got)
+	}
+	if got := c.Packages.Backends["npm"].ByTag["work"]["all"]; !reflect.DeepEqual(got, []string{"typescript"}) {
+		t.Errorf("npm.ByTag[work][all] = %v, want [typescript]", got)
+	}
+	joined := strings.Join(c.Warnings, "\n")
+	for _, want := range []string{"packages.cargo", `tag:work"].npm`} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("expected a warning mentioning %q, got:\n%s", want, joined)
+		}
+	}
+	if !strings.Contains(joined, "looks like a backend but isn't recognized") {
+		t.Errorf("warning should clarify the backend isn't recognized, got:\n%s", joined)
+	}
+}
+
+func TestEmptyTagEntriesDoNotMatch(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "homie.toml"), []byte(`
+[user]
+name  = "Scout Homes"
+email = "scout@homie.sh"
+
+[packages]
+fedora = ["git"]
+
+[packages."tag:"]
+fedora = ["never-installs"]
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load(dir, "")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	got := c.PackagesFor(detect.Env{Distro: "fedora"})
+	if !reflect.DeepEqual(got, []string{"git"}) {
+		t.Errorf("PackagesFor = %v, want [git] only — empty tag entries must not contribute even if `\"\"` looks active", got)
 	}
 }
 

@@ -213,10 +213,21 @@ isn't on PATH, `hm apply` logs a warning and skips that phase — it
 doesn't fail. Setting up a flatpak remote or installing brew belongs in
 `scripts/pre-*.sh` so it runs before the backend's install step.
 
+The Flatpak backend installs from the `flathub` remote. References from
+`flathub-beta`, GNOME nightly, or a custom remote aren't supported by
+`[packages.flatpak]`; install those via `scripts/*.sh`.
+
+Unknown backend names (a typo, or one that doesn't exist yet) decode
+with a warning rather than hard-failing the load — `hm doctor` and
+`hm apply` surface them so the file stays forward-compatible with
+newer `hm` binaries.
+
 The `hm apply` lifecycle becomes:
-`detect → pre-scripts → packages → brew → flatpak → link → render →
-scripts`. Backends run after native packages so a flatpak/brew tool
-installed by `[packages]` is available before its own phase fires.
+`detect → pre-scripts → packages → backends → link → render → scripts`,
+where "backends" iterates whatever non-native backends you declared,
+in alphabetical order. Backends run after native packages so a brew or
+flatpak installed by `[packages]` is available before its own phase
+fires.
 
 ---
 
