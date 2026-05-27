@@ -52,7 +52,7 @@ Full breakdown on [Compare](/docs/compare/).
 
 It doesn't. Use your favourite secret store (`pass`, `sops`, `age`,
 1Password CLI, Bitwarden CLI) to fetch secrets into known paths, then
-reference those paths from `scripts/*.sh` or `templates/*.tmpl`. See the
+reference those paths from `scripts/*.sh` or `home/*.tmpl`. See the
 ["tagged secrets via your password manager"](/docs/recipes/#tagged-secrets-via-your-password-manager)
 recipe.
 

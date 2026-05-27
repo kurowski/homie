@@ -28,8 +28,8 @@ func TestRunWritesAllFiles(t *testing.T) {
 		"bootstrap.sh":              0o755,
 		"README.md":                 0o644,
 		".gitignore":                0o644,
-		"dotfiles/.zshrc":           0o644,
-		"templates/.gitconfig.tmpl": 0o644,
+		"home/.zshrc":           0o644,
+		"home/.gitconfig.tmpl":  0o644,
 		"scripts/01-shell.sh":       0o755,
 	}
 	for rel, mode := range want {

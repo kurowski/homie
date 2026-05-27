@@ -4,27 +4,29 @@ description: "Go text/template + Sprig + hasTag, with a cookbook of patterns."
 weight: 40
 ---
 
-Files under `templates/` get rendered into `$HOME` on every `hm apply`.
-A file named `templates/.gitconfig.tmpl` writes to `~/.gitconfig`. The
-`.tmpl` suffix is stripped; everything else maps one-to-one.
+Templates live in `home/` alongside plain symlink sources — the `.tmpl`
+suffix is what distinguishes "render this" from "symlink this." A file
+named `home/.gitconfig.tmpl` renders to `~/.gitconfig`; the suffix is
+stripped on output, everything else maps one-to-one.
 
 Rendered files are **real files**, not symlinks — the template is the
 source of truth, the output is the artifact. Source file mode is
-preserved, so `templates/bin/foo.sh.tmpl` renders executable.
+preserved, so `home/bin/foo.sh.tmpl` renders executable.
 
-### Tag-gated template trees
+### Tag-gated home trees
 
-Sibling directories named `templates.tag-<X>[.tag-<Y>...]` are processed
-only when every named tag is active on the host. Plain `templates/`
-always applies. The dotfiles tree uses the same convention
-(`dotfiles.tag-<X>...`), so the layout is symmetric:
+Sibling directories named `home.tag-<X>[.tag-<Y>...]` are processed
+only when every named tag is active on the host. Plain `home/` always
+applies. The same convention covers both kinds of file — plain and
+`.tmpl` — because they share one tree:
 
 ```
-templates/                       # always
-  .gitconfig.tmpl
-templates.tag-work/              # only when hasTag "work"
+home/                            # always
+  .zshrc                           # plain → symlink
+  .gitconfig.tmpl                  # → renders to ~/.gitconfig
+home.tag-work/                   # only when hasTag "work"
   .ssh/config.tmpl
-templates.tag-work.tag-kde/      # AND: both tags must be active
+home.tag-work.tag-kde/           # AND: both tags must be active
   .config/plasma/some-template.tmpl
 ```
 
@@ -37,8 +39,8 @@ host as informational findings.
 
 Tag names in directory suffixes can't contain `.` — that character is
 how Homie splits multiple tags inside one directory name. So
-`templates.tag-fedora.42/` parses as two segments (`fedora` and `42`),
-and since the second one is malformed (`42` doesn't start with `tag-`),
+`home.tag-fedora.42/` parses as two segments (`fedora` and `42`), and
+since the second one is malformed (`42` doesn't start with `tag-`),
 the whole directory is rejected. Use only `[A-Za-z0-9_-]`-style tag
 names when naming a tag-gated directory.
 
@@ -178,7 +180,7 @@ the value. For optional vars use `hasKey` or `dig`:
 
 ### A template that is a shell script
 
-`templates/bin/sync-secrets.sh.tmpl`:
+`home/bin/sync-secrets.sh.tmpl`:
 
 ```gotmpl
 #!/usr/bin/env bash

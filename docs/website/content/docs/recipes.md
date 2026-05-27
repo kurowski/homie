@@ -30,7 +30,7 @@ name = "work"
 WORK_EMAIL = "scout@uceap.example.com"
 ```
 
-`templates/.gitconfig.tmpl`:
+`home/.gitconfig.tmpl`:
 
 ```gotmpl
 [user]
@@ -93,7 +93,7 @@ name = "devcontainer"
 all = ["git", "zsh", "ripgrep", "fd-find", "fzf"]
 ```
 
-`templates/.zshrc.tmpl` — keep it lean in containers:
+`home/.zshrc.tmpl` — keep it lean in containers:
 
 ```gotmpl
 {{- if .IsContainer }}
@@ -174,7 +174,7 @@ pass show work/github-token > "$SECRETS_DIR/github-token"
 chmod 600 "$SECRETS_DIR"/*
 ```
 
-`templates/.netrc.tmpl`:
+`home/.netrc.tmpl`:
 
 ```gotmpl
 {{- if hasTag "has-secrets" }}

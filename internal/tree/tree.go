@@ -16,8 +16,27 @@ import (
 )
 
 // tagPart is the per-tag prefix inside a tag-conditional directory
-// name — e.g. dotfiles.tag-work.tag-kde -> ["work", "kde"].
+// name — e.g. home.tag-work.tag-kde -> ["work", "kde"].
 const tagPart = "tag-"
+
+// HomeDir is the single base directory under a user environment repo
+// that mirrors $HOME. Files inside are either symlinked (link) or
+// rendered (render); the .tmpl suffix is the disambiguator. Sibling
+// directories named `home.tag-X[.tag-Y...]` are additional
+// tag-conditional trees.
+const HomeDir = "home"
+
+// TemplateExtension is the suffix that marks a file inside a home tree
+// as a render template rather than a plain symlink source. The suffix
+// is stripped from the rendered file's path in $HOME.
+const TemplateExtension = ".tmpl"
+
+// IsTemplate reports whether a filename belongs to render (true) or to
+// link (false). Both walk the same home trees but partition files by
+// this rule so each file has exactly one owner.
+func IsTemplate(name string) bool {
+	return strings.HasSuffix(name, TemplateExtension)
+}
 
 // Active returns the absolute paths of trees that apply for the given
 // tag set. The plain base directory (if it exists) is always first;

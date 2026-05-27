@@ -43,8 +43,8 @@ name = "personal"
 [vars]
 EDITOR = "nvim"
 `, 0o644)
-	writeFile(t, filepath.Join(repo, "dotfiles", ".zshrc"), "# zshrc from repo\n", 0o644)
-	writeFile(t, filepath.Join(repo, "templates", ".gitconfig.tmpl"), `[user]
+	writeFile(t, filepath.Join(repo, "home", ".zshrc"), "# zshrc from repo\n", 0o644)
+	writeFile(t, filepath.Join(repo, "home", ".gitconfig.tmpl"), `[user]
 name = {{ .Name }}
 email = {{ .Email }}
 editor = {{ .Vars.EDITOR }}
@@ -88,8 +88,8 @@ func TestApplyEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("readlink: %v", err)
 	}
-	if target != filepath.Join(repo, "dotfiles", ".zshrc") {
-		t.Errorf(".zshrc points to %s, want repo dotfile", target)
+	if target != filepath.Join(repo, "home", ".zshrc") {
+		t.Errorf(".zshrc points to %s, want repo home file", target)
 	}
 
 	// 2. Template rendered with substitutions.

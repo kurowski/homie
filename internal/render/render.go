@@ -23,14 +23,12 @@ import (
 	"github.com/kurowski/homie/internal/tree"
 )
 
-// TemplatesDir is the base directory under the user repo that holds
-// .tmpl files. Sibling directories named `templates.tag-X[.tag-Y...]`
-// are additional, tag-conditional trees — same convention as
-// link.DotfilesDir's dotfiles.tag-X siblings.
-const TemplatesDir = "templates"
-
-// Extension is the suffix stripped from template filenames during rendering.
-const Extension = ".tmpl"
+// Extension is the suffix stripped from template filenames during
+// rendering. Re-exported here for backward source-compat with anything
+// that referenced render.Extension; the canonical value lives in
+// internal/tree as TemplateExtension because both link and render need
+// to agree on it.
+const Extension = tree.TemplateExtension
 
 // Data is what's available inside a template via {{ .Name }} etc.
 // Vars is map[string]any (not map[string]string) so Sprig helpers like
@@ -116,19 +114,20 @@ type Result struct {
 	Errors   []error
 }
 
-// Apply walks every active template tree (<repoDir>/templates plus any
-// tag-gated templates.tag-<X> siblings whose tags are all active) and
-// renders each *.tmpl into <home> with the .tmpl suffix stripped. If no
-// template tree exists, Apply returns an empty result with no error.
-// Non-fatal per-file errors are collected in Result.Errors so the rest
-// of `hm apply` can continue. A collision (two trees producing the same
-// target) is recorded as an error but doesn't abort the run.
+// Apply walks every active home tree (<repoDir>/home plus any tag-gated
+// home.tag-<X> siblings whose tags are all active) and renders each
+// *.tmpl into <home> with the .tmpl suffix stripped. Non-template files
+// in the same trees are owned by link.Plan and skipped here. If no home
+// tree exists, Apply returns an empty result with no error. Non-fatal
+// per-file errors are collected in Result.Errors so the rest of `hm
+// apply` can continue. A collision (two trees producing the same target)
+// is recorded as an error but doesn't abort the run.
 func Apply(repoDir, home string, cfg config.Config, env detect.Env) Result {
 	var res Result
 	tags := cfg.AllTags(env)
-	roots, err := tree.Active(repoDir, TemplatesDir, tags)
+	roots, err := tree.Active(repoDir, tree.HomeDir, tags)
 	if err != nil {
-		res.Errors = append(res.Errors, fmt.Errorf("scan template trees: %w", err))
+		res.Errors = append(res.Errors, fmt.Errorf("scan home trees: %w", err))
 		return res
 	}
 
@@ -140,7 +139,7 @@ func Apply(repoDir, home string, cfg config.Config, env detect.Env) Result {
 				res.Errors = append(res.Errors, walkErr)
 				return nil
 			}
-			if d.IsDir() || !strings.HasSuffix(d.Name(), Extension) {
+			if d.IsDir() || !tree.IsTemplate(d.Name()) {
 				return nil
 			}
 			rel, err := filepath.Rel(src, path)

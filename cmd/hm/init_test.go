@@ -37,7 +37,7 @@ func TestInitNonInteractiveScaffold(t *testing.T) {
 	}
 
 	// All scaffold files should exist.
-	for _, rel := range []string{"homie.toml", "bootstrap.sh", "dotfiles/.zshrc", "scripts/01-shell.sh"} {
+	for _, rel := range []string{"homie.toml", "bootstrap.sh", "home/.zshrc", "scripts/01-shell.sh"} {
 		if _, err := os.Stat(filepath.Join(target, rel)); err != nil {
 			t.Errorf("expected %s in scaffold: %v", rel, err)
 		}

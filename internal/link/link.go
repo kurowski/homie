@@ -18,13 +18,6 @@ import (
 	"github.com/kurowski/homie/internal/tree"
 )
 
-// DotfilesDir is the base directory under the user repo that holds
-// files to be symlinked into $HOME. Sibling directories named
-// `dotfiles.tag-X[.tag-Y...]` are additional, tag-conditional trees;
-// see Plan. The tree naming convention itself lives in internal/tree,
-// which is shared with templates.
-const DotfilesDir = "dotfiles"
-
 // Kind describes what should happen at a target path.
 type Kind string
 
@@ -58,22 +51,27 @@ type BackupRecord struct {
 	Backup string // absolute path of the backup
 }
 
-// Plan walks the active dotfile trees under repoDir and returns one
-// Action per regular file. Trees are:
-//   - <repoDir>/dotfiles (always)
-//   - <repoDir>/dotfiles.tag-<a>[.tag-<b>...] when every named tag is
+// Plan walks the active home trees under repoDir and returns one
+// Action per regular file that is NOT a template. Trees are:
+//   - <repoDir>/home (always)
+//   - <repoDir>/home.tag-<a>[.tag-<b>...] when every named tag is
 //     present in the given tags slice
 //
-// If no dotfile tree exists, Plan returns an empty slice with no error.
+// Files whose name ends in `.tmpl` are skipped here — they belong to
+// render.Apply, which walks the same trees and picks them up. The
+// `.tmpl` suffix is the disambiguator between "symlink me" and "render
+// me" inside a unified home tree.
+//
+// If no home tree exists, Plan returns an empty slice with no error.
 // If two trees contribute the same target path, Plan fails fast and
 // returns an error — overriding by tag should be expressed in templates,
-// not by stacking dotfile trees. This is stricter than render.Apply,
+// not by stacking home trees. This is stricter than render.Apply,
 // which records per-file collision errors and continues; the asymmetry
 // matches each package's existing error model (Plan/Apply split here,
 // per-file collection there). Roots are visited in lexical order so any
 // collision is deterministic.
 func Plan(repoDir, home string, tags []string) ([]Action, error) {
-	roots, err := tree.Active(repoDir, DotfilesDir, tags)
+	roots, err := tree.Active(repoDir, tree.HomeDir, tags)
 	if err != nil {
 		return nil, err
 	}
@@ -87,6 +85,9 @@ func Plan(repoDir, home string, tags []string) ([]Action, error) {
 			}
 			if d.IsDir() {
 				return nil
+			}
+			if tree.IsTemplate(d.Name()) {
+				return nil // render.Apply handles this file
 			}
 			rel, err := filepath.Rel(src, path)
 			if err != nil {
