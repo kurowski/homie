@@ -2,7 +2,6 @@
 package repo
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -41,5 +40,3 @@ func Find() (string, error) {
 	}
 }
 
-// ErrNotFound is returned when no user environment repo can be located.
-var ErrNotFound = errors.New("no homie.toml found")
