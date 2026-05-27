@@ -120,6 +120,9 @@ func parseDistro(root fs.FS) string {
 			return "unknown"
 		}
 	}
+	if err := sc.Err(); err != nil {
+		return "unknown"
+	}
 	return "unknown"
 }
 
