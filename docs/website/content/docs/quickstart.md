@@ -72,5 +72,5 @@ That downloads `hm`, clones your repo, and runs `hm apply`. Done.
 
 - [Commands](/docs/commands/) — every `hm` subcommand explained.
 - [`homie.toml`](/docs/config/) — full config reference.
-- [Templates](/docs/templates/) — conditionals, profile tags, the works.
+- [Dotfiles](/docs/dotfiles/) — symlinks, templates, tag-gated trees, overrides.
 - [Recipes](/docs/recipes/) — concrete patterns for common setups.
