@@ -8,6 +8,7 @@
 package packages
 
 import (
+	"os"
 	"os/exec"
 
 	"github.com/kurowski/homie/internal/detect"
@@ -60,6 +61,10 @@ func ForBackend(name string) Manager {
 		return &Flatpak{Runner: execRunner}
 	case "brew":
 		return &Brew{Runner: execRunner}
+	case "snap":
+		// snap install needs root; derive sudo from the effective uid
+		// here since ForBackend has no detect.Env to consult.
+		return &Snap{Runner: execRunner, Sudo: os.Geteuid() != 0}
 	default:
 		return nil
 	}

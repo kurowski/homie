@@ -57,7 +57,7 @@ See https://homie.sh/docs/commands/ for a fuller treatment.`,
 
 func init() {
 	applyCmd.Flags().StringVar(&applyHome, "home", "", "override target home directory (default $HOME)")
-	applyCmd.Flags().BoolVar(&applySkipPackages, "skip-packages", false, "skip the native and non-native (brew, flatpak) package phases")
+	applyCmd.Flags().BoolVar(&applySkipPackages, "skip-packages", false, "skip the native and non-native (brew, flatpak, snap) package phases")
 	applyCmd.Flags().BoolVar(&applySkipScripts, "skip-scripts", false, "skip the run-scripts phase")
 	rootCmd.AddCommand(applyCmd)
 }

@@ -187,8 +187,8 @@ belongs in `scripts/`.
 ### Non-native backends
 
 Beyond the native package manager, `[packages]` accepts sub-tables for
-non-native managers. v1 ships `flatpak` and `brew`; the namespace is
-reserved for `cargo`, `npm`, `pip`, etc. to follow.
+non-native managers. v1 ships `flatpak`, `brew`, and `snap`; the namespace
+is reserved for `cargo`, `npm`, `pip`, etc. to follow.
 
 ```toml
 [packages.flatpak]
@@ -197,6 +197,9 @@ fedora = ["org.localsend.localsend_app"]
 
 [packages.brew]
 all = ["fd", "ripgrep", "bat"]
+
+[packages.snap]
+all = ["gimp", "spotify"]
 ```
 
 Each backend mirrors the base shape — `all`, distro keys, and tag-keyed
@@ -216,6 +219,24 @@ doesn't fail. Setting up a flatpak remote or installing brew belongs in
 The Flatpak backend installs from the `flathub` remote. References from
 `flathub-beta`, GNOME nightly, or a custom remote aren't supported by
 `[packages.flatpak]`; install those via `scripts/*.sh`.
+
+The Snap backend installs with `snap install`. Snaps that need
+unconfined (classic) confinement — common for developer tools like the
+AWS CLI or editors — carry a `/classic` suffix on the package name;
+`/devmode` and `/jailmode` work the same way. A bare name installs under
+default (strict) confinement.
+
+```toml
+[packages.snap]
+all = ["gimp"]                 # strict confinement
+
+[packages."tag:work".snap]
+all = ["aws-cli/classic", "code/classic"]
+```
+
+An unrecognized suffix (e.g. `foo/bogus`) is a hard error. Installing
+`snapd` itself, or removing a conflicting distro package first, belongs
+in `scripts/pre-*.sh`.
 
 Unknown backend names (a typo, or one that doesn't exist yet) decode
 with a warning rather than hard-failing the load — `hm doctor` and

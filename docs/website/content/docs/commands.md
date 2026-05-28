@@ -38,7 +38,7 @@ hm init \
 
 Full reconciliation pass — detect → load config → run pre-scripts →
 install native packages → install declared backends (alphabetical order:
-`brew`, `flatpak`, ...) → materialize `home/` (symlinks + rendered
+`brew`, `flatpak`, `snap`, ...) → materialize `home/` (symlinks + rendered
 templates) → run scripts → summary. Backend phases skip with a warning
 when the tool isn't on PATH or the backend name isn't recognized.
 
@@ -83,7 +83,8 @@ the full model.
 Just the package phases. Resolves `[packages].all + [packages].<distro>`
 plus matching `[packages."tag:X"]` against the detected package manager
 and installs missing entries, then runs the non-native backend phases
-(`[packages.brew]`, `[packages.flatpak]`) in the same order. On
+(`[packages.brew]`, `[packages.flatpak]`, `[packages.snap]`) in the same
+order. On
 unsupported distros, prints a friendly "not yet supported" notice and
 skips the native phase. When a backend's tool isn't on PATH, prints a
 warning and skips that backend.
