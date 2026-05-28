@@ -72,6 +72,19 @@ func validSnapModes() string {
 // Name returns "snap".
 func (s *Snap) Name() string { return "snap" }
 
+// Validate reports the first spec with an unknown confinement suffix, or
+// nil if every spec parses. Implements [Validator] so apply and doctor can
+// flag a typo like "foo/bogus" before attempting (or pretending to skip)
+// an install.
+func (s *Snap) Validate(specs []string) error {
+	for _, spec := range specs {
+		if _, _, err := parseSnapSpec(spec); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // IsAvailable reports whether the snap command-line tool is on PATH.
 // If it isn't, the apply phase logs a warning and skips silently — snap
 // is opt-in and Fedora hosts won't have snapd by default.
@@ -102,15 +115,20 @@ func (s *Snap) loadInstalled() {
 		return
 	}
 	sc := bufio.NewScanner(bytes.NewReader(out))
-	header := true
+	first := true
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		if line == "" {
 			continue
 		}
-		if header {
-			header = false // first non-empty line is the "Name Version ..." header
-			continue
+		// `snap list` leads with a "Name  Version ..." column header.
+		// Anchor on that literal so an unexpected header-less output (or a
+		// future format change) doesn't silently drop the first real snap.
+		if first {
+			first = false
+			if strings.HasPrefix(line, "Name") {
+				continue
+			}
 		}
 		s.installed[strings.Fields(line)[0]] = struct{}{}
 	}
@@ -121,6 +139,11 @@ func (s *Snap) loadInstalled() {
 // message before any shellout. Because --classic (etc.) applies to the
 // whole `snap install` invocation, installs are grouped by confinement
 // mode and run one command per mode.
+//
+// Unlike flatpak/brew, this can't reuse the shared filterUninstalled
+// helper: every spec must be parsed (to split name from confinement) and
+// bucketed by mode in the same pass, so the not-installed filter is folded
+// into that loop rather than run separately.
 func (s *Snap) Install(specs []string) error {
 	byMode := make(map[string][]string)
 	for _, spec := range specs {
@@ -152,7 +175,13 @@ func (s *Snap) Install(specs []string) error {
 		cmd, rest := s.command(args)
 		out, err := s.Runner(cmd, rest...)
 		if err != nil {
-			return fmt.Errorf("snap install: %w: %s", err, strings.TrimSpace(string(out)))
+			// Name the confinement group so a failure in one of several
+			// mode batches points at the right command.
+			confinement := mode
+			if confinement == "" {
+				confinement = "strict"
+			}
+			return fmt.Errorf("snap install (%s): %w: %s", confinement, err, strings.TrimSpace(string(out)))
 		}
 	}
 	return nil

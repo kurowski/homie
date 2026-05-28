@@ -234,9 +234,11 @@ all = ["gimp"]                 # strict confinement
 all = ["aws-cli/classic", "code/classic"]
 ```
 
-An unrecognized suffix (e.g. `foo/bogus`) is a hard error. Installing
-`snapd` itself, or removing a conflicting distro package first, belongs
-in `scripts/pre-*.sh`.
+An unrecognized suffix (e.g. `foo/bogus`) is a hard error. The suffix
+only expresses confinement — non-default channels or tracks (`--channel`,
+`--channel=22/stable`) aren't expressible here; install those from a
+`scripts/*.sh`. Installing `snapd` itself, or removing a conflicting
+distro package first, also belongs in `scripts/pre-*.sh`.
 
 Unknown backend names (a typo, or one that doesn't exist yet) decode
 with a warning rather than hard-failing the load — `hm doctor` and

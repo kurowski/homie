@@ -485,6 +485,31 @@ func TestSnapInstallUnknownModeErrors(t *testing.T) {
 	}
 }
 
+func TestSnapValidate(t *testing.T) {
+	s := &Snap{Runner: (&fakeRunner{}).run}
+	if err := s.Validate([]string{"gimp", "aws-cli/classic", "x/devmode", "y/jailmode"}); err != nil {
+		t.Errorf("valid specs should pass Validate, got %v", err)
+	}
+	err := s.Validate([]string{"gimp", "foo/bogus"})
+	if err == nil || !strings.Contains(err.Error(), "bogus") {
+		t.Errorf("Validate should reject foo/bogus with a clear message, got %v", err)
+	}
+}
+
+func TestSnapInstallErrorNamesMode(t *testing.T) {
+	// The classic group's install fails; the strict group (installed first)
+	// succeeds. The error must identify the classic batch.
+	f := &fakeRunner{failCmd: "snap install c --classic"}
+	s := &Snap{Runner: f.run}
+	err := s.Install([]string{"a", "c/classic"})
+	if err == nil {
+		t.Fatal("expected install error from the classic group")
+	}
+	if !strings.Contains(err.Error(), "classic") {
+		t.Errorf("error should name the failing confinement group, got %q", err)
+	}
+}
+
 func TestSnapInstallSudo(t *testing.T) {
 	f := &fakeRunner{}
 	s := &Snap{Runner: f.run, Sudo: true}
