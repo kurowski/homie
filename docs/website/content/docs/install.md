@@ -102,3 +102,31 @@ hm doctor
 
 `hm doctor` runs a no-op health check — useful even right after install
 to confirm the binary is wired up correctly.
+
+---
+
+## Updating
+
+There's no `hm upgrade` command — `hm` is a single static binary, so
+updating just means replacing it. Re-run whatever you used to install,
+and it overwrites the existing binary in place:
+
+```sh
+curl -fsSL https://homie.sh/install.sh | bash          # latest
+curl -fsSL https://homie.sh/install.sh | HM_RELEASE=v0.2.0 bash   # pin / downgrade
+hm --version                                           # confirm
+```
+
+The install script is idempotent — it re-detects your arch, re-verifies
+the SHA256, and replaces `hm` in the same `HM_BINDIR`. The other install
+methods update the same way: re-run `go install …@latest`, or `git pull`
+and `make build` from a source checkout.
+
+If `hm --version` doesn't show the version you just installed, a copy
+left on `PATH` by a different install method is probably shadowing it —
+`which hm` to find which one wins.
+
+Re-running your environment repo's `bootstrap.sh` also pulls the latest
+`hm` before applying, but that's a full reapply of your environment, not
+just a binary bump — reach for the install script when you only want to
+update `hm` itself.
