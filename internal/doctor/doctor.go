@@ -84,7 +84,7 @@ func Run(repoDir, home string, cfg config.Config, env detect.Env, mgr packages.M
 	r.checkTemplates(repoDir, home, cfg, env)
 	r.checkPackages(cfg, env, mgr)
 	r.checkBackendPackages(cfg, env, backendLookup)
-	r.checkScripts(repoDir)
+	r.checkScripts(repoDir, cfg, env)
 	return r
 }
 
@@ -323,27 +323,32 @@ func (r *Report) checkPackages(cfg config.Config, env detect.Env, mgr packages.M
 	}
 }
 
-func (r *Report) checkScripts(repoDir string) {
-	dir := filepath.Join(repoDir, runner.ScriptsDir)
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, fs.ErrNotExist) {
-		return
-	}
-	if err != nil {
-		r.add(SeverityError, "scripts", fmt.Sprintf("read %s: %v", dir, err))
-		return
-	}
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), runner.Extension) {
-			continue
-		}
-		info, err := e.Info()
+func (r *Report) checkScripts(repoDir string, cfg config.Config, env detect.Env) {
+	tags := cfg.AllTags(env)
+	// Walk both phases so every active *.sh (pre and post) is checked.
+	// runner.Plan applies the same tag-tree merge and filename-collision
+	// rule as `hm apply`, so a collision surfaces here too.
+	for _, phase := range []runner.Phase{runner.PhasePre, runner.PhasePost} {
+		paths, err := runner.Plan(repoDir, tags, phase)
 		if err != nil {
+			r.add(SeverityError, "scripts", err.Error())
 			continue
 		}
-		if info.Mode()&0o111 == 0 {
-			r.add(SeverityWarn, "scripts",
-				fmt.Sprintf("%s is not executable (chmod +x recommended)", e.Name()))
+		for _, p := range paths {
+			info, err := os.Stat(p)
+			if err != nil {
+				continue
+			}
+			if info.Mode()&0o111 == 0 {
+				r.add(SeverityWarn, "scripts",
+					fmt.Sprintf("%s is not executable (chmod +x recommended)", tree.RelTo(repoDir, p)))
+			}
 		}
+	}
+	// Surface tag-gated script trees that won't run on this host, mirroring
+	// the home-tree behavior in checkLinks.
+	for _, p := range inactiveTreeDirs(repoDir, runner.ScriptsDir, tags) {
+		r.add(SeverityInfo, "scripts",
+			fmt.Sprintf("%s is not active on this host (tags not satisfied)", p))
 	}
 }

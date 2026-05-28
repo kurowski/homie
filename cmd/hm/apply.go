@@ -35,14 +35,16 @@ Phases, in order:
 
   1. detect       — distro, arch, container, hostname, tags
   2. config       — load homie.toml (+ hosts/<hostname>.toml overlay)
-  3. pre-scripts  — scripts/pre-*.sh (third-party repo setup, GPG keys, ...)
+  3. pre-scripts  — pre-*.sh from scripts/ and active scripts.tag-X/
+                    siblings (third-party repo setup, GPG keys, ...)
   4. packages     — install [packages] via the native manager (apt/dnf)
   5. backends     — install each declared backend ([packages.brew],
                     [packages.flatpak], ...); a phase skips with a
                     warning when its tool isn't on PATH
   6. home         — symlink plain files and render *.tmpl files from
                     home/ (and active home.tag-X/ siblings) into $HOME
-  7. scripts      — scripts/*.sh (non-pre)
+  7. scripts      — non-pre *.sh from scripts/ and active scripts.tag-X/
+                    siblings, ordered by filename across all trees
 
 Non-fatal errors are collected and surfaced in the summary rather than
 aborting. ` + "`hm apply`" + ` exits non-zero if any error was collected.

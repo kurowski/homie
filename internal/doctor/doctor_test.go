@@ -278,6 +278,60 @@ func TestRunReportsNonExecutableScript(t *testing.T) {
 	}
 }
 
+func TestRunReportsInactiveScriptTree(t *testing.T) {
+	repo, home := makeRepo(t)
+	// scripts.tag-work is inactive on a personal host (no work tag), so
+	// doctor should note it informationally under the "scripts" area,
+	// mirroring the home-tree behavior.
+	if err := os.MkdirAll(filepath.Join(repo, "scripts.tag-work"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "scripts.tag-work", "01.sh"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
+	r := Run(repo, home, sampleCfg(), env,
+		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}}, nil)
+
+	var found bool
+	for _, f := range r.Findings {
+		if f.Severity == SeverityInfo && f.Area == "scripts" && strings.Contains(f.Message, "scripts.tag-work") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected an info finding naming scripts.tag-work, got: %v", messagesByArea(r, "scripts"))
+	}
+	if r.HasErrors() {
+		t.Errorf("an inactive script tree is informational, not an error")
+	}
+}
+
+func TestRunReportsScriptCollision(t *testing.T) {
+	repo, home := makeRepo(t)
+	if err := os.WriteFile(filepath.Join(repo, "scripts", "05.sh"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(repo, "scripts.tag-fedora"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "scripts.tag-fedora", "05.sh"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// fedora tag active → both trees claim 05.sh → hard error.
+	env := detect.Env{Distro: "fedora", PackageManager: "dnf", Hostname: "test", Tags: []string{"fedora"}}
+	r := Run(repo, home, sampleCfg(), env,
+		&fakeMgr{name: "dnf", available: true, installed: map[string]bool{"git": true, "zsh": true}}, nil)
+
+	if !r.HasErrors() {
+		t.Fatal("expected an error finding for the script collision")
+	}
+	msgs := strings.Join(messagesByArea(r, "scripts"), "\n")
+	if !strings.Contains(msgs, "05.sh") {
+		t.Errorf("collision error should name 05.sh, got: %s", msgs)
+	}
+}
+
 func TestRunReportsUnknownDistro(t *testing.T) {
 	repo, home := makeRepo(t)
 	env := detect.Env{Distro: "unknown", PackageManager: "unknown", Hostname: "test"}

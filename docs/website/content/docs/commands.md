@@ -100,6 +100,16 @@ Scripts are user code — Homie doesn't enforce idempotency. Convention is
 that each script is individually idempotent (e.g. `command -v X && exit
 0` at the top).
 
+Sibling directories named `scripts.tag-<X>[.tag-<Y>...]/` run only when
+all of their tags are active (AND), mirroring the `home.tag-X/` trees.
+Plain `scripts/` always runs. Scripts are ordered by filename across
+every active tree — the numeric prefix is the single global order, so a
+`scripts.tag-fedora/05-repos.sh` runs at position 05 next to a
+`scripts/04-base.sh`. The tag trees decide which scripts participate, not
+a separate ordered stream. The same filename appearing in two active
+trees is a hard error. See [Dotfiles](/docs/dotfiles/) for the parallel
+file-tree model.
+
 Flags:
 
 - `--phase=post` (default) — every script whose name does NOT begin with
@@ -128,7 +138,10 @@ Walks the repo and reports:
 - Symlinks in `$HOME` that point outside the repo.
 - Missing packages.
 - Unrendered templates.
-- Scripts that aren't executable.
+- Scripts that aren't executable, and filename collisions between active
+  script trees.
+- Tag-gated `home.tag-X/` and `scripts.tag-X/` trees that aren't active
+  on this host (informational).
 - Unknown distro detection.
 
 Exit code is `0` if everything is clean, `1` otherwise — useful as a
