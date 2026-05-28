@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/kurowski/homie/internal/config"
 	"github.com/kurowski/homie/internal/detect"
@@ -32,6 +31,14 @@ bash subprocess with these environment variables set:
 Scripts are user code — Homie does not enforce idempotency. The
 convention is for each script to no-op when its work is already done
 (e.g. ` + "`command -v X >/dev/null && exit 0`" + ` at the top).
+
+Tag-conditional trees: sibling directories named ` + "`scripts.tag-X[.tag-Y]/`" + `
+run only when all of their tags are active (AND), mirroring the
+` + "`home.tag-X/`" + ` convention. Plain ` + "`scripts/`" + ` always runs. Files are
+ordered by filename across every active tree — the numeric prefix is the
+single global order, so ` + "`scripts.tag-fedora/05-x.sh`" + ` runs at position
+05 alongside ` + "`scripts/04-y.sh`" + `. The same filename in two active trees
+is an error.
 
 Phases:
 
@@ -97,20 +104,31 @@ func runRun(cmd *cobra.Command, args []string) error {
 			}
 			fmt.Fprintf(w, "  %-5s %s\n", status, filepath.Base(r.Path))
 		}
+		// Errors with no corresponding script run (e.g. a filename
+		// collision between active tag trees) are pre-flight failures —
+		// print them so the user sees the cause, not just a count. When
+		// scripts did run, their stderr already streamed live and each
+		// shows a "fail" line, so the bare error here would be redundant.
+		if len(res.Ran) == 0 {
+			for _, e := range res.Errors {
+				fmt.Fprintf(w, "  error %s\n", e)
+			}
+		}
+	}
+	// Surface failures before the "nothing to run" message: a pre-flight
+	// error (collision) leaves ran == 0 but must not be swallowed.
+	if failed > 0 {
+		return fmt.Errorf("%d script error(s)", failed)
 	}
 	if ran == 0 {
 		fmt.Fprintln(w, "No scripts to run.")
 		// If the user only asked for one phase but the other has scripts,
 		// nudge them toward the right flag rather than leave them wondering.
 		if len(phases) == 1 {
-			if other := otherPhase(phases[0]); hasScripts(repoDir, other) {
+			if other := otherPhase(phases[0]); hasScripts(repoDir, tags, other) {
 				fmt.Fprintf(w, "Hint: %s-scripts exist — try `hm run --phase=%s`.\n", other, other)
 			}
 		}
-		return nil
-	}
-	if failed > 0 {
-		return fmt.Errorf("%d script(s) failed", failed)
 	}
 	return nil
 }
@@ -124,19 +142,13 @@ func otherPhase(p runner.Phase) runner.Phase {
 	return runner.PhasePre
 }
 
-// hasScripts reports whether any *.sh file in <repoDir>/scripts belongs
-// to the given phase. Errors are swallowed — the caller only uses this
-// to gate an optional hint message.
-func hasScripts(repoDir string, phase runner.Phase) bool {
-	matches, _ := filepath.Glob(filepath.Join(repoDir, runner.ScriptsDir, "*"+runner.Extension))
-	for _, m := range matches {
-		name := filepath.Base(m)
-		isPre := strings.HasPrefix(name, runner.PrePrefix)
-		if (phase == runner.PhasePre) == isPre {
-			return true
-		}
-	}
-	return false
+// hasScripts reports whether any *.sh file in an active script tree
+// (scripts/ or an active scripts.tag-X sibling) belongs to the given
+// phase. Errors are swallowed — the caller only uses this to gate an
+// optional hint message.
+func hasScripts(repoDir string, tags []string, phase runner.Phase) bool {
+	paths, _ := runner.Plan(repoDir, tags, phase)
+	return len(paths) > 0
 }
 
 // parseRunPhase resolves the --phase flag to one or two runner.Phase

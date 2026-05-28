@@ -9,10 +9,8 @@
 package runner
 
 import (
-	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,9 +18,13 @@ import (
 	"strings"
 
 	"github.com/kurowski/homie/internal/config"
+	"github.com/kurowski/homie/internal/tree"
 )
 
-// ScriptsDir is the directory under the user repo that holds scripts.
+// ScriptsDir is the bare directory under the user repo that holds scripts.
+// Sibling directories named `scripts.tag-X[.tag-Y...]` are additional
+// tag-conditional script trees — they run only when all their tags are
+// active. This mirrors the home/ tree convention (see internal/tree).
 const ScriptsDir = "scripts"
 
 // Extension is the suffix scripts must have to be picked up by Run.
@@ -84,37 +86,23 @@ type Result struct {
 	Errors []error
 }
 
-// Run executes <repoDir>/scripts/*.sh matching the given phase in
-// lexical order. Each script gets HM_REPO, HM_HOME, HM_TAGS
+// Run executes the *.sh scripts matching the given phase from the active
+// script trees (scripts/ plus any active scripts.tag-X siblings), ordered
+// by filename across all trees. Each script gets HM_REPO, HM_HOME, HM_TAGS
 // (comma-joined) plus every cfg.Vars entry exported in its environment.
 // Stdout and stderr are streamed to out so the user sees progress live.
 //
-// A missing scripts directory is a no-op (the user repo may legitimately
-// have none). Individual script failures don't abort the run; they're
-// collected in Result.Errors.
+// No script trees is a no-op (the user repo may legitimately have none).
+// A filename collision between two active trees is a fatal error returned
+// in Result.Errors before any script runs. Individual script failures
+// don't abort the run; they're collected in Result.Errors too.
 func Run(repoDir, home string, cfg config.Config, tags []string, phase Phase, out io.Writer) Result {
 	var res Result
-	dir := filepath.Join(repoDir, ScriptsDir)
-	entries, err := os.ReadDir(dir)
-	if errors.Is(err, fs.ErrNotExist) {
-		return res
-	}
+	scripts, err := Plan(repoDir, tags, phase)
 	if err != nil {
-		res.Errors = append(res.Errors, fmt.Errorf("read %s: %w", dir, err))
+		res.Errors = append(res.Errors, err)
 		return res
 	}
-
-	var scripts []string
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), Extension) {
-			continue
-		}
-		if scriptPhase(e.Name()) != phase {
-			continue
-		}
-		scripts = append(scripts, filepath.Join(dir, e.Name()))
-	}
-	sort.Strings(scripts)
 
 	env := buildEnv(repoDir, home, cfg.Vars, tags)
 	for _, path := range scripts {
@@ -125,6 +113,58 @@ func Run(repoDir, home string, cfg config.Config, tags []string, phase Phase, ou
 		}
 	}
 	return res
+}
+
+// Plan returns the absolute paths of the scripts Run would execute for
+// the given phase, in execution order — the bare scripts/ tree plus any
+// active scripts.tag-X[.tag-Y...] siblings, filtered to phase. It returns
+// an error if two active trees provide the same filename. Run, doctor,
+// and the `hm run` hint all go through Plan so they stay in sync.
+//
+// Tree discovery is shared with the home/ tree via tree.Active. The merge
+// rule, though, differs from tree.Resolve: scripts have no override/
+// more-specific-wins semantic, so any two active trees offering the same
+// filename is a hard error rather than a silent win. The numeric filename
+// prefix is the single global ordering across all trees — the tag trees
+// only decide which files participate, they don't fork into separate
+// ordered streams.
+func Plan(repoDir string, tags []string, phase Phase) ([]string, error) {
+	roots, err := tree.Active(repoDir, ScriptsDir, tags)
+	if err != nil {
+		return nil, err
+	}
+	byName := make(map[string]string) // filename -> winning absolute path
+	for _, root := range roots {
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", root, err)
+		}
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), Extension) {
+				continue
+			}
+			if scriptPhase(e.Name()) != phase {
+				continue
+			}
+			path := filepath.Join(root, e.Name())
+			if prev, clash := byName[e.Name()]; clash {
+				return nil, fmt.Errorf("script %s is provided by both %s and %s — rename one, or narrow a tag tree so only one applies",
+					e.Name(), tree.RelTo(repoDir, prev), tree.RelTo(repoDir, path))
+			}
+			byName[e.Name()] = path
+		}
+	}
+
+	scripts := make([]string, 0, len(byName))
+	for _, path := range byName {
+		scripts = append(scripts, path)
+	}
+	// Order by filename, not full path: a script's numeric prefix is its
+	// position in the unified order regardless of which tree it lives in.
+	sort.Slice(scripts, func(i, j int) bool {
+		return filepath.Base(scripts[i]) < filepath.Base(scripts[j])
+	})
+	return scripts, nil
 }
 
 // buildEnv composes the environment passed to each script. The parent

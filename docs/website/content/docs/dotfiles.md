@@ -186,6 +186,12 @@ names when naming a tag-gated directory.
 host as informational findings — useful for sanity-checking a
 multi-tag layout from a host where only some of the trees apply.
 
+The same naming convention extends to scripts: `scripts.tag-<X>/`
+directories run only when their tags are active. Unlike home trees,
+which resolve same-target collisions by specificity, scripts have no
+override rule — the same filename in two active script trees is an
+error. See [`hm run`](/docs/commands/#hm-run) for the ordering rules.
+
 ---
 
 ## Overrides
