@@ -291,7 +291,7 @@ and stay).
 
 ## Current state
 
-v0.1.0 shipped. The MVP (detect, config, link, render, native packages,
+v0.2.0 shipped. The MVP (detect, config, link, render, native packages,
 runner, UI, `hm apply` end-to-end, `hm init` scaffold, `bootstrap.sh`
 template, `hm status` / `hm doctor`, GitHub Actions release pipeline,
 e2e container harness covering Ubuntu/Debian/Fedora, docs site) was
@@ -299,7 +299,10 @@ v0.0.2; v0.1.0 added: multi-host overlay, pre-package scripts,
 tag-keyed packages, tag-conditional home trees, pluggable backends
 (flatpak + brew), unified `home/` tree replacing `dotfiles/` +
 `templates/`, more-specific-wins override resolution, docs site
-restructure.
+restructure. v0.2.0 added: the `hm home` command, charmbracelet/fang-styled
+help and errors, a snap package backend (with `/classic` `/devmode`
+`/jailmode` confinement suffixes), and tag-conditional script trees
+(`scripts.tag-X/`, parallel to `home.tag-X/`).
 
 **Layout migration** (one-time, for repos created against v0.0.2):
 `git mv dotfiles/* home/ && git mv templates/* home/ && rmdir dotfiles
