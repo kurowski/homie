@@ -159,8 +159,7 @@ func TestPackagesWarnsOnTypos(t *testing.T) {
 	}
 	joined := strings.Join(c.Warnings, "\n")
 	for _, want := range []string{
-		"packages.feodra",  // base distro typo
-		`empty tag name`,   // [packages."tag:"]
+		"packages.feodra",    // base distro typo
 		`tag:work"].ubunntu`, // sub-table distro typo
 	} {
 		if !strings.Contains(joined, want) {
@@ -272,28 +271,114 @@ all = ["typescript"]
 	}
 }
 
-func TestEmptyTagEntriesDoNotMatch(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "homie.toml"), []byte(`
+func TestMalformedTagKeyErrors(t *testing.T) {
+	// Each of these is a structurally invalid [packages."..."] key and must
+	// fail Load with a clear message rather than silently not matching.
+	for _, key := range []string{
+		"tag:",          // empty tag name
+		"tag:X.foo",     // second segment isn't a tag: segment
+		"tag:X.",        // trailing empty segment
+		"tag:.tag:work", // empty first segment
+	} {
+		t.Run(key, func(t *testing.T) {
+			dir := t.TempDir()
+			body := `
 [user]
 name  = "Scout Homes"
 email = "scout@homie.sh"
 
-[packages]
-fedora = ["git"]
-
-[packages."tag:"]
-fedora = ["never-installs"]
-`), 0o644); err != nil {
-		t.Fatal(err)
+[packages."` + key + `"]
+fedora = ["pkg"]
+`
+			if err := os.WriteFile(filepath.Join(dir, "homie.toml"), []byte(body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			_, err := Load(dir, "")
+			if err == nil {
+				t.Fatalf("Load should reject malformed tag key %q", key)
+			}
+			if !strings.Contains(err.Error(), "malformed package tag key") {
+				t.Errorf("error for %q should be clear about the malformed key, got: %v", key, err)
+			}
+		})
 	}
-	c, err := Load(dir, "")
+}
+
+func TestPackagesForChainedTags(t *testing.T) {
+	c, err := Load(filepath.Join("testdata", "and-tag-packages"), "")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	got := c.PackagesFor(detect.Env{Distro: "fedora"})
-	if !reflect.DeepEqual(got, []string{"git"}) {
-		t.Errorf("PackagesFor = %v, want [git] only — empty tag entries must not contribute even if `\"\"` looks active", got)
+	cases := []struct {
+		name    string
+		env     detect.Env
+		native  []string
+		snap    []string
+		flatpak []string
+	}{
+		{
+			name:    "personal AND ubuntu active",
+			env:     detect.Env{Distro: "ubuntu", Tags: []string{"personal", "ubuntu"}},
+			native:  []string{"git", "base-and-pkg", "ubuntu-only"},
+			snap:    nil, // desktop not active
+			flatpak: nil, // work not active
+		},
+		{
+			name:    "personal AND desktop active picks up the snap block",
+			env:     detect.Env{Distro: "ubuntu", Tags: []string{"personal", "desktop"}},
+			native:  []string{"git"}, // personal.ubuntu needs ubuntu tag, absent
+			snap:    []string{"gimp", "spotify"},
+			flatpak: nil,
+		},
+		{
+			name:    "work AND ubuntu active picks up the flatpak block (order-independent key)",
+			env:     detect.Env{Distro: "ubuntu", Tags: []string{"work", "ubuntu"}},
+			native:  []string{"git", "kubectl"}, // single-tag work block
+			snap:    nil,
+			flatpak: []string{"us.zoom.Zoom"},
+		},
+		{
+			name:    "only one of an AND pair active contributes nothing from that block",
+			env:     detect.Env{Distro: "ubuntu", Tags: []string{"personal"}},
+			native:  []string{"git"},
+			snap:    nil,
+			flatpak: nil,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := c.PackagesFor(tc.env); !reflect.DeepEqual(got, tc.native) {
+				t.Errorf("PackagesFor =\n  got: %v\n want: %v", got, tc.native)
+			}
+			if got := c.PackagesForBackend(tc.env, "snap"); !reflect.DeepEqual(got, tc.snap) {
+				t.Errorf("PackagesForBackend(snap) =\n  got: %v\n want: %v", got, tc.snap)
+			}
+			if got := c.PackagesForBackend(tc.env, "flatpak"); !reflect.DeepEqual(got, tc.flatpak) {
+				t.Errorf("PackagesForBackend(flatpak) =\n  got: %v\n want: %v", got, tc.flatpak)
+			}
+		})
+	}
+}
+
+func TestActiveTagBlocks(t *testing.T) {
+	c, err := Load(filepath.Join("testdata", "and-tag-packages"), "")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	// personal+ubuntu: only the native personal.ubuntu AND-block applies.
+	got := c.ActiveTagBlocks(detect.Env{Distro: "ubuntu", Tags: []string{"personal", "ubuntu"}})
+	if want := []string{"tag:personal.tag:ubuntu"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("ActiveTagBlocks =\n  got: %v\n want: %v", got, want)
+	}
+	// work+ubuntu: the flatpak block (written tag:work.tag:ubuntu) shows in
+	// canonical sorted display form; the single-tag work block is omitted.
+	got = c.ActiveTagBlocks(detect.Env{Distro: "ubuntu", Tags: []string{"work", "ubuntu"}})
+	if want := []string{"tag:ubuntu.tag:work"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("ActiveTagBlocks =\n  got: %v\n want: %v", got, want)
+	}
+	// No AND-pair fully active.
+	if got := c.ActiveTagBlocks(detect.Env{Distro: "ubuntu", Tags: []string{"personal"}}); len(got) != 0 {
+		t.Errorf("ActiveTagBlocks with no AND-pair satisfied = %v, want empty", got)
 	}
 }
 

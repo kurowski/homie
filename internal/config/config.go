@@ -52,9 +52,11 @@ type Packages struct {
 	// of package names to install on every run for matching distros.
 	Base map[string][]string
 
-	// ByTag maps a tag name (the part after "tag:") to its own
-	// distro-keyed package lists. These contribute only when the tag is
-	// active for the current host.
+	// ByTag maps a canonical tag key (the required tags, sorted and joined
+	// by ".") to its own distro-keyed package lists. A single-tag block
+	// ([packages."tag:work"]) keys on "work"; a multi-tag block
+	// ([packages."tag:personal.tag:ubuntu"]) keys on "personal.ubuntu" and
+	// contributes only when ALL its tags are active (AND).
 	ByTag map[string]map[string][]string
 
 	// Backends holds non-native managers (flatpak, brew) keyed by name.
@@ -133,11 +135,11 @@ func (p *Packages) UnmarshalTOML(data any) error {
 			if !ok {
 				return fmt.Errorf(`[packages."%s"] must be a table, got %T`, k, v)
 			}
-			tag := strings.TrimPrefix(k, TagKeyPrefix)
-			if tag == "" {
-				p.warnf(`[packages."%s"] has an empty tag name — did you mean a real tag like "tag:work"? The entries are loaded but no tag will match.`, k)
+			canonical, _, err := parseTagKey(k)
+			if err != nil {
+				return err
 			}
-			if err := p.absorbTagTable(tag, sub, fmt.Sprintf(`[packages."%s"]`, k)); err != nil {
+			if err := p.absorbTagTable(canonical, sub, fmt.Sprintf(`[packages."%s"]`, k)); err != nil {
 				return err
 			}
 			continue
@@ -171,13 +173,16 @@ func (p *Packages) UnmarshalTOML(data any) error {
 	return nil
 }
 
-// absorbTagTable processes the body of a [packages."tag:X"] sub-table:
-// arrays become this tag's distro lists, tables become this tag's
-// per-backend entries. Note the asymmetry — backend entries inside a
-// tag table land in Backends[name].ByTag[tag] rather than ByTag[tag];
-// if a tag table holds *only* backend sub-tables, ByTag[tag] stays
-// unset because there are no native packages to register for it.
-func (p *Packages) absorbTagTable(tag string, sub map[string]any, ctx string) error {
+// absorbTagTable processes the body of a [packages."tag:X[.tag:Y...]"]
+// sub-table: arrays become the block's distro lists, tables become its
+// per-backend entries. canonical is the parsed canonical tag key (sorted
+// tags joined by "."), so single- and multi-tag blocks land in the same
+// ByTag map keyed identically. Note the asymmetry — backend entries inside
+// a tag table land in Backends[name].ByTag[canonical] rather than
+// ByTag[canonical]; if a tag table holds *only* backend sub-tables,
+// ByTag[canonical] stays unset because there are no native packages to
+// register for it.
+func (p *Packages) absorbTagTable(canonical string, sub map[string]any, ctx string) error {
 	tagBase := make(map[string][]string)
 	for k, v := range sub {
 		// Same shape-dispatch rule as the top level: tables are
@@ -195,7 +200,7 @@ func (p *Packages) absorbTagTable(tag string, sub map[string]any, ctx string) er
 			if be.ByTag == nil {
 				be.ByTag = make(map[string]map[string][]string)
 			}
-			be.ByTag[tag] = lists
+			be.ByTag[canonical] = lists
 			p.Backends[k] = be
 			continue
 		}
@@ -209,7 +214,7 @@ func (p *Packages) absorbTagTable(tag string, sub map[string]any, ctx string) er
 		tagBase[k] = list
 	}
 	if len(tagBase) > 0 {
-		p.ByTag[tag] = tagBase
+		p.ByTag[canonical] = tagBase
 	}
 	return nil
 }
@@ -235,6 +240,53 @@ func (p *Packages) decodeDistroLists(m map[string]any, ctx string) (map[string][
 func isBackendName(k string) bool {
 	_, ok := KnownBackends[k]
 	return ok
+}
+
+// parseTagKey turns a [packages."tag:X[.tag:Y...]"] key into the set of
+// tags that must all be active for the block to apply, plus a canonical
+// map key: the sorted tags joined by ".". The leading "tag:" is confirmed
+// by the caller. Every "."-separated segment must be "tag:<name>" with a
+// non-empty name; anything else (a bare segment, a trailing ".", an empty
+// "tag:") is a malformed key and returns an error.
+//
+// Tag names can't contain "." — the same constraint the home/scripts trees
+// impose — so "." is an unambiguous segment delimiter and the canonical key
+// round-trips back to the tags via strings.Split. Sorting makes the key
+// order-independent: "tag:a.tag:b" and "tag:b.tag:a" collapse to one block
+// (so host overlays merge regardless of how each was written).
+func parseTagKey(key string) (canonical string, tags []string, err error) {
+	segments := strings.Split(key, ".")
+	tags = make([]string, 0, len(segments))
+	for _, seg := range segments {
+		name, ok := strings.CutPrefix(seg, TagKeyPrefix)
+		if !ok || name == "" {
+			return "", nil, fmt.Errorf(`malformed package tag key [packages."%s"]: each "."-separated segment must be "tag:<name>" with a non-empty name (e.g. "tag:personal.tag:ubuntu")`, key)
+		}
+		tags = append(tags, name)
+	}
+	sort.Strings(tags)
+	return strings.Join(tags, "."), tags, nil
+}
+
+// tagsAllActive reports whether every tag in a canonical tag key (sorted
+// tags joined by ".") is present in the active set — the AND semantics of a
+// tag-keyed block. An empty key never matches.
+func tagsAllActive(canonical string, active map[string]struct{}) bool {
+	if canonical == "" {
+		return false
+	}
+	for _, t := range strings.Split(canonical, ".") {
+		if _, ok := active[t]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// displayTagKey turns a canonical key ("personal.ubuntu") back into the
+// homie.toml form ("tag:personal.tag:ubuntu") for messages.
+func displayTagKey(canonical string) string {
+	return TagKeyPrefix + strings.Join(strings.Split(canonical, "."), "."+TagKeyPrefix)
 }
 
 func (p *Packages) warnf(format string, args ...any) {
@@ -446,13 +498,16 @@ func (c Config) validate() error {
 // The set is the union, in this order, of:
 //  1. packages.all
 //  2. packages.<distro>
-//  3. for each active tag (sorted by tag name for determinism):
-//     a. [packages."tag:<tag>"].all
-//     b. [packages."tag:<tag>"].<distro>
+//  3. for each tag-keyed block whose tags are ALL active (blocks visited
+//     in canonical-key order for determinism):
+//     a. [packages."tag:..."].all
+//     b. [packages."tag:..."].<distro>
 //
-// Duplicates are removed on insertion so a package mentioned in multiple
-// sub-tables installs exactly once. Tags that have no matching sub-table
-// contribute nothing — they aren't an error.
+// A block keyed on a single tag applies when that tag is active; a block
+// keyed on several (`[packages."tag:X.tag:Y"]`) applies only when every one
+// is active (AND). Duplicates are removed on insertion so a package
+// mentioned in multiple blocks installs exactly once. Blocks whose tags
+// aren't all active contribute nothing — they aren't an error.
 func (c Config) PackagesFor(env detect.Env) []string {
 	return c.resolvePackages(env, c.Packages.Base, c.Packages.ByTag)
 }
@@ -487,17 +542,28 @@ func (c Config) resolvePackages(env detect.Env, base map[string][]string, byTag 
 	for _, pkg := range base[env.Distro] {
 		add(pkg)
 	}
-	// Skip the AllTags walk (and its sort) when no tag-keyed entries
+	// Skip the active-set build (and its sort) when no tag-keyed entries
 	// exist for this source — the common case for repos that don't use
 	// the feature.
 	if len(byTag) == 0 {
 		return out
 	}
-	for _, tag := range c.AllTags(env) {
-		byDistro := byTag[tag]
-		if byDistro == nil {
+	active := make(map[string]struct{})
+	for _, t := range c.AllTags(env) {
+		active[t] = struct{}{}
+	}
+	// Visit blocks in canonical-key order so the output is deterministic
+	// regardless of map iteration order.
+	keys := make([]string, 0, len(byTag))
+	for k := range byTag {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		if !tagsAllActive(key, active) {
 			continue
 		}
+		byDistro := byTag[key]
 		for _, pkg := range byDistro["all"] {
 			add(pkg)
 		}
@@ -505,6 +571,39 @@ func (c Config) resolvePackages(env detect.Env, base map[string][]string, byTag 
 			add(pkg)
 		}
 	}
+	return out
+}
+
+// ActiveTagBlocks returns the display form (e.g. "tag:personal.tag:ubuntu")
+// of every multi-tag [packages] block — native or any backend — whose tags
+// are all active for env. Single-tag blocks are omitted (they aren't an
+// AND-condition worth surfacing). Result is deduped and sorted; used by
+// `hm doctor` to confirm which AND-conditions applied on this host.
+func (c Config) ActiveTagBlocks(env detect.Env) []string {
+	active := make(map[string]struct{})
+	for _, t := range c.AllTags(env) {
+		active[t] = struct{}{}
+	}
+	seen := make(map[string]struct{})
+	collect := func(byTag map[string]map[string][]string) {
+		for key := range byTag {
+			if !strings.Contains(key, ".") { // single-tag block, not an AND
+				continue
+			}
+			if tagsAllActive(key, active) {
+				seen[displayTagKey(key)] = struct{}{}
+			}
+		}
+	}
+	collect(c.Packages.ByTag)
+	for _, be := range c.Packages.Backends {
+		collect(be.ByTag)
+	}
+	out := make([]string, 0, len(seen))
+	for k := range seen {
+		out = append(out, k)
+	}
+	sort.Strings(out)
 	return out
 }
 

@@ -144,7 +144,8 @@ Walks the repo and reports:
 - Scripts that aren't executable, and filename collisions between active
   script trees.
 - Tag-gated `home.tag-X/` and `scripts.tag-X/` trees that aren't active
-  on this host (informational).
+  on this host, and which multi-tag `[packages."tag:X.tag:Y"]` blocks are
+  active (informational).
 - Unknown distro detection.
 
 Exit code is `0` if everything is clean, `1` otherwise — useful as a

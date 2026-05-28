@@ -366,6 +366,36 @@ func TestRunReportsScriptCollision(t *testing.T) {
 	}
 }
 
+func TestRunReportsActiveAndTagBlock(t *testing.T) {
+	repo, home := makeRepo(t)
+	cfg := sampleCfg() // profile "personal"
+	cfg.Packages.ByTag = map[string]map[string][]string{
+		"personal.ubuntu": {"all": {"aws-cli"}}, // multi-tag AND block
+		"work":            {"all": {"kubectl"}}, // single-tag, not reported
+	}
+	// personal (profile) + ubuntu (tag) both active → the AND block applies.
+	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test", Tags: []string{"ubuntu"}}
+	r := Run(repo, home, cfg, env,
+		&fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true, "aws-cli": true}}, nil)
+
+	var infos []string
+	for _, f := range r.Findings {
+		if f.Severity == SeverityInfo && f.Area == "packages" {
+			infos = append(infos, f.Message)
+		}
+	}
+	joined := strings.Join(infos, "\n")
+	if !strings.Contains(joined, "tag:personal.tag:ubuntu") {
+		t.Errorf("expected an info finding for the active AND block, got:\n%s", joined)
+	}
+	if strings.Contains(joined, `"work"`) {
+		t.Errorf("single-tag blocks should not be surfaced as AND blocks, got:\n%s", joined)
+	}
+	if r.HasErrors() {
+		t.Errorf("an active AND block is informational, not an error")
+	}
+}
+
 func TestRunReportsUnknownDistro(t *testing.T) {
 	repo, home := makeRepo(t)
 	env := detect.Env{Distro: "unknown", PackageManager: "unknown", Hostname: "test"}

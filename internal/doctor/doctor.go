@@ -84,6 +84,7 @@ func Run(repoDir, home string, cfg config.Config, env detect.Env, mgr packages.M
 	r.checkTemplates(repoDir, home, cfg, env)
 	r.checkPackages(cfg, env, mgr)
 	r.checkBackendPackages(cfg, env, backendLookup)
+	r.checkTagBlocks(cfg, env)
 	r.checkScripts(repoDir, cfg, env)
 	return r
 }
@@ -106,6 +107,17 @@ func (r *Report) checkEnv(env detect.Env) {
 func (r *Report) checkConfig(cfg config.Config) {
 	for _, w := range cfg.Warnings {
 		r.add(SeverityWarn, "config", w)
+	}
+}
+
+// checkTagBlocks surfaces which multi-tag (AND) [packages] blocks are
+// active for the current tag set, so the user can confirm an AND-condition
+// like [packages."tag:personal.tag:ubuntu"] fired on this host. Single-tag
+// blocks aren't reported — they're unremarkable.
+func (r *Report) checkTagBlocks(cfg config.Config, env detect.Env) {
+	for _, key := range cfg.ActiveTagBlocks(env) {
+		r.add(SeverityInfo, "packages",
+			fmt.Sprintf(`[packages."%s"] is active (all tags satisfied)`, key))
 	}
 }
 

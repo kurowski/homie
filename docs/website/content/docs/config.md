@@ -102,10 +102,39 @@ honors the same per-distro split as the base — `[packages."tag:work"].fedora`
 and `[packages."tag:work"].ubuntu` both work.
 
 Order is deterministic: base `all`, base `<distro>`, then each matching
-tag in alphabetical tag-name order (its `all`, then its `<distro>`).
+block in alphabetical key order (its `all`, then its `<distro>`).
 Duplicates across these sources are removed on insertion, so a package
 named in both base and a tag sub-table installs exactly once. Tags with
 no matching sub-table contribute nothing — they aren't an error.
+
+#### Requiring several tags (AND)
+
+Chain `tag:` segments with `.` to require **all** of them — the same
+`.`-delimited convention the `home.tag-X.tag-Y/` and `scripts.tag-X.tag-Y/`
+trees use:
+
+```toml
+# snap is Ubuntu-only and AWS is a personal-machine thing:
+[packages."tag:personal.tag:ubuntu".snap]
+all = ["aws-cli/classic"]
+
+# desktop apps only on personal desktops:
+[packages."tag:personal.tag:desktop".snap]
+all = ["gimp", "spotify"]
+
+[packages."tag:work.tag:ubuntu".flatpak]
+all = ["us.zoom.Zoom"]
+```
+
+A chained block applies only when every listed tag is active. Tag order
+doesn't matter (`tag:personal.tag:ubuntu` and `tag:ubuntu.tag:personal`
+are the same block). Single-tag `[packages."tag:X"]` is just the one-tag
+form of the same rule. Nested backends (`.snap`, `.flatpak`, `.brew`)
+work under a chained key exactly as under a single-tag one.
+
+A malformed key — a segment that isn't `tag:<name>`, an empty `tag:`, a
+trailing `.` — is a hard error at load, not a silent no-op. `hm doctor`
+lists which AND-blocks were active for the current host.
 
 ---
 
