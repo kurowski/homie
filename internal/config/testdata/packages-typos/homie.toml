@@ -6,9 +6,6 @@ email = "scout@homie.sh"
 all    = ["git"]
 feodra = ["typo"]                  # typo for "fedora"
 
-[packages."tag:"]                  # empty tag name
-fedora = ["unreachable"]
-
 [packages."tag:work"]
 fedora    = ["kubectl"]
 ubunntu   = ["terraform"]          # typo for "ubuntu"

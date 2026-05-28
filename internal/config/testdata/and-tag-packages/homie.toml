@@ -1,0 +1,24 @@
+[user]
+name  = "Scout Homes"
+email = "scout@homie.sh"
+
+[packages]
+all = ["git"]
+
+# AND of two tags, native distro lists.
+[packages."tag:personal.tag:ubuntu"]
+all    = ["base-and-pkg"]
+ubuntu = ["ubuntu-only"]
+
+# AND of two tags, nested snap backend.
+[packages."tag:personal.tag:desktop".snap]
+all = ["gimp", "spotify"]
+
+# AND of two tags, nested flatpak backend; written in the opposite tag
+# order to prove the canonical key is order-independent.
+[packages."tag:ubuntu.tag:work".flatpak]
+all = ["us.zoom.Zoom"]
+
+# Single-tag block still works.
+[packages."tag:work"]
+all = ["kubectl"]
