@@ -304,6 +304,48 @@ fedora = ["pkg"]
 	}
 }
 
+func TestDuplicateCanonicalTagKeyWarns(t *testing.T) {
+	// Two blocks written in different tag orders resolve to the same
+	// canonical key within one file — the later one overwrites rather than
+	// merges, so the user gets a warning to combine them.
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "homie.toml"), []byte(`
+[user]
+name  = "Scout Homes"
+email = "scout@homie.sh"
+
+[packages."tag:a.tag:b"]
+all = ["first"]
+
+[packages."tag:b.tag:a"]
+all = ["second"]
+
+[packages."tag:c.tag:d".snap]
+all = ["s1"]
+
+[packages."tag:d.tag:c".snap]
+all = ["s2"]
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load(dir, "")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	joined := strings.Join(c.Warnings, "\n")
+	if !strings.Contains(joined, "duplicates an earlier block") {
+		t.Errorf("expected a duplicate-canonical-key warning, got:\n%s", joined)
+	}
+	// Native: second block won (overwrite, not merge).
+	if got := c.PackagesFor(detect.Env{Tags: []string{"a", "b"}}); !reflect.DeepEqual(got, []string{"second"}) {
+		t.Errorf("native dup: PackagesFor = %v, want [second] (later block wins)", got)
+	}
+	// Backend collision warns too.
+	if !strings.Contains(joined, "snap") {
+		t.Errorf("expected the backend duplicate to warn as well, got:\n%s", joined)
+	}
+}
+
 func TestPackagesForChainedTags(t *testing.T) {
 	c, err := Load(filepath.Join("testdata", "and-tag-packages"), "")
 	if err != nil {

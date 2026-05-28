@@ -200,6 +200,9 @@ func (p *Packages) absorbTagTable(canonical string, sub map[string]any, ctx stri
 			if be.ByTag == nil {
 				be.ByTag = make(map[string]map[string][]string)
 			}
+			if _, dup := be.ByTag[canonical]; dup {
+				p.warnf(`%s.%s duplicates an earlier block that resolves to the same tags ("%s") — the later one wins, they don't merge; combine them into one block`, ctx, k, displayTagKey(canonical))
+			}
 			be.ByTag[canonical] = lists
 			p.Backends[k] = be
 			continue
@@ -214,6 +217,9 @@ func (p *Packages) absorbTagTable(canonical string, sub map[string]any, ctx stri
 		tagBase[k] = list
 	}
 	if len(tagBase) > 0 {
+		if _, dup := p.ByTag[canonical]; dup {
+			p.warnf(`%s duplicates an earlier block that resolves to the same tags ("%s") — the later one wins, they don't merge; combine them into one block`, ctx, displayTagKey(canonical))
+		}
 		p.ByTag[canonical] = tagBase
 	}
 	return nil
@@ -270,11 +276,8 @@ func parseTagKey(key string) (canonical string, tags []string, err error) {
 
 // tagsAllActive reports whether every tag in a canonical tag key (sorted
 // tags joined by ".") is present in the active set — the AND semantics of a
-// tag-keyed block. An empty key never matches.
+// tag-keyed block. Keys come from parseTagKey, so they're always non-empty.
 func tagsAllActive(canonical string, active map[string]struct{}) bool {
-	if canonical == "" {
-		return false
-	}
 	for _, t := range strings.Split(canonical, ".") {
 		if _, ok := active[t]; !ok {
 			return false
@@ -286,7 +289,7 @@ func tagsAllActive(canonical string, active map[string]struct{}) bool {
 // displayTagKey turns a canonical key ("personal.ubuntu") back into the
 // homie.toml form ("tag:personal.tag:ubuntu") for messages.
 func displayTagKey(canonical string) string {
-	return TagKeyPrefix + strings.Join(strings.Split(canonical, "."), "."+TagKeyPrefix)
+	return TagKeyPrefix + strings.ReplaceAll(canonical, ".", "."+TagKeyPrefix)
 }
 
 func (p *Packages) warnf(format string, args ...any) {
@@ -587,7 +590,9 @@ func (c Config) ActiveTagBlocks(env detect.Env) []string {
 	seen := make(map[string]struct{})
 	collect := func(byTag map[string]map[string][]string) {
 		for key := range byTag {
-			if !strings.Contains(key, ".") { // single-tag block, not an AND
+			// Keys are canonical (from parseTagKey) and tag names can't
+			// contain ".", so a "." reliably means a multi-tag (AND) block.
+			if !strings.Contains(key, ".") {
 				continue
 			}
 			if tagsAllActive(key, active) {
