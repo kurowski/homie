@@ -288,6 +288,15 @@ func (r *Report) checkBackendPackages(cfg config.Config, env detect.Env, lookup 
 				fmt.Sprintf("%s not on PATH — %d package(s) declared for it will not install", name, len(want)))
 			continue
 		}
+		// Surface malformed specs (e.g. a bad snap confinement suffix) as
+		// a precise error rather than letting them fall through IsInstalled
+		// and report as "not installed".
+		if v, ok := mgr.(packages.Validator); ok {
+			if err := v.Validate(want); err != nil {
+				r.add(SeverityError, "packages", fmt.Sprintf("%s: %v", name, err))
+				continue
+			}
+		}
 		var missing []string
 		for _, p := range want {
 			if !mgr.IsInstalled(p) {

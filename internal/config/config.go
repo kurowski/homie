@@ -91,6 +91,7 @@ const TagKeyPrefix = "tag:"
 var KnownBackends = map[string]struct{}{
 	"flatpak": {},
 	"brew":    {},
+	"snap":    {},
 }
 
 // knownDistroKeys are the keys accepted as base distro lists or as
@@ -147,7 +148,7 @@ func (p *Packages) UnmarshalTOML(data any) error {
 		// are warnings, not errors" forward-compat promise.
 		if sub, isTable := v.(map[string]any); isTable {
 			if !isBackendName(k) {
-				p.warnf(`packages.%s looks like a backend but isn't recognized — known: flatpak, brew. Entries are loaded but no Manager will install them.`, k)
+				p.warnf(`packages.%s looks like a backend but isn't recognized — known: flatpak, brew, snap. Entries are loaded but no Manager will install them.`, k)
 			}
 			lists, err := p.decodeDistroLists(sub, fmt.Sprintf("[packages.%s]", k))
 			if err != nil {
@@ -184,7 +185,7 @@ func (p *Packages) absorbTagTable(tag string, sub map[string]any, ctx string) er
 		// distro lists.
 		if sub2, isTable := v.(map[string]any); isTable {
 			if !isBackendName(k) {
-				p.warnf(`%s.%s looks like a backend but isn't recognized — known: flatpak, brew. Entries are loaded but no Manager will install them.`, ctx, k)
+				p.warnf(`%s.%s looks like a backend but isn't recognized — known: flatpak, brew, snap. Entries are loaded but no Manager will install them.`, ctx, k)
 			}
 			lists, err := p.decodeDistroLists(sub2, fmt.Sprintf("%s.%s", ctx, k))
 			if err != nil {

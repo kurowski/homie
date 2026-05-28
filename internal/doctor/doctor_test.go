@@ -1,6 +1,7 @@
 package doctor
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +23,15 @@ func (f *fakeMgr) Name() string              { return f.name }
 func (f *fakeMgr) IsAvailable() bool         { return f.available }
 func (f *fakeMgr) IsInstalled(p string) bool { return f.installed[p] }
 func (f *fakeMgr) Install(_ []string) error  { return nil }
+
+// fakeValidatingMgr is a fakeMgr that also implements packages.Validator,
+// so doctor's malformed-spec path can be exercised without snap internals.
+type fakeValidatingMgr struct {
+	fakeMgr
+	validateErr error
+}
+
+func (f *fakeValidatingMgr) Validate(_ []string) error { return f.validateErr }
 
 func makeRepo(t *testing.T) (repo, home string) {
 	t.Helper()
@@ -199,6 +209,30 @@ func TestRunReportsBackendPackageFindings(t *testing.T) {
 	}
 	if r.HasErrors() {
 		t.Errorf("backend warnings should not register as errors")
+	}
+}
+
+func TestRunReportsBackendValidationError(t *testing.T) {
+	repo, home := makeRepo(t)
+	cfg := sampleCfg()
+	cfg.Packages.Backends = map[string]config.BackendPackages{
+		"snap": {Base: map[string][]string{"all": {"foo/bogus"}}},
+	}
+	env := detect.Env{Distro: "ubuntu", PackageManager: "apt", Hostname: "test"}
+	native := &fakeMgr{name: "apt", available: true, installed: map[string]bool{"git": true, "zsh": true}}
+	lookup := func(name string) packages.Manager {
+		return &fakeValidatingMgr{
+			fakeMgr:     fakeMgr{name: name, available: true},
+			validateErr: errors.New(`unknown confinement mode "bogus"`),
+		}
+	}
+	r := Run(repo, home, cfg, env, native, lookup)
+	if !r.HasErrors() {
+		t.Fatal("a malformed backend spec should be an error finding, not 'not installed'")
+	}
+	msgs := strings.Join(messagesByArea(r, "packages"), "\n")
+	if !strings.Contains(msgs, "bogus") {
+		t.Errorf("validation error should be surfaced in packages findings:\n%s", msgs)
 	}
 }
 

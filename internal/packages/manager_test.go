@@ -16,6 +16,7 @@ type fakeRunner struct {
 	rpmOK     map[string]bool
 	flatpakOK map[string]bool // ref -> appears in `flatpak list` output
 	brewOK    map[string]bool // formula -> `brew list --formula <name>` succeeds
+	snapOK    map[string]bool // snap name -> appears in `snap list` output
 	failCmd   string          // if set, return error when arg[0]+args matches
 }
 
@@ -52,6 +53,15 @@ func (f *fakeRunner) run(name string, args ...string) ([]byte, error) {
 		for formula := range f.brewOK {
 			b.WriteString(formula)
 			b.WriteByte('\n')
+		}
+		return []byte(b.String()), nil
+	case name == "snap" && len(args) >= 1 && args[0] == "list":
+		// `snap list` leads with a header row, which loadInstalled skips;
+		// the first field of each subsequent row is the snap name.
+		var b strings.Builder
+		b.WriteString("Name  Version  Rev  Tracking  Publisher  Notes\n")
+		for s := range f.snapOK {
+			b.WriteString(s + "  1.0  1  latest/stable  scout  -\n")
 		}
 		return []byte(b.String()), nil
 	}
@@ -301,6 +311,7 @@ func TestForBackend(t *testing.T) {
 	}{
 		{"flatpak", "flatpak"},
 		{"brew", "brew"},
+		{"snap", "snap"},
 		{"cargo", ""},
 		{"", ""},
 	}
@@ -328,5 +339,206 @@ func TestNoop(t *testing.T) {
 	}
 	if err := n.Install([]string{"git", "zsh"}); err != nil {
 		t.Errorf("Noop.Install should be a no-op, got %v", err)
+	}
+}
+
+func TestParseSnapSpec(t *testing.T) {
+	cases := []struct {
+		spec     string
+		wantName string
+		wantMode string
+		wantErr  bool
+	}{
+		{"gimp", "gimp", "", false},
+		{"aws-cli/classic", "aws-cli", "classic", false},
+		{"foo/devmode", "foo", "devmode", false},
+		{"foo/jailmode", "foo", "jailmode", false},
+		{"foo/bogus", "", "", true},
+		{"foo/", "", "", true}, // trailing slash, empty mode
+	}
+	for _, tc := range cases {
+		name, mode, err := parseSnapSpec(tc.spec)
+		if tc.wantErr {
+			if err == nil {
+				t.Errorf("parseSnapSpec(%q) err = nil, want error", tc.spec)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("parseSnapSpec(%q) err = %v", tc.spec, err)
+			continue
+		}
+		if name != tc.wantName || mode != tc.wantMode {
+			t.Errorf("parseSnapSpec(%q) = (%q, %q), want (%q, %q)", tc.spec, name, mode, tc.wantName, tc.wantMode)
+		}
+	}
+}
+
+func TestSnapIsInstalled(t *testing.T) {
+	f := &fakeRunner{snapOK: map[string]bool{"gimp": true, "code": true}}
+	s := &Snap{Runner: f.run}
+	if !s.IsInstalled("gimp") {
+		t.Errorf("gimp should report installed")
+	}
+	if !s.IsInstalled("code/classic") {
+		t.Errorf("code/classic should report installed — confinement suffix is ignored for the lookup")
+	}
+	if s.IsInstalled("spotify") {
+		t.Errorf("spotify should report not installed")
+	}
+}
+
+func TestSnapInstallStrictAndClassic(t *testing.T) {
+	f := &fakeRunner{}
+	s := &Snap{Runner: f.run}
+	if err := s.Install([]string{"gimp", "aws-cli/classic"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	var installs []string
+	for _, c := range f.calls {
+		if c.name == "snap" && len(c.args) > 0 && c.args[0] == "install" {
+			installs = append(installs, strings.Join(c.args, " "))
+		}
+	}
+	if len(installs) != 2 {
+		t.Fatalf("expected 2 snap install calls (one per mode), got %d: %v", len(installs), installs)
+	}
+	// Strict group sorts before the classic group (mode "" < "classic").
+	if installs[0] != "install gimp" {
+		t.Errorf("strict install = %q, want `install gimp`", installs[0])
+	}
+	if installs[1] != "install aws-cli --classic" {
+		t.Errorf("classic install = %q, want `install aws-cli --classic`", installs[1])
+	}
+}
+
+func TestSnapInstallGroupsByMode(t *testing.T) {
+	f := &fakeRunner{}
+	s := &Snap{Runner: f.run}
+	if err := s.Install([]string{"a", "b", "c/classic", "d/classic"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	var strict, classic string
+	for _, c := range f.calls {
+		if c.name != "snap" || len(c.args) == 0 || c.args[0] != "install" {
+			continue
+		}
+		joined := strings.Join(c.args, " ")
+		if strings.Contains(joined, "--classic") {
+			classic = joined
+		} else {
+			strict = joined
+		}
+	}
+	if strict != "install a b" {
+		t.Errorf("strict group = %q, want `install a b`", strict)
+	}
+	if classic != "install c d --classic" {
+		t.Errorf("classic group = %q, want `install c d --classic`", classic)
+	}
+}
+
+func TestSnapInstallFiltersInstalled(t *testing.T) {
+	f := &fakeRunner{snapOK: map[string]bool{"gimp": true}}
+	s := &Snap{Runner: f.run}
+	if err := s.Install([]string{"gimp", "spotify"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	var installs []string
+	for _, c := range f.calls {
+		if c.name == "snap" && len(c.args) > 0 && c.args[0] == "install" {
+			installs = append(installs, strings.Join(c.args, " "))
+		}
+	}
+	if len(installs) != 1 || installs[0] != "install spotify" {
+		t.Errorf("installs = %v, want only `install spotify` (gimp already installed)", installs)
+	}
+}
+
+func TestSnapInstallNoopWhenAllInstalled(t *testing.T) {
+	f := &fakeRunner{snapOK: map[string]bool{"gimp": true}}
+	s := &Snap{Runner: f.run}
+	if err := s.Install([]string{"gimp"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	for _, c := range f.calls {
+		if c.name == "snap" && len(c.args) > 0 && c.args[0] == "install" {
+			t.Errorf("snap install should not have been invoked: calls=%+v", f.calls)
+		}
+	}
+}
+
+func TestSnapInstallUnknownModeErrors(t *testing.T) {
+	f := &fakeRunner{}
+	s := &Snap{Runner: f.run}
+	err := s.Install([]string{"foo/bogus"})
+	if err == nil {
+		t.Fatal("Install with unknown confinement mode should error")
+	}
+	if !strings.Contains(err.Error(), "bogus") || !strings.Contains(err.Error(), "confinement") {
+		t.Errorf("error = %q, want it to name the bad mode and mention confinement", err)
+	}
+	for _, c := range f.calls {
+		if c.name == "snap" && len(c.args) > 0 && c.args[0] == "install" {
+			t.Errorf("no snap install should run when a spec is invalid: calls=%+v", f.calls)
+		}
+	}
+}
+
+func TestSnapValidate(t *testing.T) {
+	s := &Snap{Runner: (&fakeRunner{}).run}
+	if err := s.Validate([]string{"gimp", "aws-cli/classic", "x/devmode", "y/jailmode"}); err != nil {
+		t.Errorf("valid specs should pass Validate, got %v", err)
+	}
+	err := s.Validate([]string{"gimp", "foo/bogus"})
+	if err == nil || !strings.Contains(err.Error(), "bogus") {
+		t.Errorf("Validate should reject foo/bogus with a clear message, got %v", err)
+	}
+}
+
+func TestSnapInstallErrorNamesMode(t *testing.T) {
+	// The classic group's install fails; the strict group (installed first)
+	// succeeds. The error must identify the classic batch.
+	f := &fakeRunner{failCmd: "snap install c --classic"}
+	s := &Snap{Runner: f.run}
+	err := s.Install([]string{"a", "c/classic"})
+	if err == nil {
+		t.Fatal("expected install error from the classic group")
+	}
+	if !strings.Contains(err.Error(), "classic") {
+		t.Errorf("error should name the failing confinement group, got %q", err)
+	}
+}
+
+func TestSnapInstallSudo(t *testing.T) {
+	f := &fakeRunner{}
+	s := &Snap{Runner: f.run, Sudo: true}
+	if err := s.Install([]string{"gimp"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	last := f.calls[len(f.calls)-1]
+	if last.name != "sudo" || last.args[0] != "snap" {
+		t.Errorf("expected `sudo snap ...`, got %s %v", last.name, last.args)
+	}
+}
+
+func TestSnapListIsCachedAcrossCalls(t *testing.T) {
+	f := &fakeRunner{snapOK: map[string]bool{"gimp": true}}
+	s := &Snap{Runner: f.run}
+	specs := []string{"gimp", "spotify", "code/classic"}
+	for _, spec := range specs {
+		s.IsInstalled(spec)
+	}
+	if err := s.Install(specs); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	var lists int
+	for _, c := range f.calls {
+		if c.name == "snap" && len(c.args) > 0 && c.args[0] == "list" {
+			lists++
+		}
+	}
+	if lists != 1 {
+		t.Errorf("snap list invoked %d times, want exactly 1", lists)
 	}
 }

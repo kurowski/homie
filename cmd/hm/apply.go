@@ -59,7 +59,7 @@ See https://homie.sh/docs/commands/ for a fuller treatment.`,
 
 func init() {
 	applyCmd.Flags().StringVar(&applyHome, "home", "", "override target home directory (default $HOME)")
-	applyCmd.Flags().BoolVar(&applySkipPackages, "skip-packages", false, "skip the native and non-native (brew, flatpak) package phases")
+	applyCmd.Flags().BoolVar(&applySkipPackages, "skip-packages", false, "skip the native and non-native (brew, flatpak, snap) package phases")
 	applyCmd.Flags().BoolVar(&applySkipScripts, "skip-scripts", false, "skip the run-scripts phase")
 	rootCmd.AddCommand(applyCmd)
 }
@@ -176,6 +176,13 @@ func applyBackendPackages(u ui.UI, cfg config.Config, env detect.Env, backend st
 	if !mgr.IsAvailable() {
 		u.Warn(fmt.Sprintf("%s not on PATH — install it (or add a scripts/pre-*.sh that installs it) to apply these packages", backend))
 		return nil
+	}
+	// Catch malformed specs (e.g. a bad snap confinement suffix) before the
+	// "install ..." line, so the UI never announces an install it can't do.
+	if v, ok := mgr.(packages.Validator); ok {
+		if err := v.Validate(pkgs); err != nil {
+			return []error{err}
+		}
 	}
 	var todo, already []string
 	for _, p := range pkgs {

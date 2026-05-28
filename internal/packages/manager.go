@@ -8,6 +8,7 @@
 package packages
 
 import (
+	"os"
 	"os/exec"
 
 	"github.com/kurowski/homie/internal/detect"
@@ -24,6 +25,16 @@ type Manager interface {
 	// Install installs the named packages. Implementations filter to
 	// only-not-yet-installed before shelling out.
 	Install(pkgs []string) error
+}
+
+// Validator is an optional interface a Manager implements when its package
+// specs can be malformed independently of installation — e.g. snap's
+// confinement suffix (pkg/classic). apply and doctor call Validate up
+// front so a typo surfaces as a clear error before any install attempt,
+// rather than masquerading as a "not installed" finding. Managers without
+// this notion (apt, dnf, flatpak, brew) simply don't implement it.
+type Validator interface {
+	Validate(specs []string) error
 }
 
 // Runner is the function used to execute external commands. Tests inject
@@ -60,6 +71,14 @@ func ForBackend(name string) Manager {
 		return &Flatpak{Runner: execRunner}
 	case "brew":
 		return &Brew{Runner: execRunner}
+	case "snap":
+		// snap install needs root; derive sudo from the effective uid
+		// here since ForBackend has no detect.Env to consult. This agrees
+		// with detect.IsRoot (also os.Geteuid() == 0) today.
+		// TODO: thread detect.Env through ForBackend if root detection ever
+		// grows more nuanced (capabilities, user namespaces) and the two
+		// definitions could diverge.
+		return &Snap{Runner: execRunner, Sudo: os.Geteuid() != 0}
 	default:
 		return nil
 	}
