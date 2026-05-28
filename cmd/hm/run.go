@@ -106,9 +106,11 @@ func runRun(cmd *cobra.Command, args []string) error {
 		}
 		// Errors with no corresponding script run (e.g. a filename
 		// collision between active tag trees) are pre-flight failures —
-		// print them so the user sees the cause, not just a count.
-		for _, e := range res.Errors {
-			if len(res.Ran) == 0 {
+		// print them so the user sees the cause, not just a count. When
+		// scripts did run, their stderr already streamed live and each
+		// shows a "fail" line, so the bare error here would be redundant.
+		if len(res.Ran) == 0 {
+			for _, e := range res.Errors {
 				fmt.Fprintf(w, "  error %s\n", e)
 			}
 		}

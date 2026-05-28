@@ -107,8 +107,10 @@ every active tree — the numeric prefix is the single global order, so a
 `scripts.tag-fedora/05-repos.sh` runs at position 05 next to a
 `scripts/04-base.sh`. The tag trees decide which scripts participate, not
 a separate ordered stream. The same filename appearing in two active
-trees is a hard error. See [Dotfiles](/docs/dotfiles/) for the parallel
-file-tree model.
+trees is a hard error — unlike the `home/` tree, scripts have no
+"more-specific source wins" override rule, because an imperative script
+has no single source of truth to override. See
+[Dotfiles](/docs/dotfiles/) for the parallel file-tree model.
 
 Flags:
 

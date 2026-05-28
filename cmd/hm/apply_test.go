@@ -152,6 +152,29 @@ func TestApplyRunsPreScriptsBeforePackages(t *testing.T) {
 	}
 }
 
+func TestApplySurfacesScriptCollision(t *testing.T) {
+	repo := fixtureRepo(t)
+	home := t.TempDir()
+	t.Setenv("HM_REPO", repo)
+	// fixtureRepo already has scripts/01-marker.sh. Add a colliding copy
+	// in a tag tree that's active on this host (profile "personal" → the
+	// personal tag is active), so both claim 01-marker.sh.
+	writeFile(t, filepath.Join(repo, "scripts.tag-personal", "01-marker.sh"),
+		`echo dup`, 0o755)
+
+	out, err := runApplyCmd(t, []string{"apply", "--home", home, "--skip-packages"})
+	if err == nil {
+		t.Fatalf("apply should fail on a script collision; output:\n%s", out)
+	}
+	if !strings.Contains(out, "01-marker.sh") {
+		t.Errorf("collision error should name the clashing script in the output:\n%s", out)
+	}
+	// The collision aborts the post-scripts phase before anything runs.
+	if _, statErr := os.Stat(filepath.Join(home, "script-ran-marker")); statErr == nil {
+		t.Errorf("no script should run when the phase has a filename collision")
+	}
+}
+
 func TestApplyIsIdempotent(t *testing.T) {
 	repo := fixtureRepo(t)
 	home := t.TempDir()

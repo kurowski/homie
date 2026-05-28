@@ -249,6 +249,14 @@ func applyScriptPhase(u ui.UI, repoDir, home string, cfg config.Config, env dete
 	}
 	res := runner.Run(repoDir, home, cfg, cfg.AllTags(env), phase, u.Writer())
 	if len(res.Ran) == 0 {
+		// A pre-flight error (e.g. a filename collision between active tag
+		// trees) leaves nothing run but must not be swallowed.
+		if len(res.Errors) > 0 {
+			for _, e := range res.Errors {
+				u.Action("error", e.Error())
+			}
+			return res.Errors
+		}
 		u.Info("no " + label)
 		return nil
 	}

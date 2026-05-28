@@ -98,7 +98,7 @@ type Result struct {
 // don't abort the run; they're collected in Result.Errors too.
 func Run(repoDir, home string, cfg config.Config, tags []string, phase Phase, out io.Writer) Result {
 	var res Result
-	scripts, err := collectScripts(repoDir, tags, phase)
+	scripts, err := Plan(repoDir, tags, phase)
 	if err != nil {
 		res.Errors = append(res.Errors, err)
 		return res
@@ -118,15 +118,8 @@ func Run(repoDir, home string, cfg config.Config, tags []string, phase Phase, ou
 // Plan returns the absolute paths of the scripts Run would execute for
 // the given phase, in execution order — the bare scripts/ tree plus any
 // active scripts.tag-X[.tag-Y...] siblings, filtered to phase. It returns
-// an error if two active trees provide the same filename. Doctor and the
-// `hm run` hint reuse this to stay in sync with Run without executing.
-func Plan(repoDir string, tags []string, phase Phase) ([]string, error) {
-	return collectScripts(repoDir, tags, phase)
-}
-
-// collectScripts walks the active script trees (bare scripts/ plus any
-// scripts.tag-X siblings whose tags are all active), keeps the *.sh files
-// matching phase, and returns them ordered by filename.
+// an error if two active trees provide the same filename. Run, doctor,
+// and the `hm run` hint all go through Plan so they stay in sync.
 //
 // Tree discovery is shared with the home/ tree via tree.Active. The merge
 // rule, though, differs from tree.Resolve: scripts have no override/
@@ -135,7 +128,7 @@ func Plan(repoDir string, tags []string, phase Phase) ([]string, error) {
 // prefix is the single global ordering across all trees — the tag trees
 // only decide which files participate, they don't fork into separate
 // ordered streams.
-func collectScripts(repoDir string, tags []string, phase Phase) ([]string, error) {
+func Plan(repoDir string, tags []string, phase Phase) ([]string, error) {
 	roots, err := tree.Active(repoDir, ScriptsDir, tags)
 	if err != nil {
 		return nil, err
