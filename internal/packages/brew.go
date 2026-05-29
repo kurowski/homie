@@ -170,24 +170,26 @@ func (b *Brew) Install(specs []string) error {
 	}
 	for _, c := range casks {
 		if err := b.run([]string{"--cask"}, []string{c}); err != nil {
-			errs = append(errs, fmt.Errorf("%w (retry with `brew install --cask --adopt %s` to take over an existing /Applications app)", err, c))
+			// The hint is conditional: cask installs also fail on network
+			// errors, typos, and checksum mismatches, where --adopt is
+			// irrelevant. /Applications conflicts are just the common case.
+			errs = append(errs, fmt.Errorf("%w\n    if this failed because /Applications/<App>.app already exists, retry with: brew install --cask --adopt %s", err, c))
 		}
 	}
 	return errors.Join(errs...)
 }
 
-// run executes one `brew install [flags] <names>` invocation.
+// run executes one `brew install [flags] <names>` invocation. The error
+// names the exact command (including the package names) so a failure in a
+// per-cask loop points at the offending cask rather than a bare
+// "brew install --cask:" repeated per line.
 func (b *Brew) run(flags, names []string) error {
 	args := []string{"install"}
 	args = append(args, flags...)
 	args = append(args, names...)
 	out, err := b.Runner("brew", args...)
 	if err != nil {
-		kind := "install"
-		if len(flags) > 0 {
-			kind = "install --cask"
-		}
-		return fmt.Errorf("brew %s: %w: %s", kind, err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("brew %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
