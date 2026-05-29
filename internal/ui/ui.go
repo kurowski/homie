@@ -37,6 +37,14 @@ type UI interface {
 	// its model so script output renders inline.
 	Writer() io.Writer
 
+	// Suspend hands the terminal back to the OS so a child process can own
+	// stdin/stdout/stderr — used around interactive scripts (e.g. a sudo
+	// password prompt) so the live TUI isn't fighting the script for the
+	// terminal. Resume restores the UI afterward. Plain UIs don't hold the
+	// terminal, so both are no-ops there. Safe to pair; best-effort.
+	Suspend() error
+	Resume() error
+
 	// Close releases any resources held by the UI. Safe to call once.
 	Close() error
 }

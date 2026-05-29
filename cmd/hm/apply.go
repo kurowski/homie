@@ -269,7 +269,24 @@ func applyScriptPhase(u ui.UI, repoDir, home string, cfg config.Config, env dete
 		u.Info("skipped (--skip-scripts)")
 		return nil
 	}
-	res := runner.Run(repoDir, home, cfg, cfg.AllTags(env), phase, u.Writer())
+	tags := cfg.AllTags(env)
+	// When scripts run interactively (stdin is a TTY), they inherit the
+	// terminal so prompts like sudo work — release the live TUI's hold on it
+	// for the duration, then restore. Gate on the phase actually having
+	// scripts so an empty phase doesn't flicker the TUI with a no-op
+	// release/restore. Plain UIs no-op both calls. (A Plan error is surfaced
+	// below by runner.Run; here we just skip the release.)
+	if scripts, err := runner.Plan(repoDir, tags, phase); err == nil && len(scripts) > 0 && runner.Interactive() {
+		if err := u.Suspend(); err != nil {
+			u.Warn(fmt.Sprintf("couldn't release the terminal for interactive scripts: %v", err))
+		}
+		defer func() {
+			if err := u.Resume(); err != nil {
+				u.Warn(fmt.Sprintf("couldn't restore the terminal after scripts: %v", err))
+			}
+		}()
+	}
+	res := runner.Run(repoDir, home, cfg, tags, phase, u.Writer())
 	if len(res.Ran) == 0 {
 		// A pre-flight error (e.g. a filename collision between active tag
 		// trees) leaves nothing run but must not be swallowed.

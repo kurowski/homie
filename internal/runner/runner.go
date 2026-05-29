@@ -17,10 +17,23 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/kurowski/homie/internal/config"
 	"github.com/kurowski/homie/internal/tree"
+	"golang.org/x/term"
 )
+
+// stdinIsTTY reports whether the process's stdin is an interactive terminal.
+// Indirected through a var so tests can drive both the interactive and
+// captured branches without a pseudo-terminal.
+var stdinIsTTY = func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
+
+// Interactive reports whether Run will hand the terminal through to scripts
+// (i.e. stdin is a TTY). The apply command uses it to release a live TUI's
+// hold on the terminal around the script phase so an interactive prompt
+// (sudo, gh auth login, ...) inside a script can reach the user.
+func Interactive() bool { return stdinIsTTY() }
 
 // ScriptsDir is the bare directory under the user repo that holds scripts.
 // Sibling directories named `scripts.tag-X[.tag-Y...]` are additional
@@ -91,7 +104,19 @@ type Result struct {
 // script trees (scripts/ plus any active scripts.tag-X siblings), ordered
 // by filename across all trees. Each script gets HM_REPO, HM_HOME, HM_TAGS
 // (comma-joined) plus every cfg.Vars entry exported in its environment.
-// Stdout and stderr are streamed to out so the user sees progress live.
+//
+// Script stdio depends on whether stdin is a terminal:
+//   - Interactive (stdin is a TTY): the script inherits the parent's
+//     stdin/stdout/stderr, so an in-band prompt (sudo password, gh auth
+//     login, package-manager confirmation) reaches the user. Homie doesn't
+//     wrap the output in this mode — scripts are user code and own their
+//     terminal. Callers running a live TUI must release it first (see
+//     [Interactive]).
+//   - Non-interactive (CI, piped, stdin redirected): stdout/stderr are
+//     captured to out, stdin is /dev/null, and the script runs in its own
+//     session with no controlling terminal — so a tool that reads /dev/tty
+//     directly (sudo) fails fast with "a terminal is required" instead of
+//     hanging on an invisible prompt.
 //
 // No script trees is a no-op (the user repo may legitimately have none).
 // A filename collision between two active trees is a fatal error returned
@@ -106,8 +131,9 @@ func Run(repoDir, home string, cfg config.Config, tags []string, phase Phase, ou
 	}
 
 	env := buildEnv(repoDir, home, cfg.Vars, tags)
+	interactive := stdinIsTTY()
 	for _, path := range scripts {
-		runErr := exec_(path, env, out)
+		runErr := exec_(path, env, out, interactive)
 		res.Ran = append(res.Ran, ScriptRun{Path: path, Err: runErr})
 		if runErr != nil {
 			res.Errors = append(res.Errors, fmt.Errorf("%s: %w", path, runErr))
@@ -200,12 +226,28 @@ func buildEnv(repoDir, home string, vars map[string]string, tags []string) []str
 	return env
 }
 
-// exec_ runs one script and streams its output. The trailing underscore
-// avoids shadowing the os/exec import in code search.
-func exec_(path string, env []string, out io.Writer) error {
+// exec_ runs one script. When interactive, it hands the parent's terminal
+// to the script (stdin/stdout/stderr) so prompts like sudo work; otherwise
+// it captures output and detaches the controlling terminal so a would-be
+// prompt fails fast. The trailing underscore avoids shadowing the os/exec
+// import in code search.
+func exec_(path string, env []string, out io.Writer, interactive bool) error {
 	cmd := exec.Command("bash", path)
 	cmd.Env = env
-	cmd.Stdout = out
-	cmd.Stderr = out
+	if interactive {
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	} else {
+		// Capture output; stdin stays nil → /dev/null. Setsid puts the
+		// script in a new session with NO controlling terminal, so a tool
+		// that bypasses stdin to read the password from /dev/tty (notably
+		// sudo) fails fast with "a terminal is required" instead of hanging
+		// on an invisible prompt. Redirecting stdin alone (e.g. </dev/null)
+		// wouldn't stop sudo from grabbing the inherited /dev/tty.
+		cmd.Stdout = out
+		cmd.Stderr = out
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	}
 	return cmd.Run()
 }

@@ -61,6 +61,20 @@ func TestPlainCloseIsNoop(t *testing.T) {
 	}
 }
 
+func TestPlainSuspendResumeAreNoops(t *testing.T) {
+	buf := new(bytes.Buffer)
+	u := NewPlain(buf)
+	if err := u.Suspend(); err != nil {
+		t.Errorf("Suspend should be no-op: %v", err)
+	}
+	if err := u.Resume(); err != nil {
+		t.Errorf("Resume should be no-op: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("Suspend/Resume must not write anything, got %q", buf.String())
+	}
+}
+
 func mustContain(t *testing.T, s, sub string) {
 	t.Helper()
 	if !strings.Contains(s, sub) {
