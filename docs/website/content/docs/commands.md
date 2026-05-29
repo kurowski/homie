@@ -101,6 +101,13 @@ Scripts are user code — Homie doesn't enforce idempotency. Convention is
 that each script is individually idempotent (e.g. `command -v X && exit
 0` at the top).
 
+Run from a terminal, scripts inherit your stdin/stdout/stderr, so an
+in-band prompt (a `sudo` password, `gh auth login`, a package-manager
+confirmation) reaches you directly. When stdin isn't a terminal (CI,
+piped, redirected), output is captured per-script and stdin is
+`/dev/null`, so a script that would block on a prompt fails fast instead
+of hanging.
+
 Sibling directories named `scripts.tag-<X>[.tag-<Y>...]/` run only when
 all of their tags are active (AND), mirroring the `home.tag-X/` trees.
 Plain `scripts/` always runs. Scripts are ordered by filename across

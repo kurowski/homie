@@ -28,6 +28,35 @@ func writeTreeScript(t *testing.T, repo, treeDir, name, body string) {
 	}
 }
 
+func TestRunInteractivePassesStdioThrough(t *testing.T) {
+	// Force the interactive branch. The script writes to a marker file (not
+	// stdout), so we can assert it ran without the test inheriting its
+	// output — and assert that `out` stays empty, proving interactive mode
+	// hands stdio to the script rather than capturing it.
+	orig := stdinIsTTY
+	stdinIsTTY = func() bool { return true }
+	defer func() { stdinIsTTY = orig }()
+
+	repo := t.TempDir()
+	home := t.TempDir()
+	writeScript(t, repo, "01-marker.sh", `printf done > "$HM_HOME/marker"`)
+
+	out := new(bytes.Buffer)
+	res := Run(repo, home, config.Config{}, nil, PhasePost, out)
+	if len(res.Errors) != 0 {
+		t.Fatalf("errors: %v", res.Errors)
+	}
+	if len(res.Ran) != 1 {
+		t.Fatalf("Ran = %d, want 1", len(res.Ran))
+	}
+	if _, err := os.Stat(filepath.Join(home, "marker")); err != nil {
+		t.Errorf("script should have run in interactive mode: %v", err)
+	}
+	if out.Len() != 0 {
+		t.Errorf("interactive mode must not capture to out, got %q", out.String())
+	}
+}
+
 func TestRunNoScriptsDir(t *testing.T) {
 	res := Run(t.TempDir(), t.TempDir(), config.Config{}, nil, PhasePost, new(bytes.Buffer))
 	if len(res.Ran) != 0 || len(res.Errors) != 0 {

@@ -32,6 +32,13 @@ Scripts are user code — Homie does not enforce idempotency. The
 convention is for each script to no-op when its work is already done
 (e.g. ` + "`command -v X >/dev/null && exit 0`" + ` at the top).
 
+Run from a terminal, scripts inherit your stdin/stdout/stderr, so an
+in-band prompt — a ` + "`sudo`" + ` password, ` + "`gh auth login`" + `, a package-manager
+confirmation — reaches you directly. When stdin isn't a terminal (CI,
+piped, redirected), output is captured per-script and stdin is
+/dev/null, so a script that would block on a prompt fails fast instead
+of hanging.
+
 Tag-conditional trees: sibling directories named ` + "`scripts.tag-X[.tag-Y]/`" + `
 run only when all of their tags are active (AND), mirroring the
 ` + "`home.tag-X/`" + ` convention. Plain ` + "`scripts/`" + ` always runs. Files are

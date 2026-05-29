@@ -56,5 +56,10 @@ func (p *Plain) Writer() io.Writer {
 	return p.out
 }
 
+// Suspend and Resume are no-ops: Plain never takes raw control of the
+// terminal, so a child process can already use it directly.
+func (p *Plain) Suspend() error { return nil }
+func (p *Plain) Resume() error  { return nil }
+
 // Close is a no-op for Plain.
 func (p *Plain) Close() error { return nil }

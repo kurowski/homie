@@ -269,6 +269,13 @@ func applyScriptPhase(u ui.UI, repoDir, home string, cfg config.Config, env dete
 		u.Info("skipped (--skip-scripts)")
 		return nil
 	}
+	// When scripts run interactively (stdin is a TTY), they inherit the
+	// terminal so prompts like sudo work — release the live TUI's hold on it
+	// for the duration, then restore. Plain UIs no-op both calls.
+	if runner.Interactive() {
+		_ = u.Suspend()
+		defer func() { _ = u.Resume() }()
+	}
 	res := runner.Run(repoDir, home, cfg, cfg.AllTags(env), phase, u.Writer())
 	if len(res.Ran) == 0 {
 		// A pre-flight error (e.g. a filename collision between active tag

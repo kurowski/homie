@@ -62,6 +62,14 @@ func (t *TUI) Summary(errs []error) { t.prog.Send(summaryMsg{errors: errs}) }
 // the active phase.
 func (t *TUI) Writer() io.Writer { return &streamWriter{prog: t.prog} }
 
+// Suspend releases the terminal so a child process (an interactive script)
+// can own stdin/stdout/stderr; the Bubble Tea program stops reading input
+// and restores cooked mode until Resume. Resume re-takes the terminal and
+// redraws. Both are best-effort — a failure to hand off shouldn't abort the
+// run.
+func (t *TUI) Suspend() error { return t.prog.ReleaseTerminal() }
+func (t *TUI) Resume() error  { return t.prog.RestoreTerminal() }
+
 // Close blocks until the Bubble Tea program exits. Idempotent.
 func (t *TUI) Close() error {
 	t.mu.Lock()
