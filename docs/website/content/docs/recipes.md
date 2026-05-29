@@ -274,3 +274,37 @@ the repo drifts.
 The `hm-linux-amd64` binary is correct for the `ubuntu-latest` runner
 above; on a `macos-latest` runner, download `hm-darwin-arm64` (or
 `hm-darwin-amd64` on Intel) instead.
+
+---
+
+## A complete real-world repo
+
+The recipes above are sliced down to one idea each. To see them combined
+in a repo that's actually in daily use, Homie's author keeps their own
+environment repo public:
+
+**[github.com/kurowski/dotfiles](https://github.com/kurowski/dotfiles)**
+
+It exercises just about every Homie feature at once:
+
+- A `home/` tree of real configs (zsh, Neovim, tmux, Ghostty, eza) as
+  symlinks, plus `.tmpl` templates for the files that vary per machine
+  (`.gitconfig`, a work-only `.zshrc.local`).
+- Tag-gated `home.tag-work/` and multi-tag `home.tag-work.tag-kde/` trees
+  for files that only belong on certain machines.
+- Native `[packages]` for Fedora, Debian, and macOS — with Homebrew
+  `/cask` GUI apps on the Mac side.
+- `flatpak` and `snap` backends alongside the native lists.
+- Tag-keyed and multi-tag **AND** package blocks, e.g.
+  `[packages."tag:desktop"]`, `[packages."tag:personal.tag:ubuntu".snap]`,
+  and even a three-tag `[packages."tag:personal.tag:desktop.tag:ubuntu".snap]`.
+- Per-host overlays in `hosts/` for half a dozen real machines (work
+  laptops, a desktop, a server).
+- Ordered `scripts/` plus tag-conditional `scripts.tag-fedora/`,
+  `scripts.tag-ubuntu/`, `scripts.tag-gnome.tag-personal/`, and friends —
+  including `pre-*` scripts that add third-party package repos before the
+  package phase runs.
+- `[vars]` for per-machine identity and a generated `bootstrap.sh`.
+
+Clone it for a concrete reference, or borrow whichever pieces map onto
+your own setup.
