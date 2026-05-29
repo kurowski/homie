@@ -165,8 +165,8 @@ homie/
     tree/           # home/ tree convention (Active, Classify, Resolve, ParseDir)
     link/           # symlink phase (consumes tree.Resolve)
     render/         # template phase (consumes tree.Resolve)
-    packages/       # package manager abstraction (apt, dnf, brew, flatpak, noop)
-    runner/         # ordered script execution (pre + post phases)
+    packages/       # package manager abstraction (apt, dnf, brew, flatpak, snap, noop)
+    runner/         # ordered script execution (pre + post phases, scripts.tag-X/ trees)
     doctor/         # read-only audit, emits Findings
     scaffold/       # `hm init` — generate a new user environment repo
     repo/           # locate the user repo (HM_REPO / walk-up)
@@ -272,6 +272,13 @@ Both `link.Plan` and `render.Apply` are thin consumers of
 `tree.Resolve`: link takes the non-template entries, render takes the
 templates. The override rule is enforced exactly once.
 
+The same `tree.Active` / `tree.Classify` discovery is reused for
+`scripts.tag-X[.tag-Y...]/` trees (in `internal/runner`), but scripts
+use a *different* merge rule than `tree.Resolve`: there's no
+more-specific-wins override for an imperative script, so two active
+trees offering the same filename is a hard error, and the unified order
+is the filename's numeric prefix across all trees.
+
 User-facing description of this model: [/docs/dotfiles/](https://homie.sh/docs/dotfiles/).
 
 ---
@@ -284,6 +291,13 @@ User-facing description of this model: [/docs/dotfiles/](https://homie.sh/docs/d
   ANSI, suitable for log capture
 - `--verbose` available in both modes
 - Non-fatal errors collected and surfaced in summary rather than aborting run
+- **Interactive scripts:** when stdin is a TTY, scripts inherit the parent's
+  stdin/stdout/stderr so prompts (`sudo`, `gh auth login`) work in-band; the
+  TUI releases the terminal for the script phase via `UI.Suspend`/`Resume`
+  (Bubble Tea `ReleaseTerminal`/`RestoreTerminal`; Plain UIs no-op). When
+  stdin isn't a TTY, output is captured per-script and the script runs under
+  `setsid` (no controlling terminal) so a would-be prompt fails fast instead
+  of hanging on `/dev/tty`.
 
 ---
 
@@ -312,18 +326,32 @@ and stay).
 
 ## Current state
 
-v0.2.0 shipped. The MVP (detect, config, link, render, native packages,
+v0.3.0 shipped. The MVP (detect, config, link, render, native packages,
 runner, UI, `hm apply` end-to-end, `hm init` scaffold, `bootstrap.sh`
 template, `hm status` / `hm doctor`, GitHub Actions release pipeline,
 e2e container harness covering Ubuntu/Debian/Fedora, docs site) was
-v0.0.2; v0.1.0 added: multi-host overlay, pre-package scripts,
-tag-keyed packages, tag-conditional home trees, pluggable backends
-(flatpak + brew), unified `home/` tree replacing `dotfiles/` +
-`templates/`, more-specific-wins override resolution, docs site
-restructure. v0.2.0 added: the `hm home` command, charmbracelet/fang-styled
-help and errors, a snap package backend (with `/classic` `/devmode`
-`/jailmode` confinement suffixes), and tag-conditional script trees
-(`scripts.tag-X/`, parallel to `home.tag-X/`).
+v0.0.2. Since then:
+
+- **v0.1.0** — multi-host overlay, pre-package scripts, tag-keyed packages,
+  tag-conditional home trees, pluggable backends (flatpak + brew), unified
+  `home/` tree replacing `dotfiles/` + `templates/`, more-specific-wins
+  override resolution, docs-site restructure.
+- **v0.2.0** — the `hm home` command, charmbracelet/fang-styled help and
+  errors, a snap backend (`/classic` `/devmode` `/jailmode` confinement
+  suffixes), and tag-conditional script trees (`scripts.tag-X/`, parallel to
+  `home.tag-X/`).
+- **v0.2.1** — AND-tagged package keys: `[packages."tag:X.tag:Y"]` applies
+  only when *every* listed tag is active (single-tag keys are the one-tag
+  form of the same rule).
+- **v0.3.0** — macOS as a first-class platform (`darwin` → `Distro == "macos"`,
+  brew as the optional native manager, GUI apps via a `/cask` suffix,
+  `darwin/{amd64,arm64}` binaries cross-compiled from the Linux runner,
+  OS-aware `install.sh`/`bootstrap.sh`, a `macos-latest` CI job; e2e stays
+  Linux-only). Plus three dogfooding fixes: `$USER`/`$LOGNAME` normalized
+  for scripts in non-login shells (devcontainers); brew casks installed
+  individually so one conflict doesn't skip the rest; interactive scripts
+  inherit the terminal so `sudo` can prompt in-band (and `setsid` away from
+  it when non-interactive, so a prompt fails fast instead of hanging).
 
 **Layout migration** (one-time, for repos created against v0.0.2):
 `git mv dotfiles/* home/ && git mv templates/* home/ && rmdir dotfiles
@@ -332,16 +360,11 @@ so templates keep their suffix and everything else stays plain. Same
 applies to any `dotfiles.tag-X/` / `templates.tag-X/` siblings —
 collapse into `home.tag-X/`.
 
-The full curl|bash flow has been verified end-to-end against production
-(homie.sh → GitHub releases → a real user dotfiles repo). Next phase is
-dogfooding on real environments and filing issues against gaps that
-surface.
-
-In progress: **macOS as a first-class platform** — `darwin` detected as
-`Distro == "macos"` with brew as the optional native manager (casks via a
-`/cask` suffix), OS-aware `install.sh`/`bootstrap.sh`, `darwin/{amd64,arm64}`
-release binaries, and a `macos-latest` CI test job. Container-based e2e stays
-Linux-only.
+The full curl|bash flow is verified end-to-end against production
+(homie.sh → GitHub releases → a real user dotfiles repo) on both Linux
+and macOS. Homie is in active dogfooding on real machines — the v0.3.0
+fixes above came directly from that. A complete, in-use example repo
+exercising nearly every feature lives at `github.com/kurowski/dotfiles`.
 
 ---
 

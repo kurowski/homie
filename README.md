@@ -1,8 +1,8 @@
 # Homie
 
-A single-binary Linux environment manager. Dotfiles by symlink, packages by
-your distro, ordered setup scripts — all driven by one `homie.toml` in a git
-repo you own.
+A single-binary Linux & macOS environment manager. Dotfiles by symlink,
+packages via your distro's manager or Homebrew, ordered setup scripts — all
+driven by one `homie.toml` in a git repo you own.
 
 ```sh
 # Bootstrap any machine
@@ -27,9 +27,12 @@ Homie does it all in one, from one repo, with no daily friction: editing
 
 ## Status
 
-v0.0.2. All MVP milestones complete; install → bootstrap → apply →
-idempotent reapply verified end-to-end on Ubuntu, Debian, and Fedora.
-User-facing docs at <https://homie.sh>; design brief in
+v0.3.0. Supported platforms: Ubuntu, Debian, Fedora, and macOS (Apple
+Silicon & Intel). Dotfiles (symlinks + Go-template files), per-host overlays
+and tag-conditional `home/` and `scripts/` trees, native packages (apt/dnf, or
+Homebrew formulae + casks on macOS) plus flatpak and snap backends, and
+ordered pre/post setup scripts — install → bootstrap → apply → idempotent
+reapply verified end-to-end. User-facing docs at <https://homie.sh>; design brief in
 [`CLAUDE.md`](./CLAUDE.md).
 
 ## License
