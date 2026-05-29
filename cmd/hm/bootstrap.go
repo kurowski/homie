@@ -11,12 +11,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// bootstrapPkgs is the list of CLI tools hm itself needs to clone a
-// user repo and run apply on a minimal host (think Docker base image).
+// linuxBootstrapPkgs is the list of CLI tools hm itself needs to clone a
+// user repo and run apply on a minimal Linux host (think Docker base image).
 // ca-certificates is in here because HTTPS git clones fail without it
 // in minimal containers — a class of issue that's confusing to debug
-// at clone time.
-var bootstrapPkgs = []string{"git", "ca-certificates"}
+// at clone time. macOS prereqs are handled by bootstrapMacOS (git ships
+// via the Xcode CLT; the system trust store covers HTTPS), so this list
+// is Linux-only.
+var linuxBootstrapPkgs = []string{"git", "ca-certificates"}
 
 var bootstrapCmd = &cobra.Command{
 	Use:   "bootstrap",
@@ -73,7 +75,7 @@ func doBootstrap(mgr packages.Manager, distro string, w io.Writer) error {
 		return fmt.Errorf("package manager %q is not on PATH", mgr.Name())
 	}
 	var todo []string
-	for _, p := range bootstrapPkgs {
+	for _, p := range linuxBootstrapPkgs {
 		if !mgr.IsInstalled(p) {
 			todo = append(todo, p)
 		}

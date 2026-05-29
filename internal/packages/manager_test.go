@@ -306,6 +306,8 @@ func TestParseBrewSpec(t *testing.T) {
 		{"foo/bogus", "", false, true},
 		{"org/tap/foo", "", false, true}, // tap-qualified: first "/" splits a non-cask remainder
 		{"foo/", "", false, true},        // trailing slash, empty suffix
+		{"", "", false, true},            // empty spec
+		{"/cask", "", false, true},       // empty name before a valid suffix
 	}
 	for _, tc := range cases {
 		name, cask, err := parseBrewSpec(tc.spec)

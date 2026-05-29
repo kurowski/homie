@@ -65,8 +65,10 @@ if ! command -v hm >/dev/null 2>&1; then
   curl -fsSL "$base/SHA256SUMS"  -o "$tmp/SHA256SUMS"
 
   # SHA256SUMS lists every published os/arch. macOS shasum has no
-  # --ignore-missing, so filter to our binary's line and verify that.
-  ( cd "$tmp" && grep " ${binary}\$" SHA256SUMS > "$binary.sum" && verify "$binary.sum" )
+  # --ignore-missing, so filter to our binary's line and verify that. -F
+  # keeps it a fixed-string match in case a future arch name ever carries
+  # a regex metachar.
+  ( cd "$tmp" && grep -F " ${binary}" SHA256SUMS > "$binary.sum" && verify "$binary.sum" )
 
   install -m 0755 "$tmp/$binary" "$bindir/hm"
   export PATH="$bindir:$PATH"

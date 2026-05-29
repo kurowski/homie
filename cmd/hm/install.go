@@ -119,6 +119,14 @@ func installBackend(w io.Writer, cfg config.Config, env detect.Env, backend stri
 		fmt.Fprintf(w, "  warning  %s not on PATH — skipping (install it or add scripts/pre-*.sh)\n", backend)
 		return nil
 	}
+	// Mirror installNative (and applyBackendPackages): flag a malformed spec
+	// with a clean pre-shellout error rather than letting it bubble up from
+	// mgr.Install.
+	if v, ok := mgr.(packages.Validator); ok {
+		if err := v.Validate(pkgs); err != nil {
+			return err
+		}
+	}
 	return doInstall(w, mgr, pkgs)
 }
 

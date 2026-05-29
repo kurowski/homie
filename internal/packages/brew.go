@@ -46,6 +46,10 @@ const brewCaskSuffix = "cask"
 // wrong thing.
 func parseBrewSpec(spec string) (name string, cask bool, err error) {
 	name, suffix, found := strings.Cut(spec, "/")
+	if name == "" {
+		// Catches both "" and "/cask" (empty name before the suffix).
+		return "", false, fmt.Errorf("brew package %q has an empty name", spec)
+	}
 	if !found {
 		return spec, false, nil
 	}
