@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -196,8 +197,24 @@ func Plan(repoDir string, tags []string, phase Phase) ([]string, error) {
 // buildEnv composes the environment passed to each script. The parent
 // process's environment is inherited so PATH, HOME, USER etc. still
 // work; Homie's variables are appended (later entries win in os/exec).
+//
+// USER and LOGNAME are normalized from os/user.Current() when the inherited
+// env lacks them. Non-login process trees — devcontainers, bare `docker
+// exec`, some CI runners, systemd services — often leave these unset even
+// though the OS knows the username, which breaks the common scaffold idiom
+// of `"$USER"` under `set -u`. Filling them here keeps the "scripts can
+// rely on $USER" contract true everywhere Homie runs, the same gap
+// login(1)/PAM fill for a normal session.
 func buildEnv(repoDir, home string, vars map[string]string, tags []string) []string {
 	env := os.Environ()
+	if u, err := user.Current(); err == nil {
+		if _, ok := os.LookupEnv("USER"); !ok {
+			env = append(env, "USER="+u.Username)
+		}
+		if _, ok := os.LookupEnv("LOGNAME"); !ok {
+			env = append(env, "LOGNAME="+u.Username)
+		}
+	}
 	env = append(env,
 		"HM_REPO="+repoDir,
 		"HM_HOME="+home,

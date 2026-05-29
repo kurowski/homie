@@ -377,6 +377,36 @@ func TestBrewInstallBucketsFormulaeAndCasks(t *testing.T) {
 	}
 }
 
+func TestBrewInstallCasksContinueOnConflict(t *testing.T) {
+	// 1password conflicts (e.g. /Applications/1Password.app already exists);
+	// ghostty must still be installed, and the returned error must name the
+	// failing cask and point at --adopt.
+	f := &fakeRunner{failCmd: "brew install --cask 1password"}
+	b := &Brew{Runner: f.run}
+	err := b.Install([]string{"1password/cask", "ghostty/cask"})
+	if err == nil {
+		t.Fatal("expected an error for the conflicting cask")
+	}
+	if !strings.Contains(err.Error(), "1password") || !strings.Contains(err.Error(), "--adopt") {
+		t.Errorf("error should name the failing cask and suggest --adopt, got: %v", err)
+	}
+	// Both casks must have been attempted individually — the conflict on the
+	// first must NOT skip the second.
+	var caskInstalls []string
+	for _, c := range f.calls {
+		joined := strings.Join(append([]string{c.name}, c.args...), " ")
+		if strings.HasPrefix(joined, "brew install --cask ") {
+			caskInstalls = append(caskInstalls, joined)
+		}
+	}
+	if len(caskInstalls) != 2 {
+		t.Fatalf("expected 2 individual cask installs, got %d: %v", len(caskInstalls), caskInstalls)
+	}
+	if caskInstalls[0] != "brew install --cask 1password" || caskInstalls[1] != "brew install --cask ghostty" {
+		t.Errorf("cask installs = %v, want [brew install --cask 1password, brew install --cask ghostty]", caskInstalls)
+	}
+}
+
 func TestBrewInstallNoopWhenAllInstalled(t *testing.T) {
 	f := &fakeRunner{
 		brewOK: map[string]bool{"fd": true},
