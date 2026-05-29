@@ -306,8 +306,10 @@ fedora = ["pkg"]
 
 func TestDuplicateCanonicalTagKeyWarns(t *testing.T) {
 	// Two blocks written in different tag orders resolve to the same
-	// canonical key within one file — the later one overwrites rather than
-	// merges, so the user gets a warning to combine them.
+	// canonical key within one file — they overwrite rather than merge, so
+	// the user gets a warning to combine them. Which one wins is unspecified
+	// (it depends on TOML map iteration order); the contract is "warn, and
+	// don't merge", not a particular winner.
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "homie.toml"), []byte(`
 [user]
@@ -336,9 +338,11 @@ all = ["s2"]
 	if !strings.Contains(joined, "duplicates an earlier block") {
 		t.Errorf("expected a duplicate-canonical-key warning, got:\n%s", joined)
 	}
-	// Native: second block won (overwrite, not merge).
-	if got := c.PackagesFor(detect.Env{Tags: []string{"a", "b"}}); !reflect.DeepEqual(got, []string{"second"}) {
-		t.Errorf("native dup: PackagesFor = %v, want [second] (later block wins)", got)
+	// Native: exactly one block wins (overwrite, not merge). Don't assert
+	// which — that's map-iteration-order dependent; assert the lists weren't
+	// concatenated into ["first","second"].
+	if got := c.PackagesFor(detect.Env{Tags: []string{"a", "b"}}); len(got) != 1 || (got[0] != "first" && got[0] != "second") {
+		t.Errorf("native dup: PackagesFor = %v, want exactly one of [first]/[second] (overwrite, not merge)", got)
 	}
 	// Backend collision warns too.
 	if !strings.Contains(joined, "snap") {
