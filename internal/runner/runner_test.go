@@ -3,12 +3,66 @@ package runner
 import (
 	"bytes"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/kurowski/homie/internal/config"
 )
+
+func TestBuildEnvNormalizesUser(t *testing.T) {
+	cur, err := user.Current()
+	if err != nil {
+		t.Skipf("user.Current() unavailable: %v", err)
+	}
+	// Simulate a non-login process tree (devcontainer, docker exec) where
+	// USER/LOGNAME are absent. t.Setenv restores both after the test.
+	t.Setenv("USER", "")
+	t.Setenv("LOGNAME", "")
+	if err := os.Unsetenv("USER"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Unsetenv("LOGNAME"); err != nil {
+		t.Fatal(err)
+	}
+
+	env := buildEnv(t.TempDir(), t.TempDir(), nil, nil)
+	want := map[string]string{
+		"USER":    cur.Username,
+		"LOGNAME": cur.Username,
+	}
+	got := map[string]string{}
+	for _, kv := range env {
+		if k, v, ok := strings.Cut(kv, "="); ok {
+			if _, tracked := want[k]; tracked {
+				got[k] = v
+			}
+		}
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("buildEnv %s = %q, want %q", k, got[k], v)
+		}
+	}
+}
+
+func TestBuildEnvKeepsExistingUser(t *testing.T) {
+	// When USER is already set, it must be preserved, not overwritten.
+	t.Setenv("USER", "scout")
+	env := buildEnv(t.TempDir(), t.TempDir(), nil, nil)
+	var values []string
+	for _, kv := range env {
+		if k, v, ok := strings.Cut(kv, "="); ok && k == "USER" {
+			values = append(values, v)
+		}
+	}
+	// os.Environ() carries the existing USER=scout; buildEnv must not add a
+	// second, conflicting entry.
+	if len(values) != 1 || values[0] != "scout" {
+		t.Errorf("USER entries = %v, want exactly [scout]", values)
+	}
+}
 
 func writeScript(t *testing.T, repo, name, body string) {
 	t.Helper()
