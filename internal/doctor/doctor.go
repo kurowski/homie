@@ -143,9 +143,10 @@ func (r *Report) checkLinks(repoDir, home string, cfg config.Config, env detect.
 	}
 	// Detect broken symlinks: a homie-managed symlink whose source file
 	// has been removed from the repo. Plan only surfaces files still in
-	// the active trees, so we walk $HOME for symlinks pointing into any
-	// home* tree under repoDir and flag any whose target is missing.
-	broken := findBrokenLinks(home, filepath.Join(repoDir, tree.HomeDir))
+	// the active trees, so we scan the directories homie actually
+	// mirrors and flag symlinks into any home* tree under repoDir whose
+	// target is missing.
+	broken := findBrokenLinks(repoDir, home, cfg.AllTags(env))
 	sort.Strings(broken)
 	for _, p := range broken {
 		r.add(SeverityError, "link",
@@ -164,45 +165,83 @@ func (r *Report) checkLinks(repoDir, home string, cfg config.Config, env detect.
 	}
 }
 
-// findBrokenLinks walks home and returns paths of symlinks that point
-// into any homie home tree (the bare home/ dir or a sibling
-// home.tag-X/...) but whose target file no longer exists.
+// findBrokenLinks returns paths of homie-managed symlinks whose source
+// file has been removed from the repo. A symlink is homie-managed when
+// it points into the bare home/ dir or a sibling home.tag-X/... under
+// repoDir.
 //
-// homeBase is the absolute path of <repoDir>/home. A symlink dest
-// matches when it starts with that path followed by either a path
-// separator (plain) or "." (tag-gated sibling).
+// We deliberately do NOT walk $HOME — on macOS that includes ~/Library,
+// cloud-sync stub trees (iCloud, OneDrive, Creative Cloud, Dropbox) and
+// other huge or fault-prone subtrees that can take minutes or hang on
+// stat. Instead we walk the repo's small home* trees to discover the
+// set of $HOME directories homie mirrors, then list each one directly.
+// $HOME itself is always included so a broken symlink at the root is
+// caught even if the tree currently has nothing else there.
 //
 // taggedPrefix intentionally matches `home.<anything>`, not just dirs
 // that pass tree.ParseDir. A stale link into a renamed-away `home.backup/`
 // is still a broken homie-shaped link the user probably wants to clean
 // up — tightening this to tree.ParseDir would silently lose those reports.
-func findBrokenLinks(home, homeBase string) []string {
-	var out []string
+func findBrokenLinks(repoDir, home string, tags []string) []string {
+	homeBase := filepath.Join(repoDir, tree.HomeDir)
 	plainPrefix := homeBase + string(os.PathSeparator)
 	taggedPrefix := homeBase + "."
-	_ = filepath.WalkDir(home, func(path string, d fs.DirEntry, err error) error {
+
+	var out []string
+	for _, dir := range homieMirroredDirs(repoDir, home, tags) {
+		entries, err := os.ReadDir(dir)
 		if err != nil {
-			return nil // unreadable subtrees are not our problem
+			continue // unreadable dirs are not our problem
 		}
-		if d.IsDir() {
+		for _, e := range entries {
+			path := filepath.Join(dir, e.Name())
+			info, err := os.Lstat(path)
+			if err != nil || info.Mode()&os.ModeSymlink == 0 {
+				continue
+			}
+			dest, err := os.Readlink(path)
+			if err != nil {
+				continue
+			}
+			if !strings.HasPrefix(dest, plainPrefix) && !strings.HasPrefix(dest, taggedPrefix) {
+				continue
+			}
+			if _, err := os.Stat(dest); errors.Is(err, fs.ErrNotExist) {
+				out = append(out, path)
+			}
+		}
+	}
+	return out
+}
+
+// homieMirroredDirs returns the set of $HOME directories that any home*
+// tree in the repo mirrors — i.e., the only directories a homie-managed
+// symlink can live in. Both active and inactive tag-gated trees
+// contribute, since a stale symlink may point into a tree that has
+// since gone inactive on this host. $HOME itself is always included.
+func homieMirroredDirs(repoDir, home string, tags []string) []string {
+	trees, _ := tree.Classify(repoDir, tree.HomeDir, tags)
+	roots := append([]string{}, trees.Active...)
+	roots = append(roots, trees.Inactive...)
+
+	seen := map[string]struct{}{home: {}}
+	for _, root := range roots {
+		_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || !d.IsDir() {
+				return nil
+			}
+			rel, err := filepath.Rel(root, path)
+			if err != nil {
+				return nil
+			}
+			seen[filepath.Join(home, rel)] = struct{}{}
 			return nil
-		}
-		info, err := os.Lstat(path)
-		if err != nil || info.Mode()&os.ModeSymlink == 0 {
-			return nil
-		}
-		dest, err := os.Readlink(path)
-		if err != nil {
-			return nil
-		}
-		if !strings.HasPrefix(dest, plainPrefix) && !strings.HasPrefix(dest, taggedPrefix) {
-			return nil
-		}
-		if _, err := os.Stat(dest); errors.Is(err, fs.ErrNotExist) {
-			out = append(out, path)
-		}
-		return nil
-	})
+		})
+	}
+	out := make([]string, 0, len(seen))
+	for p := range seen {
+		out = append(out, p)
+	}
 	return out
 }
 
