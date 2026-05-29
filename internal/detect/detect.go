@@ -1,7 +1,7 @@
 // Package detect inspects the runtime environment Homie is running in:
-// Linux distro, package manager, CPU arch, container/root/TTY state.
-// All fields are derived from injectable sources so tests don't depend on
-// the real filesystem or process state.
+// platform (Linux distro or macOS), package manager, CPU arch,
+// container/root/TTY state. All fields are derived from injectable sources
+// so tests don't depend on the real filesystem or process state.
 package detect
 
 import (
@@ -16,10 +16,10 @@ import (
 
 // Env is the resolved view of the runtime environment.
 type Env struct {
-	Distro         string   // ubuntu, debian, fedora, unknown
-	PackageManager string   // apt, dnf, unknown
-	Arch           string   // amd64, arm64, ...
-	Hostname       string   // short hostname (everything before the first dot)
+	Distro         string // ubuntu, debian, fedora, macos, unknown
+	PackageManager string // apt, dnf, brew, unknown
+	Arch           string // amd64, arm64, ...
+	Hostname       string // short hostname (everything before the first dot)
 	IsContainer    bool
 	IsRoot         bool
 	IsInteractive  bool
@@ -34,6 +34,7 @@ type Detector struct {
 	Geteuid        func() int             // effective uid
 	IsTTY          func() bool            // TTY check for stdout
 	Arch           string                 // GOARCH override
+	GOOS           string                 // GOOS override ("linux", "darwin")
 	LookupHostname func() (string, error) // os.Hostname override
 }
 
@@ -45,7 +46,14 @@ func (d Detector) Detect() Env {
 	d = d.withDefaults()
 
 	env := Env{Arch: d.Arch}
-	env.Distro = parseDistro(d.FS)
+	if d.GOOS == "darwin" {
+		// macOS is modeled as a "distro" so it reuses every distro-keyed
+		// mechanism (packages.macos, hasTag "macos", .Distro in templates)
+		// unchanged. There is no /etc/os-release to parse.
+		env.Distro = "macos"
+	} else {
+		env.Distro = parseDistro(d.FS)
+	}
 	env.PackageManager = packageManagerFor(env.Distro)
 	env.IsContainer = detectContainer(d.FS, d.Getenv)
 	env.IsRoot = d.Geteuid() == 0
@@ -91,6 +99,9 @@ func (d Detector) withDefaults() Detector {
 	if d.Arch == "" {
 		d.Arch = runtime.GOARCH
 	}
+	if d.GOOS == "" {
+		d.GOOS = runtime.GOOS
+	}
 	if d.LookupHostname == nil {
 		d.LookupHostname = os.Hostname
 	}
@@ -132,6 +143,11 @@ func packageManagerFor(distro string) string {
 		return "apt"
 	case "fedora":
 		return "dnf"
+	case "macos":
+		// brew is the default macOS package manager, but it's optional:
+		// a missing brew degrades to a warning+skip (see packages.For and
+		// the apply/install/doctor phases), not a fatal error.
+		return "brew"
 	default:
 		// TODO(contrib): add support for additional package managers here.
 		return "unknown"

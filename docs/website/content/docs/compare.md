@@ -8,6 +8,12 @@ The honest version of the matrix on the homepage. Each of these tools
 is good at what it's designed for. Pick Homie when the tradeoffs below
 match how you actually work.
 
+Homie covers Linux *and* macOS from one tool and one repo, so the same
+dotfiles, templates, and provisioning work across both. That's worth
+keeping in mind below: on macOS you might otherwise reach for
+`brew bundle` (packages only — no dotfiles, templating, or multi-host
+overlays) or Nix / Home Manager (more powerful, but heavier).
+
 ---
 
 ## vs chezmoi
@@ -116,11 +122,34 @@ value boot time, binary size, and a small mental model.
 
 ---
 
+## vs `brew bundle` / Brewfile
+
+A macOS-only option. A `Brewfile` lists formulae, casks, and Mac App
+Store apps, and `brew bundle` installs them.
+
+**Where they differ:**
+
+- **Scope.** `brew bundle` installs packages. It has no dotfile model,
+  no templating, and no per-host overrides. Homie does packages,
+  dotfiles, templates, and ordered scripts in one pass.
+- **Platform.** `brew bundle` is macOS (and Linuxbrew) only. Homie
+  manages the same repo across Linux and macOS, with native packages on
+  each (apt/dnf on Linux, `brew` on macOS — formulae by bare name, casks
+  with a `/cask` suffix).
+
+**Pick `brew bundle` if** all you want is a reproducible package list on
+a single Mac.
+
+**Pick Homie if** you also want your dotfiles, templates, and setup
+scripts managed alongside those packages, on Linux as well as macOS.
+
+---
+
 ## When Homie is the wrong answer
 
 - **Multiple users on one machine.** Homie is single-user, configured
   per user. There's no fleet mode.
-- **macOS or Windows.** v1 is Linux only.
+- **Windows.** v1 supports Linux and macOS, not Windows.
 - **Secrets management.** Out of scope. Pair Homie with `sops`, `age`,
   `pass`, or a cloud secret store and reference paths from your scripts.
 - **You need rollback.** Homie has no state, so it can't roll back.

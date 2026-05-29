@@ -267,6 +267,41 @@ func TestRunReportsMissingPackages(t *testing.T) {
 	}
 }
 
+func TestRunMacOSNoBrewNoPackagesIsClean(t *testing.T) {
+	// A dotfiles-only macOS host with no [packages] and no brew must report
+	// a clean run — brew is optional, so its absence is not a finding.
+	repo, home := makeRepo(t)
+	env := detect.Env{Distro: "macos", PackageManager: "brew", Hostname: "mbp"}
+	cfg := config.Config{
+		User:    config.User{Name: "Scout Homes", Email: "scout@homie.sh"},
+		Profile: config.Profile{Name: "personal", DefaultShell: "zsh"},
+	}
+	mgr := &fakeMgr{name: "brew", available: false}
+	r := Run(repo, home, cfg, env, mgr, nil)
+	if msgs := messagesByArea(r, "packages"); len(msgs) != 0 {
+		t.Errorf("expected no packages findings, got: %v", msgs)
+	}
+	if r.HasErrors() {
+		t.Errorf("a dotfiles-only macOS host without brew must not error: %+v", r.Findings)
+	}
+}
+
+func TestRunMacOSNoBrewWithPackagesWarns(t *testing.T) {
+	// When packages ARE declared but brew is absent, it's a warning (the
+	// packages won't install) — never an error like a missing apt/dnf.
+	repo, home := makeRepo(t)
+	env := detect.Env{Distro: "macos", PackageManager: "brew", Hostname: "mbp"}
+	mgr := &fakeMgr{name: "brew", available: false}
+	r := Run(repo, home, sampleCfg(), env, mgr, nil)
+	msgs := strings.Join(messagesByArea(r, "packages"), "\n")
+	if !strings.Contains(msgs, "brew not on PATH") {
+		t.Errorf("expected a brew-not-on-PATH warning, got: %s", msgs)
+	}
+	if r.HasErrors() {
+		t.Errorf("missing brew with declared packages must warn, not error: %+v", r.Findings)
+	}
+}
+
 func TestRunReportsUnrenderedTemplate(t *testing.T) {
 	repo, home := makeRepo(t)
 	if err := os.WriteFile(filepath.Join(repo, "home", "x.tmpl"), []byte("body"), 0o644); err != nil {

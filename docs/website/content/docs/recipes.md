@@ -270,3 +270,7 @@ jobs:
 
 `hm doctor` exits non-zero on any problem, so the job fails loudly when
 the repo drifts.
+
+The `hm-linux-amd64` binary is correct for the `ubuntu-latest` runner
+above; on a `macos-latest` runner, download `hm-darwin-arm64` (or
+`hm-darwin-amd64` on Intel) instead.

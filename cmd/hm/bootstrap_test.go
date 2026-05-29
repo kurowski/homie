@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -9,14 +10,14 @@ import (
 // fakeManager is a minimal packages.Manager used to drive doBootstrap
 // without shelling out to a real package manager.
 type fakeManager struct {
-	name      string
-	available bool
-	installed map[string]bool
+	name       string
+	available  bool
+	installed  map[string]bool
 	installLog []string
 }
 
-func (f *fakeManager) Name() string             { return f.name }
-func (f *fakeManager) IsAvailable() bool        { return f.available }
+func (f *fakeManager) Name() string              { return f.name }
+func (f *fakeManager) IsAvailable() bool         { return f.available }
 func (f *fakeManager) IsInstalled(p string) bool { return f.installed[p] }
 func (f *fakeManager) Install(pkgs []string) error {
 	f.installLog = append(f.installLog, pkgs...)
@@ -60,6 +61,32 @@ func TestDoBootstrapAllInstalledIsNoop(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "already installed") {
 		t.Errorf("expected already-installed message, got %q", buf.String())
+	}
+}
+
+func TestBootstrapMacOSGitPresent(t *testing.T) {
+	// git on PATH (via the Xcode CLT) is the only prereq; brew is never
+	// consulted, so a fake lookPath that only knows git is enough.
+	lookPath := func(name string) (string, error) {
+		if name == "git" {
+			return "/usr/bin/git", nil
+		}
+		return "", errors.New("not found")
+	}
+	buf := new(bytes.Buffer)
+	if err := bootstrapMacOS(lookPath, buf); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(buf.String(), "already installed") {
+		t.Errorf("expected already-installed message, got %q", buf.String())
+	}
+}
+
+func TestBootstrapMacOSGitMissing(t *testing.T) {
+	lookPath := func(string) (string, error) { return "", errors.New("not found") }
+	err := bootstrapMacOS(lookPath, new(bytes.Buffer))
+	if err == nil || !strings.Contains(err.Error(), "xcode-select") {
+		t.Errorf("expected an error pointing at xcode-select, got %v", err)
 	}
 }
 

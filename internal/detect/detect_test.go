@@ -19,6 +19,7 @@ func TestDetect(t *testing.T) {
 		uid      int
 		tty      bool
 		arch     string
+		goos     string // GOOS override; empty defaults to "linux" in the loop
 		hostname string
 		hostErr  error
 		want     Env
@@ -209,16 +210,42 @@ func TestDetect(t *testing.T) {
 				Tags: []string{"amd64", "fedora"},
 			},
 		},
+		{
+			// On macOS, Distro is "macos" and the package manager is brew,
+			// regardless of any filesystem contents. The macos tag is emitted
+			// like any other distro tag.
+			name:     "macos arm64 via GOOS=darwin",
+			fsys:     fstest.MapFS{},
+			goos:     "darwin",
+			uid:      501,
+			tty:      true,
+			arch:     "arm64",
+			hostname: "mbp",
+			want: Env{
+				Distro: "macos", PackageManager: "brew", Arch: "arm64",
+				Hostname:      "mbp",
+				IsInteractive: true,
+				Tags:          []string{"arm64", "macos", "mbp"},
+			},
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			goos := tc.goos
+			if goos == "" {
+				// Linux is the implicit platform for every distro-based case;
+				// without this the cases would flip to macos on a darwin runner
+				// (e.g. the macos-latest CI job), where runtime.GOOS is "darwin".
+				goos = "linux"
+			}
 			d := Detector{
 				FS:             tc.fsys,
 				Getenv:         func(k string) string { return tc.env[k] },
 				Geteuid:        func() int { return tc.uid },
 				IsTTY:          func() bool { return tc.tty },
 				Arch:           tc.arch,
+				GOOS:           goos,
 				LookupHostname: func() (string, error) { return tc.hostname, tc.hostErr },
 			}
 			got := d.Detect()

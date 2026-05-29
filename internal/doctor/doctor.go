@@ -326,12 +326,29 @@ func (r *Report) checkPackages(cfg config.Config, env detect.Env, mgr packages.M
 	if mgr == nil || mgr.Name() == "noop" {
 		return // distro check already covers this
 	}
+	want := cfg.PackagesFor(env)
 	if !mgr.IsAvailable() {
+		// brew is the default macOS manager but optional: with no packages
+		// declared a dotfiles-only host is a clean run, and a missing brew
+		// when packages *are* declared is a warning, not an error.
+		if mgr.Name() == "brew" {
+			if len(want) == 0 {
+				return
+			}
+			r.add(SeverityWarn, "packages",
+				fmt.Sprintf("brew not on PATH — %d package(s) declared will not install (install brew or add a scripts/pre-*.sh)", len(want)))
+			return
+		}
 		r.add(SeverityError, "packages",
 			fmt.Sprintf("package manager %s is not on PATH", mgr.Name()))
 		return
 	}
-	want := cfg.PackagesFor(env)
+	if v, ok := mgr.(packages.Validator); ok {
+		if err := v.Validate(want); err != nil {
+			r.add(SeverityError, "packages", fmt.Sprintf("%s: %v", mgr.Name(), err))
+			return
+		}
+	}
 	var missing []string
 	for _, p := range want {
 		if !mgr.IsInstalled(p) {

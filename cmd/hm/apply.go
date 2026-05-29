@@ -37,7 +37,9 @@ Phases, in order:
   2. config       — load homie.toml (+ hosts/<hostname>.toml overlay)
   3. pre-scripts  — pre-*.sh from scripts/ and active scripts.tag-X/
                     siblings (third-party repo setup, GPG keys, ...)
-  4. packages     — install [packages] via the native manager (apt/dnf)
+  4. packages     — install [packages] via the native manager (apt/dnf
+                    on Linux, brew on macOS); a missing brew warns and
+                    skips rather than failing
   5. backends     — install each declared backend ([packages.brew],
                     [packages.flatpak], ...); a phase skips with a
                     warning when its tool isn't on PATH
@@ -120,7 +122,20 @@ func applyPackages(u ui.UI, cfg config.Config, env detect.Env) []error {
 		return nil
 	}
 	if !mgr.IsAvailable() {
+		if mgr.Name() == "brew" {
+			// brew is the default macOS manager but optional — degrade to a
+			// warning+skip like the opt-in backends, rather than failing apply.
+			u.Warn("brew not on PATH — install it (or add a scripts/pre-*.sh that installs it) to install these packages")
+			return nil
+		}
 		return []error{fmt.Errorf("package manager %q not on PATH", mgr.Name())}
+	}
+	// Catch malformed specs (e.g. a bad brew /cask suffix) before the
+	// "install ..." line, so the UI never announces an install it can't do.
+	if v, ok := mgr.(packages.Validator); ok {
+		if err := v.Validate(pkgs); err != nil {
+			return []error{err}
+		}
 	}
 	var todo, already []string
 	for _, p := range pkgs {

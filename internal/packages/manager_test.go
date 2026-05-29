@@ -15,7 +15,8 @@ type fakeRunner struct {
 	dpkgOK    map[string]bool // pkg -> Status: installed?
 	rpmOK     map[string]bool
 	flatpakOK map[string]bool // ref -> appears in `flatpak list` output
-	brewOK    map[string]bool // formula -> `brew list --formula <name>` succeeds
+	brewOK    map[string]bool // formula -> appears in `brew list --formula` output
+	caskOK    map[string]bool // cask -> appears in `brew list --cask` output
 	snapOK    map[string]bool // snap name -> appears in `snap list` output
 	failCmd   string          // if set, return error when arg[0]+args matches
 }
@@ -52,6 +53,15 @@ func (f *fakeRunner) run(name string, args ...string) ([]byte, error) {
 		var b strings.Builder
 		for formula := range f.brewOK {
 			b.WriteString(formula)
+			b.WriteByte('\n')
+		}
+		return []byte(b.String()), nil
+	case name == "brew" && len(args) >= 2 && args[0] == "list" && args[1] == "--cask":
+		// `brew list --cask -1` — the cask analog, loaded lazily and only
+		// when a "/cask" spec is looked up.
+		var b strings.Builder
+		for cask := range f.caskOK {
+			b.WriteString(cask)
 			b.WriteByte('\n')
 		}
 		return []byte(b.String()), nil
@@ -163,6 +173,7 @@ func TestForPicksBackend(t *testing.T) {
 	}{
 		{detect.Env{PackageManager: "apt", IsRoot: true}, "apt"},
 		{detect.Env{PackageManager: "dnf", IsRoot: false}, "dnf"},
+		{detect.Env{PackageManager: "brew", Distro: "macos"}, "brew"},
 		{detect.Env{PackageManager: "unknown", Distro: "arch"}, "noop"},
 		{detect.Env{}, "noop"},
 	}
@@ -280,6 +291,131 @@ func TestFlatpakListIsCachedAcrossCalls(t *testing.T) {
 	}
 	if lists != 1 {
 		t.Errorf("flatpak list invoked %d times, want exactly 1 (cache should serve repeat lookups)", lists)
+	}
+}
+
+func TestParseBrewSpec(t *testing.T) {
+	cases := []struct {
+		spec     string
+		wantName string
+		wantCask bool
+		wantErr  bool
+	}{
+		{"wget", "wget", false, false},
+		{"firefox/cask", "firefox", true, false},
+		{"foo/bogus", "", false, true},
+		{"org/tap/foo", "", false, true}, // tap-qualified: first "/" splits a non-cask remainder
+		{"foo/", "", false, true},        // trailing slash, empty suffix
+	}
+	for _, tc := range cases {
+		name, cask, err := parseBrewSpec(tc.spec)
+		if tc.wantErr {
+			if err == nil {
+				t.Errorf("parseBrewSpec(%q) err = nil, want error", tc.spec)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("parseBrewSpec(%q) err = %v", tc.spec, err)
+			continue
+		}
+		if name != tc.wantName || cask != tc.wantCask {
+			t.Errorf("parseBrewSpec(%q) = (%q, %v), want (%q, %v)", tc.spec, name, cask, tc.wantName, tc.wantCask)
+		}
+	}
+}
+
+func TestBrewCaskIsInstalled(t *testing.T) {
+	f := &fakeRunner{
+		brewOK: map[string]bool{"fd": true},
+		caskOK: map[string]bool{"firefox": true},
+	}
+	b := &Brew{Runner: f.run}
+	if !b.IsInstalled("firefox/cask") {
+		t.Errorf("firefox/cask should report installed")
+	}
+	if b.IsInstalled("chrome/cask") {
+		t.Errorf("chrome/cask should report not installed")
+	}
+	// A formula name must not match a cask of the same name and vice versa.
+	if b.IsInstalled("firefox") {
+		t.Errorf("bare formula firefox should report not installed (it's a cask)")
+	}
+}
+
+func TestBrewInstallBucketsFormulaeAndCasks(t *testing.T) {
+	f := &fakeRunner{
+		brewOK: map[string]bool{"fd": true},
+		caskOK: map[string]bool{"firefox": true},
+	}
+	b := &Brew{Runner: f.run}
+	// fd + firefox/cask are already installed; ripgrep (formula) + slack/cask
+	// are not. Expect one `brew install ripgrep` and one `brew install --cask
+	// slack`, nothing for the already-installed pair.
+	if err := b.Install([]string{"fd", "ripgrep", "firefox/cask", "slack/cask"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	var formula, cask string
+	for _, c := range f.calls {
+		if c.name != "brew" || len(c.args) == 0 || c.args[0] != "install" {
+			continue
+		}
+		joined := strings.Join(c.args, " ")
+		if strings.Contains(joined, "--cask") {
+			cask = joined
+		} else {
+			formula = joined
+		}
+	}
+	if formula != "install ripgrep" {
+		t.Errorf("formula install = %q, want `install ripgrep` (fd already installed)", formula)
+	}
+	if cask != "install --cask slack" {
+		t.Errorf("cask install = %q, want `install --cask slack` (firefox already installed)", cask)
+	}
+}
+
+func TestBrewInstallNoopWhenAllInstalled(t *testing.T) {
+	f := &fakeRunner{
+		brewOK: map[string]bool{"fd": true},
+		caskOK: map[string]bool{"firefox": true},
+	}
+	b := &Brew{Runner: f.run}
+	if err := b.Install([]string{"fd", "firefox/cask"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	for _, c := range f.calls {
+		if c.name == "brew" && len(c.args) > 0 && c.args[0] == "install" {
+			t.Errorf("brew install should not have been invoked: calls=%+v", f.calls)
+		}
+	}
+}
+
+func TestBrewInstallUnknownSuffixErrors(t *testing.T) {
+	f := &fakeRunner{}
+	b := &Brew{Runner: f.run}
+	err := b.Install([]string{"foo/bogus"})
+	if err == nil {
+		t.Fatal("Install with an unknown suffix should error")
+	}
+	if !strings.Contains(err.Error(), "bogus") || !strings.Contains(err.Error(), "/cask") {
+		t.Errorf("error = %q, want it to name the bad suffix and mention /cask", err)
+	}
+	for _, c := range f.calls {
+		if c.name == "brew" && len(c.args) > 0 && c.args[0] == "install" {
+			t.Errorf("no brew install should run when a spec is invalid: calls=%+v", f.calls)
+		}
+	}
+}
+
+func TestBrewValidate(t *testing.T) {
+	b := &Brew{Runner: (&fakeRunner{}).run}
+	if err := b.Validate([]string{"wget", "firefox/cask"}); err != nil {
+		t.Errorf("valid specs should pass Validate, got %v", err)
+	}
+	err := b.Validate([]string{"wget", "foo/bogus"})
+	if err == nil || !strings.Contains(err.Error(), "bogus") {
+		t.Errorf("Validate should reject foo/bogus with a clear message, got %v", err)
 	}
 }
 

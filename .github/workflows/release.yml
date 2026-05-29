@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        os: [linux, darwin]
         goarch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v6
@@ -22,7 +23,7 @@ jobs:
 
       - name: Build static binary
         env:
-          GOOS: linux
+          GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
@@ -30,17 +31,17 @@ jobs:
           go build \
             -trimpath \
             -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" \
-            -o dist/hm-linux-${GOARCH} \
+            -o dist/hm-${GOOS}-${GOARCH} \
             ./cmd/hm
 
       - name: Checksum
         run: |
           cd dist
-          sha256sum hm-linux-${{ matrix.goarch }} > hm-linux-${{ matrix.goarch }}.sha256
+          sha256sum hm-${{ matrix.os }}-${{ matrix.goarch }} > hm-${{ matrix.os }}-${{ matrix.goarch }}.sha256
 
       - uses: actions/upload-artifact@v7
         with:
-          name: hm-linux-${{ matrix.goarch }}
+          name: hm-${{ matrix.os }}-${{ matrix.goarch }}
           path: dist/*
           if-no-files-found: error
           retention-days: 1

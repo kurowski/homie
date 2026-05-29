@@ -16,15 +16,18 @@ var installCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Install packages declared in homie.toml",
 	Long: `Install the packages declared in homie.toml — native first
-(apt or dnf), then each non-native backend (brew, flatpak, ...) in
-alphabetical order. Already-installed packages are filtered out, so
-re-running is cheap.
+(apt or dnf on Linux, brew on macOS), then each non-native backend
+(flatpak, snap, ...) in alphabetical order. Already-installed packages
+are filtered out, so re-running is cheap.
 
 The native phase resolves [packages].all + [packages].<distro> +
-matching [packages."tag:X"] sub-tables. Each backend phase resolves
-its corresponding [packages.<backend>] tables. A backend whose CLI
-tool isn't on PATH warns and skips — install the tool (or add a
-scripts/pre-*.sh that does) and re-run.
+matching [packages."tag:X"] sub-tables. On macOS, native packages go
+through brew; a GUI app (cask) is named with a "/cask" suffix, e.g.
+"firefox/cask". brew is optional — if it isn't on PATH this phase warns
+and skips rather than failing, so a dotfiles-only setup needs nothing
+extra. Each backend phase resolves its corresponding [packages.<backend>]
+tables; a backend whose CLI tool isn't on PATH warns and skips — install
+the tool (or add a scripts/pre-*.sh that does) and re-run.
 
 This is the same phase ` + "`hm apply`" + ` runs; use ` + "`hm install`" + ` when you only
 want to update packages without touching dotfiles or scripts.
@@ -86,7 +89,18 @@ func installNative(w io.Writer, env detect.Env, pkgs []string) error {
 		return nil
 	}
 	if !mgr.IsAvailable() {
+		if mgr.Name() == "brew" {
+			// brew is the default macOS manager but optional — warn and skip
+			// like a backend rather than failing the command.
+			fmt.Fprintf(w, "  warning  brew not on PATH — skipping (install it or add scripts/pre-*.sh)\n")
+			return nil
+		}
 		return fmt.Errorf("package manager %q is not available on PATH", mgr.Name())
+	}
+	if v, ok := mgr.(packages.Validator); ok {
+		if err := v.Validate(pkgs); err != nil {
+			return err
+		}
 	}
 	return doInstall(w, mgr, pkgs)
 }

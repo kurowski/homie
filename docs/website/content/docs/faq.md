@@ -56,12 +56,48 @@ reference those paths from `scripts/*.sh` or `home/*.tmpl`. See the
 ["tagged secrets via your password manager"](/docs/recipes/#tagged-secrets-via-your-password-manager)
 recipe.
 
-## Why no Mac or Windows support?
+## Does Homie work on macOS?
 
-Scope. v1 is Linux-only — that covers workstations, servers, CI,
-Codespaces, devcontainers, and the box your USB stick boots into. macOS
-and Windows aren't ruled out forever; they're ruled out for v1 so we
-ship the Linux story cleanly first.
+Yes — macOS is a first-class platform alongside Ubuntu, Debian, and
+Fedora, on both Apple Silicon (arm64) and Intel (amd64). The same
+install one-liner works:
+
+```sh
+curl -fsSL https://homie.sh/install.sh | bash
+```
+
+Native packages install through Homebrew (`brew`), declared under
+`[packages].macos` just like any other per-platform key. Dotfiles,
+templates, and scripts all behave exactly as they do on Linux.
+
+## Do I need Homebrew?
+
+Only if you declare `[packages]`. macOS ships no system package manager,
+so a dotfiles-only setup (no `[packages]`) needs nothing extra — `hm
+apply` and `hm doctor` won't complain. If you *do* declare packages and
+`brew` isn't installed, the native package phase just warns and skips
+(it doesn't fail). To actually install those packages, install Homebrew
+yourself, or add a `scripts/pre-*.sh` that installs it before the
+package phase runs.
+
+## How do I install GUI / cask apps on macOS?
+
+Add the `/cask` suffix to the app name. A bare name is a Homebrew
+formula; a `/cask` suffix is a Homebrew cask (a GUI app):
+
+```toml
+[packages]
+macos = ["ripgrep", "firefox/cask", "rectangle/cask"]
+```
+
+A bad suffix is caught by `hm doctor` before any install runs.
+
+## Why no Windows support?
+
+Scope. v1 covers Linux and macOS — workstations, servers, CI,
+Codespaces, devcontainers, and the box your USB stick boots into.
+Windows isn't ruled out forever; it's ruled out for v1 so we ship the
+Linux and macOS story cleanly first.
 
 ## My distro isn't Ubuntu, Debian, or Fedora. Now what?
 
