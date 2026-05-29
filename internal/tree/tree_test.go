@@ -34,9 +34,9 @@ func resolveTargets(rs []Resolved) map[string]Resolved {
 func TestResolveOverridesByDirectorySpecificity(t *testing.T) {
 	repo, home := mkResolveFixture(t, map[string]string{
 		// spec 0 base
-		"home/.zshrc":            "base zshrc",
-		"home/.gitconfig":        "base gitconfig",
-		"home/keep":              "unique to base",
+		"home/.zshrc":     "base zshrc",
+		"home/.gitconfig": "base gitconfig",
+		"home/keep":       "unique to base",
 		// spec 1 — overrides base for shared targets
 		"home.tag-work/.zshrc":          "work zshrc",
 		"home.tag-work/.gitconfig.tmpl": "work gitconfig template",

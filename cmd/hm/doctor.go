@@ -186,4 +186,3 @@ func pluralize(n int, word string) string {
 	}
 	return fmt.Sprintf("%d %ss", n, word)
 }
-
