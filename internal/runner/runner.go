@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/kurowski/homie/internal/config"
 	"github.com/kurowski/homie/internal/tree"
@@ -111,8 +112,10 @@ type Result struct {
 //     terminal. Callers running a live TUI must release it first (see
 //     [Interactive]).
 //   - Non-interactive (CI, piped, stdin redirected): stdout/stderr are
-//     captured to out and stdin is /dev/null, so a script that would block
-//     on a prompt fails fast instead of hanging silently.
+//     captured to out, stdin is /dev/null, and the script runs in its own
+//     session with no controlling terminal — so a tool that reads /dev/tty
+//     directly (sudo) fails fast with "a terminal is required" instead of
+//     hanging on an invisible prompt.
 //
 // No script trees is a no-op (the user repo may legitimately have none).
 // A filename collision between two active trees is a fatal error returned
@@ -208,8 +211,9 @@ func buildEnv(repoDir, home string, vars map[string]string, tags []string) []str
 
 // exec_ runs one script. When interactive, it hands the parent's terminal
 // to the script (stdin/stdout/stderr) so prompts like sudo work; otherwise
-// it captures output to out and leaves stdin at /dev/null. The trailing
-// underscore avoids shadowing the os/exec import in code search.
+// it captures output and detaches the controlling terminal so a would-be
+// prompt fails fast. The trailing underscore avoids shadowing the os/exec
+// import in code search.
 func exec_(path string, env []string, out io.Writer, interactive bool) error {
 	cmd := exec.Command("bash", path)
 	cmd.Env = env
@@ -218,10 +222,15 @@ func exec_(path string, env []string, out io.Writer, interactive bool) error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	} else {
-		// cmd.Stdin stays nil → /dev/null, so a script blocking on a prompt
-		// fails fast rather than hanging on an invisible read.
+		// Capture output; stdin stays nil → /dev/null. Setsid puts the
+		// script in a new session with NO controlling terminal, so a tool
+		// that bypasses stdin to read the password from /dev/tty (notably
+		// sudo) fails fast with "a terminal is required" instead of hanging
+		// on an invisible prompt. Redirecting stdin alone (e.g. </dev/null)
+		// wouldn't stop sudo from grabbing the inherited /dev/tty.
 		cmd.Stdout = out
 		cmd.Stderr = out
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	}
 	return cmd.Run()
 }
