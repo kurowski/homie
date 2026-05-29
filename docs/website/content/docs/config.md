@@ -59,8 +59,8 @@ machines you actually use.
 ## `[packages]`
 
 Native packages to install via the detected package manager (`apt` on
-Ubuntu/Debian, `dnf` on Fedora). Idempotent — each package is checked
-with `dpkg -s` / `rpm -q` before install.
+Ubuntu/Debian, `dnf` on Fedora, `brew` on macOS). Idempotent — each
+package is checked with `dpkg -s` / `rpm -q` / `brew list` before install.
 
 ```toml
 [packages]
@@ -68,11 +68,23 @@ all    = ["git", "zsh", "neovim", "tmux", "ripgrep", "fd", "fzf"]
 fedora = ["util-linux-user"]
 ubuntu = ["fd-find"]
 debian = ["fd-find"]
+macos  = ["coreutils", "firefox/cask"]
 ```
 
-`all` runs on every distro. Per-distro keys (`fedora`, `ubuntu`,
-`debian`) merge on top — useful for the rename-on-this-distro case
-(`fd` vs `fd-find`) or for distro-specific tools.
+`all` runs on every platform. Per-platform keys (`fedora`, `ubuntu`,
+`debian`, `macos`) merge on top — useful for the rename-on-this-platform
+case (`fd` vs `fd-find`) or for platform-specific tools.
+
+On macOS, native packages install through Homebrew. A GUI app (a Homebrew
+**cask**) is named with a `/cask` suffix — `firefox/cask` installs with
+`brew install --cask firefox`; a bare name is a formula. A typo'd suffix
+is reported by `hm doctor` before any install runs.
+
+**brew is optional.** macOS ships no system package manager, so if you only
+manage dotfiles (no `[packages]`), you never need it — `hm apply` and
+`hm doctor` won't complain. If brew isn't on `PATH` when packages *are*
+declared, the native phase warns and skips instead of failing; install brew
+(or add a `scripts/pre-*.sh` that does) to have those packages applied.
 
 On unsupported distros, the package phase prints a friendly notice and
 skips. The rest of `hm apply` continues normally.
@@ -151,9 +163,9 @@ extra = ["laptop"]
 
 Active tags on every run are the union of:
 
-- **Detected:** the distro (`ubuntu`, `debian`, `fedora`), the arch
-  (`amd64`, `arm64`), the short hostname (so `hasTag "coach"` works with
-  no config), plus `container` and `root` when those apply.
+- **Detected:** the platform (`ubuntu`, `debian`, `fedora`, `macos`), the
+  arch (`amd64`, `arm64`), the short hostname (so `hasTag "coach"` works
+  with no config), plus `container` and `root` when those apply.
 - **Profile:** `profile.name`, if set.
 - **Extra:** everything in `tags.extra`.
 
@@ -218,6 +230,11 @@ belongs in `scripts/`.
 Beyond the native package manager, `[packages]` accepts sub-tables for
 non-native managers. v1 ships `flatpak`, `brew`, and `snap`; the namespace
 is reserved for `cargo`, `npm`, `pip`, etc. to follow.
+
+`[packages.brew]` is Homebrew **as a Linux backend** — handy on immutable
+distros (Universal Blue, Bazzite) where dnf is discouraged. On macOS, brew
+is the *native* manager instead, so list those packages under
+`[packages].macos`, not here.
 
 ```toml
 [packages.flatpak]

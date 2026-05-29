@@ -1,6 +1,6 @@
 ---
 title: "Quick start"
-description: "From zero to a working Linux environment in under five minutes."
+description: "From zero to a working Linux or macOS environment in under five minutes."
 weight: 10
 ---
 
@@ -60,13 +60,20 @@ symlinks your dotfiles, renders your templates, and runs your scripts.
 
 ## 5. Bootstrap on a fresh machine
 
-On _any other_ Linux box — bare metal, VM, container, Codespace — run:
+On _any other_ Linux or macOS box — bare metal, VM, container,
+Codespace — run:
 
 ```sh
 curl https://raw.githubusercontent.com/<you>/dotfiles/main/bootstrap.sh | bash
 ```
 
-That downloads `hm`, clones your repo, and runs `hm apply`. Done.
+That downloads the right `hm` binary for the OS and CPU, clones your
+repo, and runs `hm apply`. Done.
+
+`bootstrap.sh` makes sure `git` is present first. On Linux it also
+installs `ca-certificates` if needed. On macOS `git` comes from the
+Xcode Command Line Tools (`xcode-select --install`), and Homebrew is
+*not* required — install it only if you declare `[packages]`.
 
 ## Where to next?
 

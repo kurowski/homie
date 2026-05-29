@@ -12,12 +12,29 @@ set -euo pipefail
 
 HM_RELEASE="${HM_RELEASE:-latest}"
 
+os="$(uname -s)"
+case "$os" in
+  Linux)  os=linux ;;
+  Darwin) os=darwin ;;
+  *) echo "Unsupported OS: $os" >&2; exit 1 ;;
+esac
+
 arch="$(uname -m)"
 case "$arch" in
   x86_64)        arch=amd64 ;;
   aarch64|arm64) arch=arm64 ;;
   *) echo "Unsupported architecture: $arch" >&2; exit 1 ;;
 esac
+
+# verify checks a checklist file with whichever tool is present: GNU
+# sha256sum on Linux, BSD shasum on macOS (which has no sha256sum).
+verify() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c "$1"
+  else
+    shasum -a 256 -c "$1"
+  fi
+}
 
 if [ -n "${HM_BINDIR:-}" ]; then
   bindir="$HM_BINDIR"
@@ -33,7 +50,7 @@ if [ "$HM_RELEASE" = "latest" ]; then
 else
   base="https://github.com/kurowski/homie/releases/download/${HM_RELEASE}"
 fi
-binary="hm-linux-${arch}"
+binary="hm-${os}-${arch}"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -42,9 +59,10 @@ echo "Downloading ${base}/${binary}"
 curl -fsSL "$base/$binary"    -o "$tmp/$binary"
 curl -fsSL "$base/SHA256SUMS" -o "$tmp/SHA256SUMS"
 
-# --ignore-missing verifies only the line matching $binary; the file
-# carries entries for every published arch.
-( cd "$tmp" && sha256sum -c --ignore-missing SHA256SUMS )
+# SHA256SUMS carries an entry for every published os/arch. macOS shasum
+# has no --ignore-missing, so filter to just our binary's line and verify
+# that (the other binaries aren't downloaded here).
+( cd "$tmp" && grep " ${binary}\$" SHA256SUMS > "$binary.sum" && verify "$binary.sum" )
 
 install -m 0755 "$tmp/$binary" "$bindir/hm"
 

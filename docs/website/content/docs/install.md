@@ -11,13 +11,16 @@ binary — there's nothing stopping you from grabbing it any way you like.
 
 ## Install script (recommended)
 
-Detects your arch, downloads the matching release, verifies its SHA256,
-and drops `hm` into `/usr/local/bin` (or `~/.local/bin` if you're not
-root):
+Detects your OS (Linux or macOS) and arch, downloads the matching release,
+verifies its SHA256, and drops `hm` into `/usr/local/bin` (or `~/.local/bin`
+if you're not root):
 
 ```sh
 curl -fsSL https://homie.sh/install.sh | bash
 ```
+
+The same one-liner works on Linux and macOS (Apple Silicon and Intel) — the
+script picks `hm-linux-*` or `hm-darwin-*` for you.
 
 The script honours two environment overrides:
 
@@ -42,20 +45,27 @@ curl -fsSL https://homie.sh/install.sh | HM_BINDIR=$HOME/bin bash
 ## Manual download
 
 If you'd rather not pipe a script into your shell, grab the binary
-directly. There are two assets per release: the binary
-(`hm-linux-<arch>`) and a `SHA256SUMS` file that covers all arches.
+directly. Each release publishes a binary per OS/arch
+(`hm-linux-<arch>`, `hm-darwin-<arch>`) plus a `SHA256SUMS` file that
+covers them all.
 
 ```sh
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')   # linux or darwin
 ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 BASE=https://github.com/kurowski/homie/releases/latest/download
+BIN="hm-${OS}-${ARCH}"
 
-curl -fsSL -o /tmp/hm           "$BASE/hm-linux-${ARCH}"
-curl -fsSL -o /tmp/SHA256SUMS   "$BASE/SHA256SUMS"
+cd "$(mktemp -d)"
+curl -fsSL -o "$BIN"      "$BASE/$BIN"
+curl -fsSL -o SHA256SUMS  "$BASE/SHA256SUMS"
 
-( cd /tmp && sha256sum -c --ignore-missing SHA256SUMS )
+# Download under the real name so the checklist matches. macOS has no
+# sha256sum, so filter to our line and fall back to shasum.
+grep " ${BIN}\$" SHA256SUMS > hm.sum
+if command -v sha256sum >/dev/null; then sha256sum -c hm.sum; else shasum -a 256 -c hm.sum; fi
 
-chmod +x /tmp/hm
-sudo mv /tmp/hm /usr/local/bin/hm
+chmod +x "$BIN"
+sudo mv "$BIN" /usr/local/bin/hm
 hm --version
 ```
 

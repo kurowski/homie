@@ -53,9 +53,14 @@ func For(env detect.Env) Manager {
 		return &Apt{Runner: execRunner, Sudo: !env.IsRoot}
 	case "dnf":
 		return &Dnf{Runner: execRunner, Sudo: !env.IsRoot}
+	case "brew":
+		// brew is the native manager on macOS. It never sudoes, so there's
+		// no Sudo field. Unlike apt/dnf, its absence is non-fatal — the
+		// apply/install/doctor phases warn and skip when it's not on PATH.
+		return &Brew{Runner: execRunner}
 	default:
 		// TODO(contrib): add support for additional package managers
-		// (pacman, zypper, apk). Brew/Flatpak live in ForBackend.
+		// (pacman, zypper, apk). Flatpak/snap live in ForBackend.
 		return &Noop{Distro: env.Distro}
 	}
 }

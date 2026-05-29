@@ -1,12 +1,12 @@
 ---
 title: "Homie"
-description: "Make every Linux box feel like home."
+description: "Make every Linux & macOS box feel like home."
 ---
 
-# Make every Linux box feel like home.
+# Make every Linux & macOS box feel like home.
 
-Homie is a single binary that turns a fresh Linux install into _your_
-Linux install — dotfiles, packages, setup scripts, all from one repo
+Homie is a single binary that turns a fresh Linux or macOS install into
+_your_ install — dotfiles, packages, setup scripts, all from one repo
 you own. One command from a bare box to a working environment:
 
 ```sh
@@ -25,7 +25,7 @@ That's it! That's the whole setup story.
    ```
 2. `hm init ~/dotfiles` to scaffold a starter repo.
 3. Edit `homie.toml`, commit, and push to your preferred git hosting service.
-4. On any other Linux box: `curl …/bootstrap.sh | bash`.
+4. On any other Linux or macOS box: `curl …/bootstrap.sh | bash`.
 
 [Read the quickstart →](/docs/quickstart/)
 

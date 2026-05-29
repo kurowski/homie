@@ -2,9 +2,9 @@
 
 ## What is this?
 
-**Homie** is a generic Linux environment manager for developers. It handles
-both dotfile management and system provisioning in a single tool, driven by
-a user-owned git repo of config and dotfiles.
+**Homie** is a generic Linux & macOS environment manager for developers. It
+handles both dotfile management and system provisioning in a single tool,
+driven by a user-owned git repo of config and dotfiles.
 
 - CLI command: `hm`
 - Domain: `homie.sh` (documentation and marketing only — not a curl target)
@@ -127,6 +127,7 @@ pleasant to run.
 ## Target environments
 
 - Fresh bare-metal Linux install (as root)
+- macOS workstation (Apple Silicon or Intel)
 - Personal workstation (subsequent runs, as user)
 - Shared server (no root, home directory only)
 - GitHub Codespaces
@@ -145,8 +146,10 @@ pleasant to run.
 - `github.com/charmbracelet/bubbles` — spinner, progress bar, list
 - `github.com/charmbracelet/log` — structured styled logging
 
-**Binary distribution:** Static binaries (`CGO_ENABLED=0`) for `linux/amd64`
-and `linux/arm64`. Built and published by GitHub Actions on tag push.
+**Binary distribution:** Static binaries (`CGO_ENABLED=0`) for `linux/amd64`,
+`linux/arm64`, `darwin/amd64`, and `darwin/arm64`. All four cross-compile
+from the `ubuntu-latest` release runner (the charm libs and `x/term` are
+pure Go). Built and published by GitHub Actions on tag push.
 
 ---
 
@@ -185,17 +188,23 @@ homie/
 
 The `detect` package determines:
 
-| Field             | Values / notes                                      |
-|-------------------|-----------------------------------------------------|
-| `Distro`          | `ubuntu`, `debian`, `fedora`, `unknown`             |
-| `PackageManager`  | `apt` (Ubuntu/Debian), `dnf` (Fedora), `unknown`    |
-| `Arch`            | `amd64`, `arm64`                                    |
-| `Hostname`        | short hostname (truncated at first `.`)             |
-| `IsContainer`     | bool — via `/proc/1/cgroup`, `/.dockerenv`          |
-| `IsRoot`          | bool                                                |
-| `IsInteractive`   | bool — TTY detection                                |
+| Field             | Values / notes                                              |
+|-------------------|-------------------------------------------------------------|
+| `Distro`          | `ubuntu`, `debian`, `fedora`, `macos`, `unknown`            |
+| `PackageManager`  | `apt` (Ubuntu/Debian), `dnf` (Fedora), `brew` (macOS), `unknown` |
+| `Arch`            | `amd64`, `arm64`                                            |
+| `Hostname`        | short hostname (truncated at first `.`)                     |
+| `IsContainer`     | bool — via `/proc/1/cgroup`, `/.dockerenv`                  |
+| `IsRoot`          | bool                                                        |
+| `IsInteractive`   | bool — TTY detection                                        |
 
-**Supported distros for v1: Ubuntu, Debian, Fedora.**
+macOS is keyed off `runtime.GOOS == "darwin"` (the injectable `Detector.GOOS`)
+*before* any `/etc/os-release` parse, and modeled as `Distro == "macos"` so it
+reuses every distro-keyed mechanism unchanged: `[packages].macos`,
+`hasTag "macos"`, `.Distro` in templates, `knownDistroKeys`. It emits a `macos`
+auto-tag like any other distro.
+
+**Supported platforms for v1: Ubuntu, Debian, Fedora, macOS.**
 
 Arch Linux and other distros should be detected as `unknown` with a clear,
 friendly error telling the user it's not yet supported and pointing to
@@ -215,11 +224,23 @@ type Manager interface {
 }
 ```
 
-Native managers (`apt`, `dnf`) are returned by `packages.For(env)`.
-Non-native backends (`brew`, `flatpak`, and any reserved future name)
-are returned by `packages.ForBackend(name)`. Both share the interface
-so the apply phases treat them identically — only the resolution rule
-(`PackagesFor` vs `PackagesForBackend`) differs.
+Native managers (`apt`, `dnf`, and `brew` on macOS) are returned by
+`packages.For(env)`. Non-native backends (`flatpak`, `snap`, `brew` as a
+Linux backend, and any reserved future name) are returned by
+`packages.ForBackend(name)`. Both share the interface so the apply phases
+treat them identically — only the resolution rule (`PackagesFor` vs
+`PackagesForBackend`) differs. `Brew` is the one Manager used in both roles:
+the native macOS manager and an opt-in Linux backend.
+
+**brew is optional, even as the native macOS manager.** macOS ships no
+system package manager, so unlike apt/dnf (intrinsic to the distro, fatal
+when absent), a missing brew is non-fatal — the native package phase in
+`hm apply`/`hm install`, and `hm doctor`'s `checkPackages`, warn and skip
+when `mgr.Name() == "brew"` and brew isn't on PATH. A dotfiles-only macOS
+user (no `[packages]`) never needs brew. On macOS a GUI app (cask) is named
+with a `/cask` suffix (`firefox/cask`); `Brew` implements `Validator` so a
+bad suffix surfaces before any install, the same pattern as snap's
+confinement suffixes.
 
 Each backend checks `IsInstalled` before installing so runs are
 idempotent without a state file. Non-native backends additionally cache
@@ -316,11 +337,17 @@ The full curl|bash flow has been verified end-to-end against production
 dogfooding on real environments and filing issues against gaps that
 surface.
 
+In progress: **macOS as a first-class platform** — `darwin` detected as
+`Distro == "macos"` with brew as the optional native manager (casks via a
+`/cask` suffix), OS-aware `install.sh`/`bootstrap.sh`, `darwin/{amd64,arm64}`
+release binaries, and a `macos-latest` CI test job. Container-based e2e stays
+Linux-only.
+
 ---
 
 ## What Homie is not
 
-- Not cross-platform. Linux only for v1.
+- Linux & macOS only. Not Windows.
 - Not a secrets manager. Out of scope.
 - Not a package version manager. Use `mise`; Homie can call its install script.
 - Not for remote machines. Single-machine, single-user.

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"os/exec"
 	"strings"
 
 	"github.com/kurowski/homie/internal/detect"
@@ -24,6 +25,12 @@ var bootstrapCmd = &cobra.Command{
 git (to clone your environment repo) and ca-certificates (so HTTPS
 clones work on minimal hosts).
 
+On macOS, git ships with the Xcode Command Line Tools and the system
+trust store covers HTTPS, so bootstrap only checks that git is present
+and points you at ` + "`xcode-select --install`" + ` if it isn't. brew is never
+required — install it from a scripts/pre-*.sh only if you declare
+[packages].
+
 Run this once on a fresh machine after downloading the hm binary,
 before cloning your dotfiles repo. It's idempotent — packages already
 present are skipped.`,
@@ -36,7 +43,23 @@ func init() {
 
 func runBootstrap(cmd *cobra.Command, args []string) error {
 	env := detect.Detect()
+	if env.Distro == "macos" {
+		return bootstrapMacOS(exec.LookPath, cmd.OutOrStdout())
+	}
 	return doBootstrap(packages.For(env), env.Distro, cmd.OutOrStdout())
+}
+
+// bootstrapMacOS checks the macOS prerequisites. git is the only hard
+// requirement, and it ships via the Xcode Command Line Tools rather than a
+// package manager — so there's nothing to "install" here, just a presence
+// check with a pointer to `xcode-select --install` when it's missing. brew
+// is deliberately not required: a dotfiles-only user never needs it.
+func bootstrapMacOS(lookPath func(string) (string, error), w io.Writer) error {
+	if _, err := lookPath("git"); err != nil {
+		return fmt.Errorf("git not found — install the Xcode Command Line Tools with `xcode-select --install`, then re-run")
+	}
+	fmt.Fprintln(w, "All bootstrap prereqs already installed.")
+	return nil
 }
 
 // doBootstrap is the testable core of `hm bootstrap` — takes a Manager
