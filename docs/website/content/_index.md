@@ -10,7 +10,7 @@ _your_ install — dotfiles, packages, setup scripts, all from one repo
 you own. One command from a bare box to a working environment:
 
 ```sh
-curl https://raw.githubusercontent.com/USERNAME/dotfiles/main/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/USERNAME/dotfiles/main/bootstrap.sh | bash
 ```
 
 That's it! That's the whole setup story.
