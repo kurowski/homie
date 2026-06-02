@@ -3,7 +3,7 @@
 # Recording image for homie screencasts.
 #
 # Base = the official VHS image (Debian 13), pinned by digest so a local
-# `make casts` renders byte-for-byte like CI. It already bundles the whole
+# `record.sh` renders byte-for-byte like CI. It already bundles the whole
 # render stack: ttyd + ffmpeg + headless chromium (/usr/bin/chromium, run with
 # VHS_NO_SANDBOX) + JetBrainsMono Nerd Font.
 #

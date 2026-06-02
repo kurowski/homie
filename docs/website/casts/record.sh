@@ -12,7 +12,9 @@
 #      `curl … | bash` is the real bootstrap, offline and deterministic
 #   5. copy the rendered .gif/.webm into static/casts/
 #
-# Usage: ./record.sh [tape ...]   (default: every *.tape in this dir)
+# Usage:
+#   ./record.sh                 # render every *.tape in this dir
+#   ./record.sh bootstrap.tape  # render just one
 set -euo pipefail
 
 CASTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

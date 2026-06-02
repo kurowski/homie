@@ -1,12 +1,12 @@
 # Screencasts for homie.sh — plan & runbook
 
 **Status:** P1 done — the `bootstrap` hero is live, rendered manually with
-`make casts`. **Scope:** docs site only (`docs/website/`).
+`record.sh`. **Scope:** docs site only (`docs/website/`).
 
 ## Why this doc exists
 
 Most of this is simple enough to just execute. It's written down because the
-pipeline starts as a manual `make casts` and should later **render in CI**;
+pipeline starts as a manual `record.sh` and should later **render in CI**;
 that direction — and the approach we deliberately rejected — is worth recording
 (see [Future: render in CI](#future-render-in-ci)). A previous version of this
 plan was lost because it only lived in a Claude transcript on another host —
@@ -23,7 +23,7 @@ thing do the selling.
 **VHS only** (`charmbracelet/vhs`), and **rendering is containerized**: the
 recording image is pinned by digest (`FROM ghcr.io/charmbracelet/vhs@sha256:…`,
 Debian 13 — already bundles ttyd + ffmpeg + headless chromium + JetBrainsMono
-Nerd Font). That makes a local `make casts` produce the same artifacts as CI,
+Nerd Font). That makes a local `record.sh` produce the same artifacts as CI,
 which matters because the output is committed binary media.
 
 - Inline command demos → optimized **GIF**.
@@ -106,18 +106,17 @@ docs/website/
     Dockerfile         # recorder image: pinned VHS base + fresh-box layer
     nginx.conf         # TLS sidecar (impersonates github / raw.github)
     record.sh          # orchestration (build hm, scaffold, nginx, vhs, collect)
-    Makefile           # `make casts [CAST=bootstrap.tape]`
     *.tape
     PLAN.md
   static/casts/        # rendered .gif/.webm (committed, served by Hugo)
   layouts/shortcodes/cast.html
 ```
 
-## Build (now): manual `make casts`
+## Build (now): manual `record.sh`
 
 ```
-make casts                      # render every *.tape
-make casts CAST=bootstrap.tape  # one cast
+./record.sh                 # render every *.tape
+./record.sh bootstrap.tape  # one cast
 ```
 
 `record.sh` builds hm, builds the pinned recorder image, stands up nginx,
@@ -126,9 +125,9 @@ Run it by hand when CLI output changes; commit the rendered media.
 
 ## Future: render in CI (deferred)
 
-Today the media is rendered manually with `make casts` and committed. The
+Today the media is rendered manually with `record.sh` and committed. The
 intended next step is to **render during the website build itself**: add a
-`make casts` step to `pages.yml` before `hugo` and publish the fresh media
+`record.sh` step to `pages.yml` before `hugo` and publish the fresh media
 *without committing it* (drop `static/casts/*.{gif,webm}` from git and
 `.gitignore` them). Rendering is already pinned in a container, so a CI render
 matches a local one.
