@@ -1,0 +1,15 @@
+{{- /*
+  Embed a VHS-rendered screencast.
+  Usage: {{< cast name="bootstrap" alt="what it shows" >}}
+  Expects /casts/<name>.webm (+ a .gif fallback) in static/casts/.
+*/ -}}
+{{- $name := .Get "name" -}}
+{{- $alt := .Get "alt" | default $name -}}
+<figure class="cast" style="margin:1.5rem auto;max-width:990px">
+  <video autoplay loop muted playsinline preload="metadata" aria-label="{{ $alt }}"
+         style="width:100%;height:auto;border-radius:8px">
+    <source src="{{ printf "/casts/%s.webm" $name | relURL }}" type="video/webm">
+    <img src="{{ printf "/casts/%s.gif" $name | relURL }}" loading="lazy" alt="{{ $alt }}"
+         style="width:100%;height:auto;border-radius:8px">
+  </video>
+</figure>

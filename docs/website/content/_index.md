@@ -15,6 +15,8 @@ curl https://raw.githubusercontent.com/USERNAME/dotfiles/main/bootstrap.sh | bas
 
 That's it! That's the whole setup story.
 
+{{< cast name="bootstrap" alt="A fresh machine becomes a working environment with one curl | bash command" >}}
+
 ---
 
 ## Get started
