@@ -1,5 +1,5 @@
 baseURL = "https://homie.sh/"
-languageCode = "en-us"
+locale = "en-us"
 defaultContentLanguage = "en"
 title = "Homie"
 
