@@ -66,6 +66,20 @@ to refresh.
 Source file mode carries through: `home/bin/foo.sh.tmpl` renders
 executable.
 
+### Previewing
+
+To see what a template resolves to on the current host without writing
+into `$HOME`, render it to stdout:
+
+```sh
+hm render home/.gitconfig.tmpl   # one template, raw output
+hm home --dry-run                # every active template, plus the link/render plan
+```
+
+Both use the same data as a real run (active tags, `[vars]`, `hasTag`),
+so the preview is faithful — a tight edit-render-inspect loop while
+authoring, and safe for CI or automated agents to call.
+
 ### Syntax
 
 Templates use Go's [`text/template`](https://pkg.go.dev/text/template)

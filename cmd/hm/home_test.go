@@ -10,6 +10,7 @@ import (
 
 func resetHomeFlags() {
 	homeTarget = ""
+	homeDryRun = false
 }
 
 func runHomeCli(t *testing.T, args []string) (string, error) {
@@ -74,6 +75,60 @@ func TestHomeMaterializesBothClasses(t *testing.T) {
 	}
 	if !strings.Contains(out, "render") {
 		t.Errorf("expected a `render` action for the template, got:\n%s", out)
+	}
+}
+
+// TestHomeDryRunWritesNothing pins the contract for `hm home --dry-run`:
+// the plan and every template's rendered content go to stdout, and
+// $HOME is untouched.
+func TestHomeDryRunWritesNothing(t *testing.T) {
+	repo := fixtureRepo(t)
+	home := t.TempDir()
+	t.Setenv("HM_REPO", repo)
+
+	out, err := runHomeCli(t, []string{"home", "--home", home, "--dry-run"})
+	if err != nil {
+		t.Fatalf("home --dry-run: %v\noutput:\n%s", err, out)
+	}
+
+	entries, err := os.ReadDir(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("dry-run wrote into home: %v", entries)
+	}
+
+	// Plan lines for both classes.
+	if !strings.Contains(out, "~/.zshrc <- home/.zshrc") {
+		t.Errorf("expected link plan line, got:\n%s", out)
+	}
+	if !strings.Contains(out, "~/.gitconfig <- home/.gitconfig.tmpl") {
+		t.Errorf("expected render plan line, got:\n%s", out)
+	}
+	// Rendered template content, with the same data a real run uses.
+	if !strings.Contains(out, "name = Scout Homes") {
+		t.Errorf("expected rendered template content, got:\n%s", out)
+	}
+}
+
+// TestHomeDryRunBadTemplate confirms a template error surfaces inline
+// and exits non-zero — the agent/CI feedback loop the dry run exists for.
+func TestHomeDryRunBadTemplate(t *testing.T) {
+	repo := fixtureRepo(t)
+	home := t.TempDir()
+	t.Setenv("HM_REPO", repo)
+	writeFile(t, filepath.Join(repo, "home", ".broken.tmpl"), "{{ .NoSuchField }}\n", 0o644)
+
+	out, err := runHomeCli(t, []string{"home", "--home", home, "--dry-run"})
+	if err == nil {
+		t.Fatalf("expected error for broken template, got none\noutput:\n%s", out)
+	}
+	if !strings.Contains(out, "error:") {
+		t.Errorf("expected inline error for broken template, got:\n%s", out)
+	}
+	if entries, _ := os.ReadDir(home); len(entries) != 0 {
+		t.Errorf("dry-run wrote into home: %v", entries)
 	}
 }
 
