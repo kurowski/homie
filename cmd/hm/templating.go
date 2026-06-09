@@ -21,8 +21,8 @@ stripped.
 
 All of the following fields are available as {{ .<Field> }}:
 
-  .Name          string         e.g. "Brandt Kurowski"
-  .Email         string         e.g. "kurowski@homie.sh"
+  .Name          string         e.g. "Scout Homes"
+  .Email         string         e.g. "scout@homie.sh"
   .Profile       string         the active profile name ("" if none)
   .DefaultShell  string         e.g. "/usr/bin/zsh"
   .Distro        string         e.g. "ubuntu", "fedora", "debian", "macos"
