@@ -28,9 +28,12 @@ Files are partitioned by suffix:
     backed up to <path>.homie-backup-<timestamp> before linking.
 
   - Files ending in .tmpl are rendered through Go text/template + Sprig
-    and written as real files with the .tmpl suffix stripped.
+    (https://masterminds.github.io/sprig/) plus a custom hasTag function.
+    They are written as real files with the .tmpl suffix stripped.
     ` + "`home/.gitconfig.tmpl`" + ` → ` + "`~/.gitconfig`" + `. The output is regenerated
     on every apply.
+
+    Template data reference: ` + "`hm help templating`" + `
 
 When two trees claim the same target, the more-specific tree (more
 required tags in its directory name) wins. Same-specificity collisions
