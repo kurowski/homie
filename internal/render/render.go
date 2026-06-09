@@ -27,6 +27,10 @@ import (
 // Data is what's available inside a template via {{ .Name }} etc.
 // Vars is map[string]any (not map[string]string) so Sprig helpers like
 // hasKey and dig work — they require the any-valued type.
+//
+// No json tags: `hm context` marshals this struct directly so the JSON
+// keys are the template field names verbatim. Keep it that way — a new
+// field is then discoverable via `hm context` with no extra wiring.
 type Data struct {
 	Name         string
 	Email        string

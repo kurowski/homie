@@ -37,11 +37,12 @@ const (
 	SeverityInfo Severity = "info"
 )
 
-// Finding is one issue surfaced by Run.
+// Finding is one issue surfaced by Run. The json tags define the
+// `hm doctor --json` record shape.
 type Finding struct {
-	Severity Severity
-	Area     string // env | config | link | render | packages | scripts
-	Message  string
+	Severity Severity `json:"severity"`
+	Area     string   `json:"area"` // env | config | home | link | render | packages | scripts
+	Message  string   `json:"message"`
 }
 
 // Report aggregates findings from a single run.

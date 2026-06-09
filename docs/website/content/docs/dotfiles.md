@@ -121,6 +121,11 @@ Every template has these fields available:
 | `.Tags`         | `[]string`          | merged auto + profile + extra |
 | `.Vars`         | `map[string]any`    | the `[vars]` table |
 
+To see this table populated with the live values on the current host,
+run `hm context` — it prints the data as JSON with keys matching the
+field names above, so it doubles as a machine-readable reference for
+scripts and agents.
+
 ### The `hasTag` helper
 
 Tag membership is the most common branch, so it gets a dedicated
