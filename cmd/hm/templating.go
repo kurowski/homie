@@ -8,7 +8,7 @@ import (
 
 var templateCmd = &cobra.Command{
 	Use:     "templating",
-	Aliases: []string{"template"},
+	Aliases: []string{"template", "templates"},
 	Short:  "Show the template data model and functions",
 	Hidden: true,
 	Long: `Templates use Go's text/template syntax extended with Sprig functions

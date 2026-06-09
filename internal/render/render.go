@@ -70,6 +70,7 @@ func Render(input string, data Data) (string, error) {
 	tmpl, err := template.New("homie").
 		Funcs(sprig.TxtFuncMap()).
 		Funcs(template.FuncMap{
+			// keep in sync with cmd/hm/templating.go
 			"hasTag": hasTagFn(data.Tags),
 		}).
 		Option("missingkey=error").
