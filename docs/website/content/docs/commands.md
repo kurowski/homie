@@ -76,6 +76,34 @@ required tags in its directory name) wins; same-specificity collisions
 error out so you can disambiguate. See [Dotfiles](/docs/dotfiles/) for
 the full model.
 
+Flags:
+
+- `--dry-run` — write nothing. Prints the plan (every link and render
+  target with its winning source), then the full rendered content of
+  every active template. Use it to preview how templates resolve on
+  this host before applying; exits non-zero if any template fails to
+  render.
+
+---
+
+## `hm render`
+
+Renders a single `.tmpl` file to stdout — no writes, no UI chrome, safe
+to pipe. The data is exactly what a real `hm home` would use on this
+host: active tags, `[vars]`, user identity, distro, and the `hasTag`
+helper, so the preview is faithful.
+
+```sh
+hm render home/.gitconfig.tmpl
+```
+
+The path is tried as given first, then relative to the repo root, so
+the command works from anywhere. A parse or execution error exits
+non-zero — handy as a template check in CI, and it gives automated
+agents a feedback loop for template authoring without touching your
+real `$HOME`. To preview every active template at once, use
+`hm home --dry-run`.
+
 ---
 
 ## `hm install`
