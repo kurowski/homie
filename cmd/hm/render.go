@@ -33,7 +33,8 @@ Output is the raw rendered content, suitable for piping. A parse or
 execution error exits non-zero.
 
 To preview every active template at once, use ` + "`hm home --dry-run`" + `.
-See https://homie.sh/docs/dotfiles/ for the template data reference.`,
+Data fields and helper functions are listed in ` + "`hm help templating`" + `;
+the full guide is at https://homie.sh/docs/dotfiles/.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runRender,
 }
