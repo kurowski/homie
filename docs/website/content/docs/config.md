@@ -150,6 +150,55 @@ lists which AND-blocks were active for the current host.
 
 ---
 
+## `[externals]`
+
+External git repos to keep on disk — zsh/tmux/nvim plugins, themes,
+editor distributions. Each entry is keyed by its destination path;
+`hm apply` clones it when missing and updates it in place when present,
+replacing the hand-rolled clone-or-pull script this usually takes.
+
+```toml
+[externals."~/.zsh/plugins/zsh-autosuggestions"]
+repo = "https://github.com/zsh-users/zsh-autosuggestions"
+ref  = "v0.7.1"   # pinned: checked out and held; never auto-moves
+
+[externals."~/.tmux/plugins/tpm"]
+repo = "https://github.com/tmux-plugins/tpm"
+# no ref: track the remote default branch, fast-forward on each apply
+
+# tag-gated, exactly like [packages."tag:X"] (AND across tags)
+[externals."tag:desktop"."~/.config/some-theme"]
+repo = "https://github.com/example/some-theme"
+```
+
+- **`repo`** (required) — the clone URL.
+- **`ref`** (optional) — a branch, tag, or commit to pin. A pinned
+  checkout is detached at the ref and held there until you change the
+  value. **Prefer pinning**: an unpinned plugin that follows upstream
+  `HEAD` on every apply can break the shell you'd use to debug it.
+- **No `ref`** — track the remote default branch. Each apply
+  fast-forwards; a checkout with local commits or edits fails the
+  fast-forward and surfaces as a phase error instead of being clobbered.
+
+Destinations must start with `~/` or `$HOME/` or be absolute. The same
+no-surprises rules as the rest of Homie apply: a destination that exists
+but isn't a git checkout is an error (your data is never overwritten),
+and so is a checkout whose `origin` doesn't match `repo`.
+
+When two entries claim the same destination, the one requiring more
+tags wins (a plain entry counts as zero) — the same more-specific-wins
+rule as the `home/` trees. Two active entries at equal specificity with
+different settings are an error. In a [per-host overlay](#per-host-overlay),
+an entry replaces the base entry for the same destination outright —
+handy for pinning a different `ref` on one machine.
+
+Keep externals destinations out of the directories `home/` manages:
+the home phase owns those paths and the two will fight over them.
+
+Skip the phase with `hm apply --skip-externals`.
+
+---
+
 ## `[tags]`
 
 User-defined tags layered on top of the auto-detected ones. Tags are how

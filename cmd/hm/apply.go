@@ -10,6 +10,7 @@ import (
 
 	"github.com/kurowski/homie/internal/config"
 	"github.com/kurowski/homie/internal/detect"
+	"github.com/kurowski/homie/internal/externals"
 	"github.com/kurowski/homie/internal/link"
 	"github.com/kurowski/homie/internal/packages"
 	"github.com/kurowski/homie/internal/render"
@@ -20,14 +21,15 @@ import (
 )
 
 var (
-	applyHome         string
-	applySkipPackages bool
-	applySkipScripts  bool
+	applyHome          string
+	applySkipPackages  bool
+	applySkipScripts   bool
+	applySkipExternals bool
 )
 
 var applyCmd = &cobra.Command{
 	Use:   "apply",
-	Short: "Full reconciliation: detect → pre-scripts → packages → backends → home → scripts",
+	Short: "Full reconciliation: detect → pre-scripts → packages → backends → externals → home → scripts",
 	Long: `Apply the user environment repo end-to-end. Each phase is
 idempotent — running twice in a row produces no work on the second run.
 
@@ -43,17 +45,23 @@ Phases, in order:
   5. backends     — install each declared backend ([packages.brew],
                     [packages.flatpak], ...); a phase skips with a
                     warning when its tool isn't on PATH
-  6. home         — symlink plain files and render *.tmpl files from
+  6. externals    — clone or update the [externals] git repos (zsh/tmux
+                    plugins, themes, editor distributions); entries with
+                    a ref are held at it, unpinned entries fast-forward
+  7. home         — symlink plain files and render *.tmpl files from
                     home/ (and active home.tag-X/ siblings) into $HOME
-  7. scripts      — non-pre *.sh from scripts/ and active scripts.tag-X/
+  8. scripts      — non-pre *.sh from scripts/ and active scripts.tag-X/
                     siblings, ordered by filename across all trees
+
+Externals run before home so templates and symlinks can point into a
+checkout that is guaranteed to exist.
 
 Non-fatal errors are collected and surfaced in the summary rather than
 aborting. ` + "`hm apply`" + ` exits non-zero if any error was collected.
 
-Flags ` + "`--skip-packages`" + ` and ` + "`--skip-scripts`" + ` cover the umbrella phases —
-` + "`--skip-packages`" + ` covers native and all backend phases, ` + "`--skip-scripts`" + `
-covers pre-scripts and post-scripts.
+Flags ` + "`--skip-packages`" + `, ` + "`--skip-externals`" + `, and ` + "`--skip-scripts`" + ` skip the
+matching phases — ` + "`--skip-packages`" + ` covers native and all backend
+phases, ` + "`--skip-scripts`" + ` covers pre-scripts and post-scripts.
 
 See https://homie.sh/docs/commands/ for a fuller treatment.`,
 	RunE: runApply,
@@ -63,6 +71,7 @@ func init() {
 	applyCmd.Flags().StringVar(&applyHome, "home", "", "override target home directory (default $HOME)")
 	applyCmd.Flags().BoolVar(&applySkipPackages, "skip-packages", false, "skip the native and non-native (brew, flatpak, snap) package phases")
 	applyCmd.Flags().BoolVar(&applySkipScripts, "skip-scripts", false, "skip the run-scripts phase")
+	applyCmd.Flags().BoolVar(&applySkipExternals, "skip-externals", false, "skip the externals (git clone/update) phase")
 	rootCmd.AddCommand(applyCmd)
 }
 
@@ -94,6 +103,7 @@ func runApply(cmd *cobra.Command, args []string) error {
 	for _, backend := range declaredBackends(cfg) {
 		errs = append(errs, applyBackendPackages(u, cfg, env, backend)...)
 	}
+	errs = append(errs, applyExternals(u, home, cfg, env)...)
 	errs = append(errs, applyHomePhase(u, repoDir, home, cfg, env)...)
 	errs = append(errs, applyScriptPhase(u, repoDir, home, cfg, env, runner.PhasePost)...)
 
@@ -218,6 +228,46 @@ func applyBackendPackages(u ui.UI, cfg config.Config, env detect.Env, backend st
 		return []error{err}
 	}
 	return nil
+}
+
+// applyExternals clones or updates the [externals] git repos. Like the
+// backend phases, it stays silent when nothing is declared — most repos
+// won't use the feature. It runs before home so templates and symlinks
+// can reference a checkout that's guaranteed to exist.
+func applyExternals(u ui.UI, home string, cfg config.Config, env detect.Env) []error {
+	exts, err := cfg.ExternalsFor(env)
+	if err != nil {
+		u.Phase("externals")
+		return []error{err}
+	}
+	if len(exts) == 0 {
+		return nil
+	}
+	u.Phase("externals")
+	if applySkipExternals {
+		u.Info("skipped (--skip-externals)")
+		return nil
+	}
+	specs := make([]externals.Spec, len(exts))
+	for i, e := range exts {
+		specs[i] = externals.Spec{Dest: e.Dest, Repo: e.Repo, Ref: e.Ref}
+	}
+	res := externals.Apply(home, specs, externals.ExecRunner)
+	var skips int
+	for _, a := range res.Actions {
+		switch a.Kind {
+		case externals.KindClone:
+			u.Action("clone", fmt.Sprintf("%s <- %s", relTarget(home, a.Dest), a.Detail))
+		case externals.KindUpdate:
+			u.Action("update", fmt.Sprintf("%s (%s)", relTarget(home, a.Dest), a.Detail))
+		case externals.KindSkip:
+			skips++
+		}
+	}
+	if skips > 0 {
+		u.Action("skip", fmt.Sprintf("%d up to date", skips))
+	}
+	return res.Errors
 }
 
 // applyHomePhase runs the link + render phases against the unified

@@ -25,6 +25,7 @@ func resetApplyFlags() {
 	applyHome = ""
 	applySkipPackages = false
 	applySkipScripts = false
+	applySkipExternals = false
 }
 
 // fixtureRepo builds a user environment repo with one of each artifact

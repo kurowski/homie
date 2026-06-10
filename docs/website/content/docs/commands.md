@@ -38,9 +38,14 @@ hm init \
 
 Full reconciliation pass — detect → load config → run pre-scripts →
 install native packages → install declared backends (alphabetical order:
-`brew`, `flatpak`, `snap`, ...) → materialize `home/` (symlinks + rendered
-templates) → run scripts → summary. Backend phases skip with a warning
-when the tool isn't on PATH or the backend name isn't recognized.
+`brew`, `flatpak`, `snap`, ...) → clone/update `[externals]` git repos →
+materialize `home/` (symlinks + rendered templates) → run scripts →
+summary. Backend phases skip with a warning when the tool isn't on PATH
+or the backend name isn't recognized. Externals run before the home
+phase so templates and symlinks can point into a checkout that's
+guaranteed to exist; entries with a `ref` are held at it, unpinned
+entries fast-forward to the remote default branch (see
+[Config](/docs/config/#externals)).
 
 ```sh
 hm apply
@@ -51,6 +56,9 @@ summary with nothing changed.
 
 Flags:
 
+- `--skip-packages` — skip the native and backend package phases.
+- `--skip-externals` — skip the externals (git clone/update) phase.
+- `--skip-scripts` — skip pre-scripts and post-scripts.
 - `--no-tty` — force plain output (no Bubble Tea spinner). Auto-detected
   when stdout isn't a terminal; this flag overrides the detection.
 - `--verbose` — raise log level to Debug.
