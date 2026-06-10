@@ -149,6 +149,27 @@ repo = "https://github.com/example/nvim-desktop"
 	if _, err := cfg.ExternalsFor(detect.Env{Tags: []string{"work"}}); err != nil {
 		t.Fatalf("single active block should resolve, got: %v", err)
 	}
+
+	// Identical specs at the same specificity collapse silently — no
+	// winner is needed when there's nothing to choose between.
+	dir = writeRepo(t, externalsHeader+`
+[externals."tag:work"."~/.config/nvim"]
+repo = "https://github.com/example/nvim"
+
+[externals."tag:desktop"."~/.config/nvim"]
+repo = "https://github.com/example/nvim"
+`, nil)
+	cfg, err = Load(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err = cfg.ExternalsFor(detect.Env{Tags: []string{"work", "desktop"}})
+	if err != nil {
+		t.Fatalf("identical duplicates should collapse, got: %v", err)
+	}
+	assertExternals(t, got, []External{
+		{Dest: "~/.config/nvim", Repo: "https://github.com/example/nvim"},
+	})
 }
 
 // TestExternalsHostOverlayReplaces: hosts/<name>.toml entries replace

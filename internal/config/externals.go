@@ -155,6 +155,8 @@ func (c Config) ExternalsFor(env detect.Env) ([]External, error) {
 		switch {
 		case !taken || ntags > cur.ntags:
 			picked[dest] = candidate{spec: spec, ntags: ntags, origin: origin}
+		// ExternalSpec is two string fields, so != is a full value
+		// compare; revisit if it ever grows a non-comparable field.
 		case ntags == cur.ntags && spec != cur.spec:
 			return fmt.Errorf("externals: %q is declared by both %s and %s with different settings — combine them or make one more specific", dest, cur.origin, origin)
 		}

@@ -113,16 +113,52 @@ func TestSyncRefusesNonGitDest(t *testing.T) {
 	}
 }
 
-func TestSyncRefusesRemoteMismatch(t *testing.T) {
-	home := t.TempDir()
-	dest := gitDir(t, home)
-	git := &fakeGit{resp: map[string][]gitResp{
-		"-C " + dest + " remote get-url origin": {{out: "https://github.com/other/repo\n"}},
-	}}
+// TestSyncRefusesSymlinkDest: a symlink at the destination is refused
+// outright. The dangling case is the dangerous one — through os.Stat it
+// would look absent and the clone would write through the link.
+func TestSyncRefusesSymlinkDest(t *testing.T) {
+	for name, target := range map[string]string{
+		"dangling": "does-not-exist",
+		"to a dir": ".",
+	} {
+		t.Run(name, func(t *testing.T) {
+			home := t.TempDir()
+			if err := os.Symlink(filepath.Join(home, target), filepath.Join(home, "plug")); err != nil {
+				t.Fatal(err)
+			}
+			git := &fakeGit{}
 
-	_, err := Sync(home, Spec{Dest: "~/plug", Repo: repoURL}, git.run)
-	if err == nil || !strings.Contains(err.Error(), "homie.toml declares") {
-		t.Fatalf("want remote-mismatch error, got: %v", err)
+			_, err := Sync(home, Spec{Dest: "~/plug", Repo: repoURL}, git.run)
+			if err == nil || !strings.Contains(err.Error(), "is a symlink") {
+				t.Fatalf("want symlink refusal, got: %v", err)
+			}
+			if len(git.calls) != 0 {
+				t.Errorf("must not touch git for a symlink dest, called: %v", git.calls)
+			}
+		})
+	}
+}
+
+// TestSyncRefusesRemoteMismatch: a checkout whose origin differs from
+// the declared repo is refused — including a scheme change (ssh vs
+// https) for the same repo, which mismatches deliberately.
+func TestSyncRefusesRemoteMismatch(t *testing.T) {
+	for name, origin := range map[string]string{
+		"different repo": "https://github.com/other/repo\n",
+		"scheme change":  "git@github.com:example/plug.git\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			home := t.TempDir()
+			dest := gitDir(t, home)
+			git := &fakeGit{resp: map[string][]gitResp{
+				"-C " + dest + " remote get-url origin": {{out: origin}},
+			}}
+
+			_, err := Sync(home, Spec{Dest: "~/plug", Repo: repoURL}, git.run)
+			if err == nil || !strings.Contains(err.Error(), "homie.toml declares") {
+				t.Fatalf("want remote-mismatch error, got: %v", err)
+			}
+		})
 	}
 }
 
@@ -143,8 +179,9 @@ func TestSyncTrackSkipAndUpdate(t *testing.T) {
 			home := t.TempDir()
 			dest := gitDir(t, home)
 			git := &fakeGit{resp: map[string][]gitResp{
-				"-C " + dest + " remote get-url origin": {{out: repoURL + ".git"}},
-				"-C " + dest + " rev-parse HEAD":        tc.heads,
+				"-C " + dest + " remote get-url origin":        {{out: repoURL + ".git"}},
+				"-C " + dest + " rev-parse HEAD":               tc.heads,
+				"-C " + dest + " symbolic-ref --short -q HEAD": {{out: "main"}},
 			}}
 
 			a, err := Sync(home, Spec{Dest: "~/plug", Repo: repoURL}, git.run)
@@ -154,8 +191,10 @@ func TestSyncTrackSkipAndUpdate(t *testing.T) {
 			if a.Kind != tc.wantKind || a.Detail != tc.wantDetail {
 				t.Errorf("action = %+v, want kind %s detail %q", a, tc.wantKind, tc.wantDetail)
 			}
-			if !git.called("pull --ff-only") {
-				t.Errorf("expected a pull, calls: %v", git.calls)
+			// The pull must name origin and the branch explicitly so
+			// checkout-local pull config can't redirect it.
+			if !git.called("pull --ff-only origin main") {
+				t.Errorf("expected an explicit pull, calls: %v", git.calls)
 			}
 		})
 	}
@@ -170,7 +209,7 @@ func TestSyncTrackReattachesDetachedHead(t *testing.T) {
 	git := &fakeGit{resp: map[string][]gitResp{
 		"-C " + dest + " remote get-url origin":              {{out: repoURL}},
 		"-C " + dest + " rev-parse HEAD":                     {{out: "aaaaaaaaaa"}, {out: "bbbbbbbbbb"}},
-		"-C " + dest + " symbolic-ref -q HEAD":               {{err: errors.New("exit 1")}},
+		"-C " + dest + " symbolic-ref --short -q HEAD":       {{err: errors.New("exit 1")}},
 		"-C " + dest + " rev-parse --abbrev-ref origin/HEAD": {{out: "origin/main"}},
 	}}
 
@@ -181,8 +220,8 @@ func TestSyncTrackReattachesDetachedHead(t *testing.T) {
 	if a.Kind != KindUpdate {
 		t.Errorf("action = %+v", a)
 	}
-	if !git.called("checkout main") {
-		t.Errorf("expected re-attach to main, calls: %v", git.calls)
+	if !git.called("checkout main") || !git.called("pull --ff-only origin main") {
+		t.Errorf("expected re-attach to main and an explicit pull, calls: %v", git.calls)
 	}
 }
 
@@ -256,6 +295,35 @@ func TestSyncPinned(t *testing.T) {
 		}
 	})
 
+	t.Run("unknown ref on shallow checkout unshallows", func(t *testing.T) {
+		home := t.TempDir()
+		dest := gitDir(t, home)
+		// An unpinned (shallow) checkout that just gained a pin: the
+		// fetch must unshallow so the ref can point anywhere in history.
+		if err := os.WriteFile(filepath.Join(dest, ".git", "shallow"), []byte("x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		git := &fakeGit{resp: map[string][]gitResp{
+			"-C " + dest + " remote get-url origin": {{out: repoURL}},
+			"-C " + dest + " rev-parse HEAD":        {{out: "cccccccccc"}},
+			"-C " + dest + " rev-parse v2.0.0^{commit}": {
+				{err: errors.New("unknown revision")},
+				{out: "eeeeeeeeee"},
+			},
+		}}
+
+		a, err := Sync(home, Spec{Dest: "~/plug", Repo: repoURL, Ref: "v2.0.0"}, git.run)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a.Kind != KindUpdate {
+			t.Errorf("action = %+v", a)
+		}
+		if !git.called("fetch --tags origin --unshallow") {
+			t.Errorf("expected an unshallowing fetch, calls: %v", git.calls)
+		}
+	})
+
 	t.Run("ref missing after fetch errors", func(t *testing.T) {
 		home := t.TempDir()
 		dest := gitDir(t, home)
@@ -304,6 +372,9 @@ func TestExpand(t *testing.T) {
 		{in: "/opt/thing", want: "/opt/thing"},
 		{in: ".zsh/plug", wantErr: true},
 		{in: "~", wantErr: true},
+		{in: "~/", wantErr: true},     // resolves to $HOME itself
+		{in: "$HOME/", wantErr: true}, // same
+		{in: "/", wantErr: true},      // filesystem root
 	} {
 		got, err := expand(tc.in, home)
 		if tc.wantErr {

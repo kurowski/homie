@@ -87,11 +87,19 @@ func Sync(home string, s Spec, run Runner) (Action, error) {
 	if err != nil {
 		return Action{}, err
 	}
-	if _, err := os.Stat(dest); err != nil {
+	// Lstat, not Stat: a symlink at dest — dangling or not — must be
+	// refused, never followed. A dangling one would otherwise look
+	// absent and the clone would write through it into wherever it
+	// points.
+	info, err := os.Lstat(dest)
+	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
 			return Action{}, fmt.Errorf("stat %s: %w", dest, err)
 		}
 		return clone(dest, s, run)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return Action{}, fmt.Errorf("%s is a symlink — refusing to operate through it (point the entry at the real path)", dest)
 	}
 	// Destination exists: it must be a git checkout of the declared
 	// repo. Anything else is the user's data — never clobber it.
@@ -116,16 +124,24 @@ func Sync(home string, s Spec, run Runner) (Action, error) {
 // home. Only unambiguous forms are accepted; a bare relative path has
 // no obvious base, so it's an error rather than a guess.
 func expand(dest, home string) (string, error) {
+	var out string
 	switch {
 	case strings.HasPrefix(dest, "~/"):
-		return filepath.Join(home, dest[2:]), nil
+		out = filepath.Join(home, dest[2:])
 	case strings.HasPrefix(dest, "$HOME/"):
-		return filepath.Join(home, strings.TrimPrefix(dest, "$HOME/")), nil
+		out = filepath.Join(home, strings.TrimPrefix(dest, "$HOME/"))
 	case filepath.IsAbs(dest):
-		return filepath.Clean(dest), nil
+		out = filepath.Clean(dest)
 	default:
 		return "", fmt.Errorf("externals destination %q must start with ~/ or $HOME/ or be an absolute path", dest)
 	}
+	// "~/" and "/" pass the prefix checks but mean cloning into $HOME
+	// or the filesystem root — always a config typo; refuse it here
+	// with a clear message instead of relaying git's confusing one.
+	if out == filepath.Clean(home) || out == string(os.PathSeparator) {
+		return "", fmt.Errorf("externals destination %q resolves to %s itself — declare a subdirectory", dest, out)
+	}
+	return out, nil
 }
 
 // clone materializes a missing destination. Unpinned clones are shallow
@@ -151,15 +167,16 @@ func clone(dest string, s Spec, run Runner) (Action, error) {
 
 // trackUpdate fast-forwards an unpinned checkout to its remote default
 // branch. A detached HEAD here means the entry used to be pinned; it is
-// re-attached to the default branch first so the pull has something to
-// fast-forward.
+// re-attached to the default branch first (resolving it may ask the
+// remote) so the pull has something to fast-forward.
 func trackUpdate(dest string, s Spec, run Runner) (Action, error) {
 	before, err := gitRun(run, "-C", dest, "rev-parse", "HEAD")
 	if err != nil {
 		return Action{}, err
 	}
-	if _, err := run("git", "-C", dest, "symbolic-ref", "-q", "HEAD"); err != nil {
-		branch, err := defaultBranch(dest, run)
+	branch, berr := gitRun(run, "-C", dest, "symbolic-ref", "--short", "-q", "HEAD")
+	if berr != nil || branch == "" {
+		branch, err = defaultBranch(dest, run)
 		if err != nil {
 			return Action{}, err
 		}
@@ -167,7 +184,9 @@ func trackUpdate(dest string, s Spec, run Runner) (Action, error) {
 			return Action{}, err
 		}
 	}
-	if _, err := gitRun(run, "-C", dest, "pull", "--ff-only"); err != nil {
+	// Name the remote and branch explicitly so a stray pull.default or
+	// rewired upstream in the checkout can't redirect the update.
+	if _, err := gitRun(run, "-C", dest, "pull", "--ff-only", "origin", branch); err != nil {
 		return Action{}, err
 	}
 	after, err := gitRun(run, "-C", dest, "rev-parse", "HEAD")
@@ -205,6 +224,8 @@ func pinnedUpdate(dest string, s Spec, run Runner) (Action, error) {
 	if _, err := gitRun(run, "-C", dest, "checkout", "--detach", s.Ref); err != nil {
 		return Action{}, err
 	}
+	// Deliberately asymmetric: where we were (a commit) -> what was
+	// asked for (the ref name). The ref reads better than its hash.
 	return Action{Spec: s, Dest: dest, Kind: KindUpdate, Detail: short(head) + " -> " + s.Ref}, nil
 }
 
