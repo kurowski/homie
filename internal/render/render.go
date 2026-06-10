@@ -31,6 +31,9 @@ import (
 // No json tags: `hm context` marshals this struct directly so the JSON
 // keys are the template field names verbatim. Keep it that way — a new
 // field is then discoverable via `hm context` with no extra wiring.
+// A new field DOES need adding to the two hand-written field tables:
+// cmd/hm/templating.go (`hm help templating`) and the docs site's
+// dotfiles page.
 type Data struct {
 	Name         string
 	Email        string
@@ -74,6 +77,8 @@ func Render(input string, data Data) (string, error) {
 	tmpl, err := template.New("homie").
 		Funcs(sprig.TxtFuncMap()).
 		Funcs(template.FuncMap{
+			// Custom funcs are documented in cmd/hm/templating.go
+			// (`hm help templating`) and the docs site — keep in sync.
 			"hasTag": hasTagFn(data.Tags),
 		}).
 		Option("missingkey=error").

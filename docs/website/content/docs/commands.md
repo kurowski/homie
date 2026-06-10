@@ -260,6 +260,17 @@ the user repo is cloned. Most users never invoke this directly.
 
 ---
 
+## Help topics
+
+Beyond per-command `--help`, the binary ships one reference topic:
+
+- `hm help templating` — the template data fields, the `hasTag` helper,
+  Sprig availability, and the missing-key rules. The offline version of
+  the [Dotfiles](/docs/dotfiles/) reference; `hm help template` and
+  `hm help templates` resolve to the same page.
+
+---
+
 ## Global flags
 
 These work on every subcommand:

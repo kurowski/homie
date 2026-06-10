@@ -26,8 +26,8 @@ membership in Tags, and the Sprig function library.
 
 Pairs with the render preview commands: introspect the context with
 ` + "`hm context`" + `, then check a template with ` + "`hm render <path>`" + ` or
-` + "`hm home --dry-run`" + `. See https://homie.sh/docs/dotfiles/ for the
-template data reference.`,
+` + "`hm home --dry-run`" + `. Field meanings and helper functions are listed
+in ` + "`hm help templating`" + `.`,
 	Args: cobra.NoArgs,
 	RunE: runContext,
 }

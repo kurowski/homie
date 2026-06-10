@@ -37,7 +37,8 @@ Files are partitioned by suffix:
   - Files ending in .tmpl are rendered through Go text/template + Sprig
     and written as real files with the .tmpl suffix stripped.
     ` + "`home/.gitconfig.tmpl`" + ` → ` + "`~/.gitconfig`" + `. The output is regenerated
-    on every apply.
+    on every apply. Data fields and helper functions are listed in
+    ` + "`hm help templating`" + `.
 
 When two trees claim the same target, the more-specific tree (more
 required tags in its directory name) wins. Same-specificity collisions

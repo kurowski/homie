@@ -114,17 +114,20 @@ Every template has these fields available:
 | `.Email`        | string              | `[user].email` |
 | `.Profile`      | string              | `[profile].name` |
 | `.DefaultShell` | string              | `[profile].default_shell` |
-| `.Distro`       | string              | detected (`ubuntu`, `debian`, `fedora`, `unknown`) |
+| `.Distro`       | string              | detected (`ubuntu`, `debian`, `fedora`, `macos`, `unknown`) |
 | `.Arch`         | string              | detected (`amd64`, `arm64`) |
 | `.IsContainer`  | bool                | detected (`/.dockerenv`, cgroup, env) |
-| `.IsRoot`       | bool                | `os.Geteuid() == 0` |
+| `.IsRoot`       | bool                | detected (running as root) |
 | `.Tags`         | `[]string`          | merged auto + profile + extra |
 | `.Vars`         | `map[string]any`    | the `[vars]` table |
 
 To see this table populated with the live values on the current host,
 run `hm context` — it prints the data as JSON with keys matching the
 field names above, so it doubles as a machine-readable reference for
-scripts and agents.
+scripts and agents. The reference itself also ships inside the binary:
+`hm help templating` lists these fields, the `hasTag` helper, and the
+missing-key rules, so it works offline on any machine with `hm`
+installed.
 
 ### The `hasTag` helper
 
