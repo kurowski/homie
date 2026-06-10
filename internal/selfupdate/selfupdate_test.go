@@ -167,6 +167,7 @@ func TestBrewManaged(t *testing.T) {
 		"/home/linuxbrew/.linuxbrew/Cellar/hm/0.4.0/bin/hm": true,
 		"/usr/local/bin/hm":                             false,
 		"/home/scout/.local/bin/hm":                     false,
+		"/home/scout/code/Cellar/hm/bin/hm":             false,
 	} {
 		if got := BrewManaged(p); got != want {
 			t.Errorf("BrewManaged(%q) = %v, want %v", p, got, want)

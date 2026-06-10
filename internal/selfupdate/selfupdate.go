@@ -35,13 +35,27 @@ func IsReleaseVersion(v string) bool {
 	return releaseTag.MatchString(v)
 }
 
+// brewCellars are the cellar directories of the three Homebrew
+// layouts: macOS arm64, macOS amd64, and Linux.
+var brewCellars = []string{
+	"/opt/homebrew/Cellar/",
+	"/usr/local/Cellar/",
+	"/home/linuxbrew/.linuxbrew/Cellar/",
+}
+
 // BrewManaged reports whether path points into a Homebrew cellar,
 // where the formula owns the file and `brew upgrade` is the right
 // updater. Callers pass a symlink-resolved path: every Homebrew layout
-// (/opt/homebrew, /usr/local, linuxbrew) links bin/hm into a Cellar
-// directory, so the resolved path is the reliable signal.
+// links bin/hm into its Cellar, so the resolved path is the reliable
+// signal. Anchored to the known cellar prefixes so an unrelated
+// directory that happens to be named Cellar doesn't match.
 func BrewManaged(path string) bool {
-	return strings.Contains(path, "/Cellar/")
+	for _, cellar := range brewCellars {
+		if strings.HasPrefix(path, cellar) {
+			return true
+		}
+	}
+	return false
 }
 
 // AssetName is the release asset for this OS and architecture, named
@@ -105,22 +119,28 @@ func (u *Updater) Latest() (string, error) {
 	return tag, nil
 }
 
-// Fetch downloads the released binary for this OS/arch along with the
-// release's SHA256SUMS, and returns the binary only after its checksum
-// verifies.
+// Fetch downloads the release's SHA256SUMS and then the binary for
+// this OS/arch, returning the binary only after its checksum verifies.
+// The checklist comes first: it's tiny, so a half-published release
+// (no SHA256SUMS, no entry for this asset) fails fast before the
+// multi-megabyte binary download.
 func (u *Updater) Fetch(tag string) ([]byte, error) {
 	base := u.BaseURL + "/releases/download/" + tag + "/"
 	asset := AssetName()
-	bin, err := u.get(base + asset)
-	if err != nil {
-		return nil, err
-	}
 	sums, err := u.get(base + "SHA256SUMS")
 	if err != nil {
 		return nil, err
 	}
-	if err := verify(bin, sums, asset); err != nil {
+	want, err := sumFor(sums, asset)
+	if err != nil {
 		return nil, err
+	}
+	bin, err := u.get(base + asset)
+	if err != nil {
+		return nil, err
+	}
+	if got := sha256.Sum256(bin); hex.EncodeToString(got[:]) != want {
+		return nil, fmt.Errorf("checksum mismatch for %s", asset)
 	}
 	return bin, nil
 }
@@ -137,26 +157,17 @@ func (u *Updater) get(url string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-// verify checks data against the entry for name in a sha256sum-format
-// checklist ("<hex>  <name>" per line; SHA256SUMS carries one line per
-// published os/arch).
-func verify(data, sums []byte, name string) error {
-	var want string
+// sumFor finds the checksum for name in a sha256sum-format checklist
+// ("<hex>  <name>" per line; SHA256SUMS carries one line per published
+// os/arch).
+func sumFor(sums []byte, name string) (string, error) {
 	for line := range strings.SplitSeq(string(sums), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) == 2 && fields[1] == name {
-			want = fields[0]
-			break
+			return fields[0], nil
 		}
 	}
-	if want == "" {
-		return fmt.Errorf("SHA256SUMS has no entry for %s", name)
-	}
-	got := sha256.Sum256(data)
-	if hex.EncodeToString(got[:]) != want {
-		return fmt.Errorf("checksum mismatch for %s", name)
-	}
-	return nil
+	return "", fmt.Errorf("SHA256SUMS has no entry for %s", name)
 }
 
 // Apply atomically replaces the binary at target with data. The new

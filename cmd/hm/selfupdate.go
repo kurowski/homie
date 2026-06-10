@@ -39,6 +39,15 @@ func init() {
 	rootCmd.AddCommand(selfupdateCmd)
 }
 
+// Test seams: tests point newUpdater at an httptest server and
+// executablePath at a scratch file, so the whole command can run
+// without the network and without the test binary becoming the swap
+// target.
+var (
+	newUpdater     = selfupdate.New
+	executablePath = selfupdate.ExecutablePath
+)
+
 func runSelfupdate(cmd *cobra.Command, args []string) error {
 	w := cmd.OutOrStdout()
 	check, _ := cmd.Flags().GetBool("check")
@@ -46,7 +55,7 @@ func runSelfupdate(cmd *cobra.Command, args []string) error {
 	if !selfupdate.IsReleaseVersion(version) {
 		return fmt.Errorf("this hm was built from source (version %s) — rebuild it, or reinstall a release with install.sh", version)
 	}
-	exe, err := selfupdate.ExecutablePath()
+	exe, err := executablePath()
 	if err != nil {
 		return err
 	}
@@ -54,7 +63,7 @@ func runSelfupdate(cmd *cobra.Command, args []string) error {
 		return errors.New("this hm is managed by Homebrew — update it with `brew upgrade` instead")
 	}
 
-	u := selfupdate.New()
+	u := newUpdater()
 	latest, err := u.Latest()
 	if err != nil {
 		return err
