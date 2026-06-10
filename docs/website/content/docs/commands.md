@@ -106,6 +106,39 @@ real `$HOME`. To preview every active template at once, use
 
 ---
 
+## `hm context`
+
+Prints the exact data passed to every template render on this host, as
+JSON. The keys match the template fields one-to-one — a key named
+`"Email"` means a template may reference `{{ .Email }}` — so one read
+tells you (or an agent) every field a template can use, with the values
+it would resolve to right now.
+
+```sh
+$ hm context
+{
+  "Name": "Scout Homes",
+  "Email": "scout@homie.sh",
+  "Profile": "personal",
+  "DefaultShell": "zsh",
+  "Distro": "fedora",
+  "Arch": "amd64",
+  "IsContainer": false,
+  "IsRoot": false,
+  "Tags": ["amd64", "coach", "fedora", "personal"],
+  "Vars": { "EDITOR": "nvim" }
+}
+```
+
+Output is always JSON, nothing else on stdout — safe to pipe into `jq`.
+The `hasTag` helper and the Sprig function library are callable from
+templates but aren't data fields, so they don't appear here. Pairs
+naturally with the preview commands: introspect the context, then check
+a template with `hm render` or `hm home --dry-run`. See
+[Dotfiles](/docs/dotfiles/) for the full data reference.
+
+---
+
 ## `hm install`
 
 Just the package phases. Resolves `[packages].all + [packages].<distro>`
@@ -166,6 +199,15 @@ Read-only view of what `apply` _would_ do. No changes, no installs, no
 file writes. Useful for previewing, for CI checks, or for confidence
 before a real run.
 
+Flags:
+
+- `--json` — emit the same information as one JSON document: detected
+  environment, repo path, identity, profile, active tags, the native and
+  per-backend package lists, config warnings, and the error/warning
+  counts from a doctor pass. When no environment repo is found, `"repo"`
+  is `null` and the command still exits zero; an `HM_REPO` that points
+  at a directory without a `homie.toml` is an error instead.
+
 ---
 
 ## `hm doctor`
@@ -185,6 +227,28 @@ Walks the repo and reports:
 
 Exit code is `0` if everything is clean, `1` otherwise — useful as a
 post-deploy health check in CI.
+
+Flags:
+
+- `--json` — emit the findings as structured records instead of the
+  styled report:
+
+  ```json
+  {
+    "findings": [
+      { "severity": "warn", "area": "packages", "message": "1 not installed: ripgrep" }
+    ],
+    "errors": 0,
+    "warnings": 1
+  }
+  ```
+
+  Severity is `error`, `warn`, or `info`; area is the check group
+  (`env`, `config`, `home`, `link`, `render`, `packages`, `scripts`).
+  The exit-code rule is unchanged — parse the document, then check the
+  exit code. A non-zero exit caused by error findings still emits one
+  valid JSON document on stdout; a failure before the checks run (no
+  repo, unreadable config) prints to stderr with no JSON.
 
 ---
 

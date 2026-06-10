@@ -16,7 +16,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var doctorHome string
+var (
+	doctorHome string
+	doctorJSON bool
+)
 
 var doctorCmd = &cobra.Command{
 	Use:   "doctor",
@@ -26,8 +29,16 @@ changes, reporting issues hm apply would care about: broken or stale
 dotfile symlinks, unrendered or out-of-date templates, missing packages,
 scripts that aren't executable, and unknown distros.
 
+With --json the findings are emitted as structured records on stdout —
+{"severity", "area", "message"} plus error/warning counts — so scripts
+and agents can consume the report without scraping the styled text.
+
 Exit code is 1 when any error-severity finding is reported, 0 otherwise
-— useful in CI to gate merges against a Homie-managed environment.`,
+— useful in CI to gate merges against a Homie-managed environment. The
+same rule applies with --json: parse the document, then check the exit
+code. Error findings still produce one valid JSON document on stdout;
+only a failure before the checks run (no repo, unreadable config)
+prints to stderr with no JSON.`,
 	RunE:          runDoctor,
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -35,7 +46,15 @@ Exit code is 1 when any error-severity finding is reported, 0 otherwise
 
 func init() {
 	doctorCmd.Flags().StringVar(&doctorHome, "home", "", "override target home directory (default $HOME)")
+	doctorCmd.Flags().BoolVar(&doctorJSON, "json", false, "emit machine-readable JSON instead of the styled report")
 	rootCmd.AddCommand(doctorCmd)
+}
+
+// doctorOutput is the document emitted by `hm doctor --json`.
+type doctorOutput struct {
+	Findings []doctor.Finding `json:"findings"`
+	Errors   int              `json:"errors"`
+	Warnings int              `json:"warnings"`
 }
 
 func runDoctor(cmd *cobra.Command, args []string) error {
@@ -57,9 +76,26 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 	mgr := packages.For(env)
 
-	noTTY, _ := cmd.Root().PersistentFlags().GetBool("no-tty")
 	report := doctor.Run(repoDir, home, cfg, env, mgr, packages.ForBackend)
-	writeReport(cmd.OutOrStdout(), report, noTTY)
+	if doctorJSON {
+		findings := report.Findings
+		if findings == nil {
+			findings = []doctor.Finding{}
+		}
+		errs, warns := report.Counts()
+		if err := writeJSON(cmd.OutOrStdout(), doctorOutput{
+			Findings: findings,
+			Errors:   errs,
+			Warnings: warns,
+		}); err != nil {
+			return err
+		}
+	} else {
+		noTTY, _ := cmd.Root().PersistentFlags().GetBool("no-tty")
+		writeReport(cmd.OutOrStdout(), report, noTTY)
+	}
+	// errSilentExit: the report (text or JSON) is the output; exiting
+	// non-zero on errors must not print anything on top of it.
 	if report.HasErrors() {
 		return errSilentExit
 	}
