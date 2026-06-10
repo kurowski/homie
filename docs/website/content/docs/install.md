@@ -117,20 +117,32 @@ to confirm the binary is wired up correctly.
 
 ## Updating
 
-There's no `hm upgrade` command — `hm` is a single static binary, so
-updating just means replacing it. Re-run whatever you used to install,
-and it overwrites the existing binary in place:
+`hm` updates itself:
 
 ```sh
-curl -fsSL https://homie.sh/install.sh | bash          # latest
-curl -fsSL https://homie.sh/install.sh | HM_RELEASE=v0.2.0 bash   # pin / downgrade
-hm --version                                           # confirm
+hm selfupdate          # replace the binary with the latest release
+hm selfupdate --check  # just see whether a newer release exists
 ```
 
-The install script is idempotent — it re-detects your arch, re-verifies
-the SHA256, and replaces `hm` in the same `HM_BINDIR`. The other install
-methods update the same way: re-run `go install …@latest`, or `git pull`
-and `make build` from a source checkout.
+It downloads the right binary for your OS and architecture, verifies it
+against the release's `SHA256SUMS`, and replaces the binary in place —
+the same checks the install script performs. A binary in
+`/usr/local/bin` usually needs `sudo hm selfupdate`; the default user
+install in `~/.local/bin` doesn't.
+
+Re-running the install script does the same job, and is the way to pin
+or downgrade:
+
+```sh
+curl -fsSL https://homie.sh/install.sh | bash                      # latest
+curl -fsSL https://homie.sh/install.sh | HM_RELEASE=v0.2.0 bash    # pin / downgrade
+hm --version                                                       # confirm
+```
+
+Builds from source update the way they were installed — re-run
+`go install …@latest`, or `git pull` and `make build` from the checkout.
+`hm selfupdate` refuses to overwrite a from-source build, so a dev
+binary can't be clobbered by accident.
 
 If `hm --version` doesn't show the version you just installed, a copy
 left on `PATH` by a different install method is probably shadowing it —
@@ -138,5 +150,4 @@ left on `PATH` by a different install method is probably shadowing it —
 
 Re-running your environment repo's `bootstrap.sh` also pulls the latest
 `hm` before applying, but that's a full reapply of your environment, not
-just a binary bump — reach for the install script when you only want to
-update `hm` itself.
+just a binary bump — `hm selfupdate` when you only want the binary.
