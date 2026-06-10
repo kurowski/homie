@@ -57,8 +57,11 @@ func runRender(cmd *cobra.Command, args []string) error {
 	if err != nil && !filepath.IsAbs(path) {
 		// Not found from the cwd — fall back to repo-relative, so
 		// `hm render home/.gitconfig.tmpl` works from anywhere.
-		if alt, altErr := os.ReadFile(filepath.Join(repoDir, path)); altErr == nil {
-			raw, err = alt, nil
+		alt := filepath.Join(repoDir, path)
+		if altRaw, altErr := os.ReadFile(alt); altErr == nil {
+			raw, err = altRaw, nil
+		} else {
+			err = fmt.Errorf("%w (also tried %s)", err, alt)
 		}
 	}
 	if err != nil {
@@ -68,6 +71,9 @@ func runRender(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", path, err)
 	}
+	// No trailing-newline normalization: stdout carries the rendered
+	// bytes exactly as a real apply would write them, so the output is
+	// safe to diff or pipe.
 	fmt.Fprint(cmd.OutOrStdout(), out)
 	return nil
 }

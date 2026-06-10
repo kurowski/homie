@@ -118,7 +118,7 @@ func dryRunHome(w io.Writer, repoDir, home string, cfg config.Config, env detect
 		fmt.Fprintf(w, "%-6s %s <- %s\n", verb, relTarget(home, r.Target), tree.RelTo(repoDir, r.Source))
 	}
 	data := render.BuildData(cfg, env)
-	var failed int
+	var failed []string
 	for _, r := range resolved {
 		if !r.IsTemplate {
 			continue
@@ -127,7 +127,7 @@ func dryRunHome(w io.Writer, repoDir, home string, cfg config.Config, env detect
 		out, err := renderSource(r.Source, data)
 		if err != nil {
 			fmt.Fprintf(w, "error: %v\n", err)
-			failed++
+			failed = append(failed, tree.RelTo(repoDir, r.Source))
 			continue
 		}
 		fmt.Fprint(w, out)
@@ -135,8 +135,11 @@ func dryRunHome(w io.Writer, repoDir, home string, cfg config.Config, env detect
 			fmt.Fprintln(w)
 		}
 	}
-	if failed > 0 {
-		return fmt.Errorf("%d template(s) failed to render", failed)
+	// Name the failures in the returned error: the inline error lines
+	// above live on stdout among the rendered content, so this is what
+	// makes a CI run's stderr say which templates broke.
+	if len(failed) > 0 {
+		return fmt.Errorf("%d template(s) failed to render: %s", len(failed), strings.Join(failed, ", "))
 	}
 	return nil
 }
