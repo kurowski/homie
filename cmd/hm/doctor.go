@@ -36,7 +36,9 @@ and agents can consume the report without scraping the styled text.
 Exit code is 1 when any error-severity finding is reported, 0 otherwise
 — useful in CI to gate merges against a Homie-managed environment. The
 same rule applies with --json: parse the document, then check the exit
-code.`,
+code. Error findings still produce one valid JSON document on stdout;
+only a failure before the checks run (no repo, unreadable config)
+prints to stderr with no JSON.`,
 	RunE:          runDoctor,
 	SilenceUsage:  true,
 	SilenceErrors: true,

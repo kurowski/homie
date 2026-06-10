@@ -9,6 +9,13 @@ import (
 
 const ConfigFilename = "homie.toml"
 
+// ErrNotFound reports that the walk-up search located no environment
+// repo. An $HM_REPO that doesn't resolve is deliberately NOT this error
+// — a user-asserted pointer that's wrong is a misconfiguration, and
+// callers that treat "no repo" as a benign state (`hm status`) must
+// still surface it.
+var ErrNotFound = fmt.Errorf("no %s found", ConfigFilename)
+
 // Find returns the user environment repo root. It checks $HM_REPO first, then
 // walks up from the current working directory looking for a homie.toml.
 func Find() (string, error) {
@@ -34,7 +41,7 @@ func Find() (string, error) {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("no %s found in %s or any parent (set $HM_REPO to point at your environment repo)", ConfigFilename, cwd)
+			return "", fmt.Errorf("%w in %s or any parent (set $HM_REPO to point at your environment repo)", ErrNotFound, cwd)
 		}
 		dir = parent
 	}

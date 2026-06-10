@@ -59,13 +59,32 @@ func TestStatusJSON(t *testing.T) {
 	if !slices.Contains(doc.Repo.Tags, "personal") {
 		t.Errorf("repo.tags = %v, want to contain %q", doc.Repo.Tags, "personal")
 	}
-	// The fixture declares no packages; the field must still be [] so
-	// consumers get a stable shape.
-	if doc.Repo.Packages == nil || !strings.Contains(out, `"packages": []`) {
-		t.Errorf("packages should serialize as [], got:\n%s", out)
+	// The fixture declares no packages, backends, or warnings; the
+	// fields must still be present as []/{} — never null, never absent
+	// — so consumers can iterate without an absent-vs-empty check.
+	for _, want := range []string{`"packages": []`, `"backend_packages": {}`, `"warnings": []`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %s:\n%s", want, out)
+		}
 	}
 	if doc.Health == nil {
 		t.Errorf("health missing from output:\n%s", out)
+	}
+}
+
+// TestStatusBadHMRepoErrors: $HM_REPO pointing at a directory with no
+// homie.toml is a misconfiguration, not "no repo" — both output modes
+// must error rather than report the benign not-found state.
+func TestStatusBadHMRepoErrors(t *testing.T) {
+	t.Setenv("HM_REPO", t.TempDir())
+
+	for _, args := range [][]string{
+		{"status", "--json"},
+		{"status"},
+	} {
+		if out, err := runStatusCmd(t, args); err == nil {
+			t.Errorf("%v: expected error for bad HM_REPO\noutput:\n%s", args, out)
+		}
 	}
 }
 

@@ -202,10 +202,11 @@ before a real run.
 Flags:
 
 - `--json` — emit the same information as one JSON document: detected
-  environment, repo path, identity, profile, active tags, the native
-  package list plus per-backend lists, config warnings, and the
-  error/warning counts from a doctor pass. When no environment repo is
-  found, `"repo"` is `null` and the command still exits zero.
+  environment, repo path, identity, profile, active tags, the native and
+  per-backend package lists, config warnings, and the error/warning
+  counts from a doctor pass. When no environment repo is found, `"repo"`
+  is `null` and the command still exits zero; an `HM_REPO` that points
+  at a directory without a `homie.toml` is an error instead.
 
 ---
 
@@ -245,7 +246,9 @@ Flags:
   Severity is `error`, `warn`, or `info`; area is the check group
   (`env`, `config`, `home`, `link`, `render`, `packages`, `scripts`).
   The exit-code rule is unchanged — parse the document, then check the
-  exit code.
+  exit code. A non-zero exit caused by error findings still emits one
+  valid JSON document on stdout; a failure before the checks run (no
+  repo, unreadable config) prints to stderr with no JSON.
 
 ---
 
