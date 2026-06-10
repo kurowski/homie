@@ -27,12 +27,16 @@ Homie does it all in one, from one repo, with no daily friction: editing
 
 ## Status
 
-v0.3.0. Supported platforms: Ubuntu, Debian, Fedora, and macOS (Apple
+v0.4.0. Supported platforms: Ubuntu, Debian, Fedora, and macOS (Apple
 Silicon & Intel). Dotfiles (symlinks + Go-template files), per-host overlays
 and tag-conditional `home/` and `scripts/` trees, native packages (apt/dnf, or
-Homebrew formulae + casks on macOS) plus flatpak and snap backends, and
+Homebrew formulae + casks on macOS) plus flatpak and snap backends, declarative
+pinned git clones (`[externals]` — plugins, themes, editor distros), and
 ordered pre/post setup scripts — install → bootstrap → apply → idempotent
-reapply verified end-to-end. User-facing docs at <https://homie.sh>; design brief in
+reapply verified end-to-end. Template previews (`hm render`, `hm home
+--dry-run`) and machine-readable host state (`hm status --json`, `hm doctor
+--json`, `hm context`) give scripts and AI agents a clean interface.
+User-facing docs at <https://homie.sh>; design brief in
 [`CLAUDE.md`](./CLAUDE.md).
 
 ## License

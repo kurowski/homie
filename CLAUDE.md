@@ -327,7 +327,7 @@ and stay).
 
 ## Current state
 
-v0.3.0 shipped. The MVP (detect, config, link, render, native packages,
+v0.4.0 shipped. The MVP (detect, config, link, render, native packages,
 runner, UI, `hm apply` end-to-end, `hm init` scaffold, `bootstrap.sh`
 template, `hm status` / `hm doctor`, GitHub Actions release pipeline,
 e2e container harness covering Ubuntu/Debian/Fedora, docs site) was
@@ -353,6 +353,15 @@ v0.0.2. Since then:
   individually so one conflict doesn't skip the rest; interactive scripts
   inherit the terminal so `sudo` can prompt in-band (and `setsid` away from
   it when non-interactive, so a prompt fails fast instead of hanging).
+- **v0.4.0** — authoring and agent introspection, plus the externals phase:
+  render previews (`hm render <path>`, `hm home --dry-run`); machine-readable
+  state (`hm status --json`, `hm doctor --json`, and `hm context` — the exact
+  template data model as JSON, keys matching the template fields verbatim);
+  an offline `hm help templating` reference (aliases `template`/`templates`);
+  and a declarative `[externals]` table — tag-gated, pinnable git clones
+  (zsh/tmux/nvim plugins, themes) kept converged by a new apply phase between
+  backends and home, replacing bespoke clone scripts (`internal/externals`,
+  `--skip-externals`). Doctor checks for externals are tracked in #42.
 
 **Layout migration** (one-time, for repos created against v0.0.2):
 `git mv dotfiles/* home/ && git mv templates/* home/ && rmdir dotfiles
