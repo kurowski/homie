@@ -4,8 +4,9 @@ description: "Reference for every `hm` subcommand."
 weight: 20
 ---
 
-Every Homie command except `hm init` expects to be run from the root of
-a user environment repo, or with `HM_REPO` set to its path.
+Every Homie command except `hm init` and `hm selfupdate` expects to be
+run from the root of a user environment repo, or with `HM_REPO` set to
+its path.
 
 ---
 
@@ -265,6 +266,32 @@ Flags:
 Installs the minimum tools needed for `apply` to proceed: `git` and
 `ca-certificates`. Called by `bootstrap.sh` on a fresh machine before
 the user repo is cloned. Most users never invoke this directly.
+
+---
+
+## `hm selfupdate`
+
+Updates the `hm` binary itself to the latest release. Resolves the
+newest tag, downloads the binary for your OS and architecture, verifies
+it against the release's `SHA256SUMS`, and atomically replaces the
+running binary — the same checks the install script performs.
+`hm self-update` is an alias.
+
+```sh
+hm selfupdate          # update in place
+hm selfupdate --check  # just report whether a newer release exists
+```
+
+Updating writes to the directory `hm` lives in: a binary in
+`/usr/local/bin` usually needs `sudo hm selfupdate`, while the default
+user install in `~/.local/bin` needs no root. A build from source or a
+Homebrew-managed binary refuses to self-update — rebuild it, or let the
+tool that installed it do the upgrade.
+
+Flags:
+
+- `--check` — report whether a newer release exists without installing
+  it.
 
 ---
 
