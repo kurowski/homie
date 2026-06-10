@@ -166,6 +166,7 @@ homie/
     link/           # symlink phase (consumes tree.Resolve)
     render/         # template phase (consumes tree.Resolve)
     packages/       # package manager abstraction (apt, dnf, brew, flatpak, snap, noop)
+    externals/      # externals phase: keep declared git repos cloned/updated
     runner/         # ordered script execution (pre + post phases, scripts.tag-X/ trees)
     doctor/         # read-only audit, emits Findings
     scaffold/       # `hm init` — generate a new user environment repo

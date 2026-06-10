@@ -21,11 +21,12 @@ const HostsDir = "hosts"
 
 // Config is the parsed shape of homie.toml.
 type Config struct {
-	User     User              `toml:"user"`
-	Profile  Profile           `toml:"profile"`
-	Packages Packages          `toml:"packages"`
-	Tags     Tags              `toml:"tags"`
-	Vars     map[string]string `toml:"vars"`
+	User      User              `toml:"user"`
+	Profile   Profile           `toml:"profile"`
+	Packages  Packages          `toml:"packages"`
+	Externals Externals         `toml:"externals"`
+	Tags      Tags              `toml:"tags"`
+	Vars      map[string]string `toml:"vars"`
 
 	// Warnings holds non-fatal issues encountered while parsing
 	// (e.g. unknown fields). Populated by Load.
@@ -249,12 +250,13 @@ func isBackendName(k string) bool {
 	return ok
 }
 
-// parseTagKey turns a [packages."tag:X[.tag:Y...]"] key into the set of
-// tags that must all be active for the block to apply, plus a canonical
-// map key: the sorted tags joined by ".". The leading "tag:" is confirmed
-// by the caller. Every "."-separated segment must be "tag:<name>" with a
-// non-empty name; anything else (a bare segment, a trailing ".", an empty
-// "tag:") is a malformed key and returns an error.
+// parseTagKey turns a "tag:X[.tag:Y...]" sub-table key (under [packages]
+// or [externals]) into the set of tags that must all be active for the
+// block to apply, plus a canonical map key: the sorted tags joined by
+// ".". The leading "tag:" is confirmed by the caller. Every
+// "."-separated segment must be "tag:<name>" with a non-empty name;
+// anything else (a bare segment, a trailing ".", an empty "tag:") is a
+// malformed key and returns an error.
 //
 // Tag names can't contain "." — the same constraint the home/scripts trees
 // impose — so "." is an unambiguous segment delimiter and the canonical key
@@ -267,7 +269,7 @@ func parseTagKey(key string) (canonical string, tags []string, err error) {
 	for _, seg := range segments {
 		name, ok := strings.CutPrefix(seg, TagKeyPrefix)
 		if !ok || name == "" {
-			return "", nil, fmt.Errorf(`malformed package tag key [packages."%s"]: each "."-separated segment must be "tag:<name>" with a non-empty name (e.g. "tag:personal.tag:ubuntu")`, key)
+			return "", nil, fmt.Errorf(`malformed tag key "%s": each "."-separated segment must be "tag:<name>" with a non-empty name (e.g. "tag:personal.tag:ubuntu")`, key)
 		}
 		tags = append(tags, name)
 	}
@@ -379,13 +381,14 @@ func loadFile(path string) (Config, error) {
 	for _, k := range md.Undecoded() {
 		c.Warnings = append(c.Warnings, fmt.Sprintf("unknown field in %s: %s", filepath.Base(path), k.String()))
 	}
-	// Packages has a custom UnmarshalTOML, so md.Undecoded() can't see
-	// typos inside [packages]. Drain the warnings it collected into the
-	// Config-level slice with the source filename prefixed for context.
-	for _, w := range c.Packages.Warnings {
+	// Packages and Externals have custom UnmarshalTOML, so md.Undecoded()
+	// can't see typos inside them. Drain the warnings they collected into
+	// the Config-level slice with the source filename prefixed for context.
+	for _, w := range append(c.Packages.Warnings, c.Externals.Warnings...) {
 		c.Warnings = append(c.Warnings, fmt.Sprintf("%s: %s", filepath.Base(path), w))
 	}
 	c.Packages.Warnings = nil
+	c.Externals.Warnings = nil
 	return c, nil
 }
 
@@ -451,6 +454,29 @@ func merge(base, overlay Config) Config {
 				}
 			}
 			base.Packages.Backends[name] = baseBe
+		}
+	}
+	// Externals are keyed specs, not lists: the overlay replaces per
+	// destination (like Vars), rather than appending (like Packages).
+	if len(overlay.Externals.Base) > 0 {
+		if base.Externals.Base == nil {
+			base.Externals.Base = make(map[string]ExternalSpec, len(overlay.Externals.Base))
+		}
+		for dest, spec := range overlay.Externals.Base {
+			base.Externals.Base[dest] = spec
+		}
+	}
+	if len(overlay.Externals.ByTag) > 0 {
+		if base.Externals.ByTag == nil {
+			base.Externals.ByTag = make(map[string]map[string]ExternalSpec, len(overlay.Externals.ByTag))
+		}
+		for tag, block := range overlay.Externals.ByTag {
+			if base.Externals.ByTag[tag] == nil {
+				base.Externals.ByTag[tag] = make(map[string]ExternalSpec, len(block))
+			}
+			for dest, spec := range block {
+				base.Externals.ByTag[tag][dest] = spec
+			}
 		}
 	}
 	base.Tags.Extra = appendUnique(base.Tags.Extra, overlay.Tags.Extra)

@@ -144,6 +144,41 @@ notice when there's nothing to install.
 
 ---
 
+## Shell and editor plugins without a plugin manager
+
+Anything that "installs" by being a git checkout at a known path — zsh
+plugins, `tpm`, an AstroNvim template — is an `[externals]` entry, not
+a script. Homie clones it on the first apply and keeps it updated after
+that.
+
+```toml
+[externals."~/.zsh/plugins/zsh-autosuggestions"]
+repo = "https://github.com/zsh-users/zsh-autosuggestions"
+ref  = "v0.7.1"          # pinned — your shell won't change under you
+
+[externals."~/.tmux/plugins/tpm"]
+repo = "https://github.com/tmux-plugins/tpm"
+ref  = "v3.1.0"
+
+[externals."~/.config/nvim"]
+repo = "https://github.com/AstroNvim/template"
+ref  = "v4.7.7"
+```
+
+Then source the checkouts from your dotfiles as usual, e.g. in
+`home/.zshrc`:
+
+```sh
+source ~/.zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+```
+
+Updating a plugin is a one-line diff: bump the `ref`, run `hm apply`,
+commit. Leaving `ref` off tracks the upstream default branch instead —
+fine for a theme, risky for the shell you'd need to debug a bad update.
+See [Config](/docs/config/#externals) for the full semantics.
+
+---
+
 ## Tagged secrets via your password manager
 
 Homie has no built-in secret support. Use your favourite secret store

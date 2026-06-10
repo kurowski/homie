@@ -297,7 +297,7 @@ fedora = ["pkg"]
 			if err == nil {
 				t.Fatalf("Load should reject malformed tag key %q", key)
 			}
-			if !strings.Contains(err.Error(), "malformed package tag key") {
+			if !strings.Contains(err.Error(), "malformed tag key") {
 				t.Errorf("error for %q should be clear about the malformed key, got: %v", key, err)
 			}
 		})
