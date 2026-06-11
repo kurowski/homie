@@ -170,6 +170,7 @@ homie/
     runner/         # ordered script execution (pre + post phases, scripts.tag-X/ trees)
     doctor/         # read-only audit, emits Findings
     scaffold/       # `hm init` — generate a new user environment repo
+    selfupdate/     # `hm selfupdate` — replace the binary with the latest release
     repo/           # locate the user repo (HM_REPO / walk-up)
     ui/             # Charm TUI (interactive) + Plain (no-TTY) UIs
   docs/
@@ -327,7 +328,7 @@ and stay).
 
 ## Current state
 
-v0.4.0 shipped. The MVP (detect, config, link, render, native packages,
+v0.4.1 shipped. The MVP (detect, config, link, render, native packages,
 runner, UI, `hm apply` end-to-end, `hm init` scaffold, `bootstrap.sh`
 template, `hm status` / `hm doctor`, GitHub Actions release pipeline,
 e2e container harness covering Ubuntu/Debian/Fedora, docs site) was
@@ -362,6 +363,14 @@ v0.0.2. Since then:
   (zsh/tmux/nvim plugins, themes) kept converged by a new apply phase between
   backends and home, replacing bespoke clone scripts (`internal/externals`,
   `--skip-externals`). Doctor checks for externals are tracked in #42.
+- **v0.4.1** — `hm selfupdate` (alias `self-update`): replace the running
+  binary in place with the newest GitHub release. The latest tag is read
+  from the `releases/latest` redirect (no GitHub API, no rate limit),
+  `SHA256SUMS` is fetched and checked before the binary downloads, and the
+  swap is an atomic same-directory rename. Two guards refuse: a non-release
+  version string (`dev` / git-describe, so local builds aren't clobbered)
+  and a Homebrew cellar path (`brew upgrade` owns those). `--check` reports
+  without installing (`internal/selfupdate`).
 
 **Layout migration** (one-time, for repos created against v0.0.2):
 `git mv dotfiles/* home/ && git mv templates/* home/ && rmdir dotfiles
