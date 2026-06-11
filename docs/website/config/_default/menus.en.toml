@@ -27,15 +27,15 @@ icon = "github"
 
 [[footer]]
 name = "GitHub"
-pageRef = "https://github.com/kurowski/homie"
+url = "https://github.com/kurowski/homie"
 weight = 10
 
 [[footer]]
 name = "Releases"
-pageRef = "https://github.com/kurowski/homie/releases"
+url = "https://github.com/kurowski/homie/releases"
 weight = 20
 
 [[footer]]
 name = "MIT License"
-pageRef = "https://github.com/kurowski/homie/blob/main/LICENSE"
+url = "https://github.com/kurowski/homie/blob/main/LICENSE"
 weight = 30
