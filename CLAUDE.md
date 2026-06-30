@@ -349,7 +349,7 @@ and stay).
 
 ## Current state
 
-v0.4.1 shipped. The MVP (detect, config, link, render, native packages,
+v0.5.0 shipped. The MVP (detect, config, link, render, native packages,
 runner, UI, `hm apply` end-to-end, `hm init` scaffold, `bootstrap.sh`
 template, `hm status` / `hm doctor`, GitHub Actions release pipeline,
 e2e container harness covering Ubuntu/Debian/Fedora, docs site) was
@@ -392,6 +392,14 @@ v0.0.2. Since then:
   version string (`dev` / git-describe, so local builds aren't clobbered)
   and a Homebrew cellar path (`brew upgrade` owns those). `--check` reports
   without installing (`internal/selfupdate`).
+- **v0.5.0** — Termux (Android) as a first-class platform (`TERMUX_VERSION` →
+  `Distro == "termux"`, a sudo-less `pkg` native manager that's `Apt`-shaped
+  but never escalates, `[packages].termux` / `hasTag "termux"` / `.Distro`
+  reused unchanged, a `termux` auto-tag). Detection and the `Pkg` backend are
+  unit-covered via the injected-`Getenv` / fake-`Runner` seams; e2e stays
+  Linux-only, as it does for macOS. The documented proot-distro caveat
+  (`TERMUX_VERSION` leaks into guests; `unset` it there) is accepted, not
+  hardened.
 
 **Layout migration** (one-time, for repos created against v0.0.2):
 `git mv dotfiles/* home/ && git mv templates/* home/ && rmdir dotfiles

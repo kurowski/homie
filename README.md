@@ -27,10 +27,11 @@ Homie does it all in one, from one repo, with no daily friction: editing
 
 ## Status
 
-v0.4.1. Supported platforms: Ubuntu, Debian, Fedora, and macOS (Apple
-Silicon & Intel). Dotfiles (symlinks + Go-template files), per-host overlays
-and tag-conditional `home/` and `scripts/` trees, native packages (apt/dnf, or
-Homebrew formulae + casks on macOS) plus flatpak and snap backends, declarative
+v0.5.0. Supported platforms: Ubuntu, Debian, Fedora, macOS (Apple
+Silicon & Intel), and Termux (Android). Dotfiles (symlinks + Go-template
+files), per-host overlays and tag-conditional `home/` and `scripts/` trees,
+native packages (apt/dnf, Homebrew formulae + casks on macOS, or `pkg` on
+Termux) plus flatpak and snap backends, declarative
 pinned git clones (`[externals]` — plugins, themes, editor distros), and
 ordered pre/post setup scripts — install → bootstrap → apply → idempotent
 reapply verified end-to-end. Template previews (`hm render`, `hm home
