@@ -59,8 +59,9 @@ machines you actually use.
 ## `[packages]`
 
 Native packages to install via the detected package manager (`apt` on
-Ubuntu/Debian, `dnf` on Fedora, `brew` on macOS). Idempotent — each
-package is checked with `dpkg -s` / `rpm -q` / `brew list` before install.
+Ubuntu/Debian, `dnf` on Fedora, `brew` on macOS, `pkg` on Termux). Idempotent
+— each package is checked with `dpkg -s` / `rpm -q` / `brew list` before
+install.
 
 ```toml
 [packages]
@@ -69,11 +70,13 @@ fedora = ["util-linux-user"]
 ubuntu = ["fd-find"]
 debian = ["fd-find"]
 macos  = ["coreutils", "firefox/cask"]
+termux = ["openssh"]
 ```
 
 `all` runs on every platform. Per-platform keys (`fedora`, `ubuntu`,
-`debian`, `macos`) merge on top — useful for the rename-on-this-platform
-case (`fd` vs `fd-find`) or for platform-specific tools.
+`debian`, `macos`, `termux`) merge on top — useful for the
+rename-on-this-platform case (`fd` vs `fd-find`) or for platform-specific
+tools.
 
 On macOS, native packages install through Homebrew. A GUI app (a Homebrew
 **cask**) is named with a `/cask` suffix — `firefox/cask` installs with
@@ -85,6 +88,12 @@ manage dotfiles (no `[packages]`), you never need it — `hm apply` and
 `hm doctor` won't complain. If brew isn't on `PATH` when packages *are*
 declared, the native phase warns and skips instead of failing; install brew
 (or add a `scripts/pre-*.sh` that does) to have those packages applied.
+
+On Termux (the Android terminal app), native packages install through
+`pkg`, Termux's wrapper over its own apt repos. Termux runs unprivileged
+with no root and no `sudo`, so installs never escalate. Everything else —
+dotfiles, templates, scripts, externals — works as it does everywhere
+else against Termux's `$HOME`.
 
 On unsupported distros, the package phase prints a friendly notice and
 skips. The rest of `hm apply` continues normally.
@@ -212,9 +221,10 @@ extra = ["laptop"]
 
 Active tags on every run are the union of:
 
-- **Detected:** the platform (`ubuntu`, `debian`, `fedora`, `macos`), the
-  arch (`amd64`, `arm64`), the short hostname (so `hasTag "coach"` works
-  with no config), plus `container` and `root` when those apply.
+- **Detected:** the platform (`ubuntu`, `debian`, `fedora`, `macos`,
+  `termux`), the arch (`amd64`, `arm64`), the short hostname (so
+  `hasTag "coach"` works with no config), plus `container` and `root` when
+  those apply.
 - **Profile:** `profile.name`, if set.
 - **Extra:** everything in `tags.extra`.
 

@@ -26,7 +26,7 @@ Data fields — the same set ` + "`hm context`" + ` prints with live values:
   .Email         string          [user].email
   .Profile       string          [profile].name
   .DefaultShell  string          [profile].default_shell
-  .Distro        string          ubuntu | debian | fedora | macos | unknown
+  .Distro        string          ubuntu | debian | fedora | macos | termux | unknown
   .Arch          string          amd64 | arm64
   .IsContainer   bool            true in containers (docker, devcontainer, ...)
   .IsRoot        bool            true when running as root

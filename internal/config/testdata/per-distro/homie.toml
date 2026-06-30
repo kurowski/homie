@@ -6,3 +6,4 @@ email = "scout@homie.sh"
 all    = ["git", "zsh", "neovim"]
 fedora = ["util-linux-user", "git"]    # 'git' is a duplicate, must be deduped
 ubuntu = ["fd-find"]
+termux = ["openssh"]                    # Termux (Android) is a recognized distro key

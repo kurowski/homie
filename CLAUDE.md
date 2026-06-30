@@ -192,8 +192,8 @@ The `detect` package determines:
 
 | Field             | Values / notes                                              |
 |-------------------|-------------------------------------------------------------|
-| `Distro`          | `ubuntu`, `debian`, `fedora`, `macos`, `unknown`            |
-| `PackageManager`  | `apt` (Ubuntu/Debian), `dnf` (Fedora), `brew` (macOS), `unknown` |
+| `Distro`          | `ubuntu`, `debian`, `fedora`, `macos`, `termux`, `unknown`  |
+| `PackageManager`  | `apt` (Ubuntu/Debian), `dnf` (Fedora), `brew` (macOS), `pkg` (Termux), `unknown` |
 | `Arch`            | `amd64`, `arm64`                                            |
 | `Hostname`        | short hostname (truncated at first `.`)                     |
 | `IsContainer`     | bool — via `/proc/1/cgroup`, `/.dockerenv`                  |
@@ -206,7 +206,22 @@ reuses every distro-keyed mechanism unchanged: `[packages].macos`,
 `hasTag "macos"`, `.Distro` in templates, `knownDistroKeys`. It emits a `macos`
 auto-tag like any other distro.
 
-**Supported platforms for v1: Ubuntu, Debian, Fedora, macOS.**
+Termux (the Android terminal app) is handled the same way: a second pre-parse
+branch keyed off `Detector.Getenv("TERMUX_VERSION")` (Termux runs native
+`linux/arm64` binaries, so `GOOS` is `"linux"`, and its os-release lives under
+`$PREFIX`, not the real root). It's modeled as `Distro == "termux"` with
+package manager `pkg`, reusing `[packages].termux`, `hasTag "termux"`,
+`.Distro`, and `knownDistroKeys` unchanged, and emits a `termux` auto-tag.
+
+Known limitation (accepted, not hardened): `TERMUX_VERSION` is inherited
+into `proot-distro` guests, so a proot Linux distro running under Termux
+detects as `termux` rather than its real distro, and `pkg` (absent in the
+guest) shadows the guest's `apt`. The documented workaround is to `unset
+TERMUX_VERSION` in the guest (then `parseDistro` reads its `/etc/os-release`
+normally). Disambiguating in code would mean probing `$PREFIX` for the real
+Termux userland; deliberately not done for v1.
+
+**Supported platforms for v1: Ubuntu, Debian, Fedora, macOS, Termux (Android).**
 
 Arch Linux and other distros should be detected as `unknown` with a clear,
 friendly error telling the user it's not yet supported and pointing to
@@ -226,13 +241,19 @@ type Manager interface {
 }
 ```
 
-Native managers (`apt`, `dnf`, and `brew` on macOS) are returned by
-`packages.For(env)`. Non-native backends (`flatpak`, `snap`, `brew` as a
-Linux backend, and any reserved future name) are returned by
+Native managers (`apt`, `dnf`, `brew` on macOS, and `pkg` on Termux) are
+returned by `packages.For(env)`. Non-native backends (`flatpak`, `snap`,
+`brew` as a Linux backend, and any reserved future name) are returned by
 `packages.ForBackend(name)`. Both share the interface so the apply phases
 treat them identically — only the resolution rule (`PackagesFor` vs
 `PackagesForBackend`) differs. `Brew` is the one Manager used in both roles:
 the native macOS manager and an opt-in Linux backend.
+
+`Pkg` (Termux) is `Apt`-shaped — the same `dpkg -s` installed check — but
+it installs via the `pkg` wrapper and has no `Sudo` field: Termux runs
+unprivileged with no root and no `sudo` binary, so the not-root-therefore-sudo
+rule every other Linux backend follows would prepend a command that isn't
+there. This is the one place a backend deliberately ignores the effective uid.
 
 **brew is optional, even as the native macOS manager.** macOS ships no
 system package manager, so unlike apt/dnf (intrinsic to the distro, fatal

@@ -136,6 +136,66 @@ func TestAptSudoPrefixWhenNotRoot(t *testing.T) {
 	}
 }
 
+func TestPkgIsInstalled(t *testing.T) {
+	// Pkg shares Apt's `dpkg -s` installed check — pkg installs land in the
+	// same dpkg database.
+	f := &fakeRunner{dpkgOK: map[string]bool{"git": true}}
+	p := &Pkg{Runner: f.run}
+	if !p.IsInstalled("git") {
+		t.Errorf("git should report installed")
+	}
+	if p.IsInstalled("nope") {
+		t.Errorf("nope should report not installed")
+	}
+}
+
+func TestPkgInstallFiltersInstalledAndNeverSudoes(t *testing.T) {
+	f := &fakeRunner{dpkgOK: map[string]bool{"git": true}}
+	p := &Pkg{Runner: f.run}
+	if err := p.Install([]string{"git", "zsh", "neovim"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	last := f.calls[len(f.calls)-1]
+	if last.name != "pkg" {
+		t.Fatalf("expected `pkg install ...`, got %s", last.name)
+	}
+	args := strings.Join(last.args, " ")
+	if !strings.Contains(args, "install -y zsh neovim") {
+		t.Errorf("install args = %q, want only zsh and neovim", args)
+	}
+	if strings.Contains(args, "git") {
+		t.Errorf("git was already installed, must not be in install args: %q", args)
+	}
+	// Termux has no sudo binary; Pkg must never prepend one regardless of uid.
+	for _, c := range f.calls {
+		if c.name == "sudo" {
+			t.Errorf("pkg must never shell out to sudo: calls=%+v", f.calls)
+		}
+	}
+}
+
+func TestPkgInstallNoopWhenAllInstalled(t *testing.T) {
+	f := &fakeRunner{dpkgOK: map[string]bool{"git": true, "zsh": true}}
+	p := &Pkg{Runner: f.run}
+	if err := p.Install([]string{"git", "zsh"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	for _, c := range f.calls {
+		if c.name == "pkg" {
+			t.Errorf("pkg should not have been invoked: calls=%+v", f.calls)
+		}
+	}
+}
+
+func TestPkgInstallError(t *testing.T) {
+	f := &fakeRunner{failCmd: "pkg install"}
+	p := &Pkg{Runner: f.run}
+	err := p.Install([]string{"zsh"})
+	if err == nil || !strings.Contains(err.Error(), "pkg install") {
+		t.Errorf("Install error = %v, want it to mention `pkg install`", err)
+	}
+}
+
 func TestDnfIsInstalled(t *testing.T) {
 	f := &fakeRunner{rpmOK: map[string]bool{"git": true}}
 	d := &Dnf{Runner: f.run}
@@ -174,6 +234,7 @@ func TestForPicksBackend(t *testing.T) {
 		{detect.Env{PackageManager: "apt", IsRoot: true}, "apt"},
 		{detect.Env{PackageManager: "dnf", IsRoot: false}, "dnf"},
 		{detect.Env{PackageManager: "brew", Distro: "macos"}, "brew"},
+		{detect.Env{PackageManager: "pkg", Distro: "termux"}, "pkg"},
 		{detect.Env{PackageManager: "unknown", Distro: "arch"}, "noop"},
 		{detect.Env{}, "noop"},
 	}

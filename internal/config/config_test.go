@@ -92,6 +92,7 @@ func TestPackagesFor(t *testing.T) {
 		{"fedora", []string{"git", "zsh", "neovim", "util-linux-user"}},
 		{"ubuntu", []string{"git", "zsh", "neovim", "fd-find"}},
 		{"debian", []string{"git", "zsh", "neovim"}}, // no debian-specific entry
+		{"termux", []string{"git", "zsh", "neovim", "openssh"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.distro, func(t *testing.T) {

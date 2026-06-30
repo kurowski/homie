@@ -92,6 +92,26 @@ macos = ["ripgrep", "firefox/cask", "rectangle/cask"]
 
 A bad suffix is caught by `hm doctor` before any install runs.
 
+## Does Homie work on Termux (Android)?
+
+Yes. [Termux](https://termux.dev) is detected as the `termux` platform,
+and native packages install through `pkg` (Termux's wrapper over its own
+apt repos), declared under `[packages].termux`. The bootstrap one-liner
+downloads the `linux/arm64` binary — Termux runs native Linux binaries on
+the Android kernel — and installs it under `$HOME/.local/bin`, no root
+required. Termux is unprivileged with no `sudo`, so package installs never
+escalate. Dotfiles, templates, scripts, and externals all resolve against
+Termux's `$HOME` exactly as they do elsewhere. Gate Android-only entries
+with `hasTag "termux"`.
+
+One caveat if you run a Linux distro under Termux with `proot-distro`:
+Homie detects Termux from the `TERMUX_VERSION` variable, and Termux
+exports it into the proot guest's environment. So a `proot-distro login
+ubuntu` session is still detected as `termux` (installing through `pkg`)
+rather than as `ubuntu` (installing through `apt`). Run Homie in native
+Termux, or `unset TERMUX_VERSION` before `hm apply` inside the guest to
+have it detected as the guest distro.
+
 ## Why no Windows support?
 
 Scope. v1 covers Linux and macOS — workstations, servers, CI,
