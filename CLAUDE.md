@@ -213,6 +213,14 @@ branch keyed off `Detector.Getenv("TERMUX_VERSION")` (Termux runs native
 package manager `pkg`, reusing `[packages].termux`, `hasTag "termux"`,
 `.Distro`, and `knownDistroKeys` unchanged, and emits a `termux` auto-tag.
 
+Known limitation (accepted, not hardened): `TERMUX_VERSION` is inherited
+into `proot-distro` guests, so a proot Linux distro running under Termux
+detects as `termux` rather than its real distro, and `pkg` (absent in the
+guest) shadows the guest's `apt`. The documented workaround is to `unset
+TERMUX_VERSION` in the guest (then `parseDistro` reads its `/etc/os-release`
+normally). Disambiguating in code would mean probing `$PREFIX` for the real
+Termux userland; deliberately not done for v1.
+
 **Supported platforms for v1: Ubuntu, Debian, Fedora, macOS, Termux (Android).**
 
 Arch Linux and other distros should be detected as `unknown` with a clear,

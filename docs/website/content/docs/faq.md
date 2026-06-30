@@ -104,6 +104,14 @@ escalate. Dotfiles, templates, scripts, and externals all resolve against
 Termux's `$HOME` exactly as they do elsewhere. Gate Android-only entries
 with `hasTag "termux"`.
 
+One caveat if you run a Linux distro under Termux with `proot-distro`:
+Homie detects Termux from the `TERMUX_VERSION` variable, and Termux
+exports it into the proot guest's environment. So a `proot-distro login
+ubuntu` session is still detected as `termux` (installing through `pkg`)
+rather than as `ubuntu` (installing through `apt`). Run Homie in native
+Termux, or `unset TERMUX_VERSION` before `hm apply` inside the guest to
+have it detected as the guest distro.
+
 ## Why no Windows support?
 
 Scope. v1 covers Linux and macOS — workstations, servers, CI,
