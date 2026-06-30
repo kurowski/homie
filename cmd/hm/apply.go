@@ -40,8 +40,8 @@ Phases, in order:
   3. pre-scripts  — pre-*.sh from scripts/ and active scripts.tag-X/
                     siblings (third-party repo setup, GPG keys, ...)
   4. packages     — install [packages] via the native manager (apt/dnf
-                    on Linux, brew on macOS); a missing brew warns and
-                    skips rather than failing
+                    on Linux, brew on macOS, pkg on Termux); a missing
+                    brew warns and skips rather than failing
   5. backends     — install each declared backend ([packages.brew],
                     [packages.flatpak], ...); a phase skips with a
                     warning when its tool isn't on PATH

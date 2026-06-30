@@ -114,7 +114,7 @@ Every template has these fields available:
 | `.Email`        | string              | `[user].email` |
 | `.Profile`      | string              | `[profile].name` |
 | `.DefaultShell` | string              | `[profile].default_shell` |
-| `.Distro`       | string              | detected (`ubuntu`, `debian`, `fedora`, `macos`, `unknown`) |
+| `.Distro`       | string              | detected (`ubuntu`, `debian`, `fedora`, `macos`, `termux`, `unknown`) |
 | `.Arch`         | string              | detected (`amd64`, `arm64`) |
 | `.IsContainer`  | bool                | detected (`/.dockerenv`, cgroup, env) |
 | `.IsRoot`       | bool                | detected (running as root) |

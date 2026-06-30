@@ -92,6 +92,18 @@ macos = ["ripgrep", "firefox/cask", "rectangle/cask"]
 
 A bad suffix is caught by `hm doctor` before any install runs.
 
+## Does Homie work on Termux (Android)?
+
+Yes. [Termux](https://termux.dev) is detected as the `termux` platform,
+and native packages install through `pkg` (Termux's wrapper over its own
+apt repos), declared under `[packages].termux`. The bootstrap one-liner
+downloads the `linux/arm64` binary — Termux runs native Linux binaries on
+the Android kernel — and installs it under `$HOME/.local/bin`, no root
+required. Termux is unprivileged with no `sudo`, so package installs never
+escalate. Dotfiles, templates, scripts, and externals all resolve against
+Termux's `$HOME` exactly as they do elsewhere. Gate Android-only entries
+with `hasTag "termux"`.
+
 ## Why no Windows support?
 
 Scope. v1 covers Linux and macOS — workstations, servers, CI,

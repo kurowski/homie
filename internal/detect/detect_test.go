@@ -228,6 +228,25 @@ func TestDetect(t *testing.T) {
 				Tags:          []string{"arm64", "macos", "mbp"},
 			},
 		},
+		{
+			// Termux runs native linux/arm64 binaries (GOOS stays "linux") and
+			// has no /etc/os-release at the real root, so it's keyed off the
+			// TERMUX_VERSION env var, not GOOS or the filesystem. Distro is
+			// "termux" with the pkg manager, and the termux tag is emitted.
+			name:     "termux arm64 via TERMUX_VERSION",
+			fsys:     fstest.MapFS{},
+			env:      map[string]string{"TERMUX_VERSION": "0.118.0"},
+			uid:      10234,
+			tty:      true,
+			arch:     "arm64",
+			hostname: "localhost",
+			want: Env{
+				Distro: "termux", PackageManager: "pkg", Arch: "arm64",
+				Hostname:      "localhost",
+				IsInteractive: true,
+				Tags:          []string{"arm64", "localhost", "termux"},
+			},
+		},
 	}
 
 	for _, tc := range cases {

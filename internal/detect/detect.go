@@ -16,8 +16,8 @@ import (
 
 // Env is the resolved view of the runtime environment.
 type Env struct {
-	Distro         string // ubuntu, debian, fedora, macos, unknown
-	PackageManager string // apt, dnf, brew, unknown
+	Distro         string // ubuntu, debian, fedora, macos, termux, unknown
+	PackageManager string // apt, dnf, brew, pkg, unknown
 	Arch           string // amd64, arm64, ...
 	Hostname       string // short hostname (everything before the first dot)
 	IsContainer    bool
@@ -46,12 +46,22 @@ func (d Detector) Detect() Env {
 	d = d.withDefaults()
 
 	env := Env{Arch: d.Arch}
-	if d.GOOS == "darwin" {
+	switch {
+	case d.GOOS == "darwin":
 		// macOS is modeled as a "distro" so it reuses every distro-keyed
 		// mechanism (packages.macos, hasTag "macos", .Distro in templates)
 		// unchanged. There is no /etc/os-release to parse.
 		env.Distro = "macos"
-	} else {
+	case d.Getenv("TERMUX_VERSION") != "":
+		// Termux (Android) runs native linux/arm64 binaries, so runtime.GOOS
+		// is "linux" and the darwin branch above misses it; and its userland
+		// lives under $PREFIX, so there's no /etc/os-release at the real root
+		// for parseDistro to find either. TERMUX_VERSION is exported by every
+		// Termux shell and is the documented signal. Modeled as a pseudo-
+		// distro like macos, so it reuses packages.termux, hasTag "termux",
+		// and .Distro in templates unchanged.
+		env.Distro = "termux"
+	default:
 		env.Distro = parseDistro(d.FS)
 	}
 	env.PackageManager = packageManagerFor(env.Distro)
@@ -148,6 +158,11 @@ func packageManagerFor(distro string) string {
 		// a missing brew degrades to a warning+skip (see packages.For and
 		// the apply/install/doctor phases), not a fatal error.
 		return "brew"
+	case "termux":
+		// Termux ships dpkg + apt; `pkg` is its thin wrapper over apt
+		// against Termux's own repos. packages.For maps this to a sudo-less
+		// Apt-shaped backend (Termux has no root and no sudo).
+		return "pkg"
 	default:
 		// TODO(contrib): add support for additional package managers here.
 		return "unknown"

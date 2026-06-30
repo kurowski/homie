@@ -25,9 +25,11 @@ git grep -n 'TODO(contrib)'
 1. **`internal/detect/detect.go`** — recognise the distro's
    `/etc/os-release` `ID=` value and return it from `Detect()`. Map it
    to the right package manager (`apt`, `dnf`, or a new one you're
-   adding alongside). macOS is a special case handled *before* the
-   `/etc/os-release` parse: when `GOOS == "darwin"`, `Detect()` returns
-   the platform key `macos` with package manager `brew`.
+   adding alongside). Two platforms are special-cased *before* the
+   `/etc/os-release` parse: macOS (`GOOS == "darwin"` → platform key
+   `macos`, manager `brew`) and Termux (`$TERMUX_VERSION` set → platform
+   key `termux`, manager `pkg`), neither of which has an os-release at the
+   real root.
 
 2. **`internal/packages/`** — if the distro uses an existing manager
    (`apt` or `dnf`), you're done after step 1. If it needs a new manager,
@@ -74,7 +76,9 @@ Key invariants every manager must hold:
   before calling out to the real tool.
 - **Sudo only when needed.** Check `os.Geteuid()`; prepend `sudo` only
   when not root. Never assume passwordless sudo — return the underlying
-  exit error and let the user see it.
+  exit error and let the user see it. The one deliberate exception is
+  `pkg` (Termux): Termux runs unprivileged with no root and no `sudo`
+  binary at all, so it never escalates regardless of the effective uid.
 - **No prompts.** Pass whatever flag suppresses interactive prompts
   (`-y` for apt/dnf, `--noconfirm` for pacman, etc.). A `hm apply` mid-run
   should never block on a TTY question.
