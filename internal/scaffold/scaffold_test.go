@@ -2,6 +2,7 @@ package scaffold
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -67,6 +68,53 @@ func TestRunSubstitutesAnswers(t *testing.T) {
 	}
 	if !strings.Contains(string(boot), "https://github.com/scouthomes/dotfiles") {
 		t.Errorf("bootstrap.sh missing GitHub URL: %s", boot)
+	}
+}
+
+// TestBootstrapHandsChildrenTheTerminal guards the fix for #46. Under
+// `curl ... | bash` stdin is the pipe bash is reading the script from, so
+// every `sudo` in `hm bootstrap` and in the user's setup scripts dies with
+// "a terminal is required to read the password" unless bootstrap.sh passes
+// the controlling terminal down. Note the redirect can't be a script-wide
+// `exec </dev/tty` — bash still needs that stdin to read the rest of itself.
+func TestBootstrapHandsChildrenTheTerminal(t *testing.T) {
+	dir := t.TempDir()
+	if err := Run(dir, sampleAnswers); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	boot, err := os.ReadFile(filepath.Join(dir, "bootstrap.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"if (: </dev/tty) 2>/dev/null; then", // probe, in a subshell
+		"withtty hm bootstrap",
+		`exec hm apply <"$tty_in"`,
+	} {
+		if !strings.Contains(string(boot), want) {
+			t.Errorf("bootstrap.sh missing %q:\n%s", want, boot)
+		}
+	}
+	if strings.Contains(string(boot), "\nexec </dev/tty") {
+		t.Errorf("bootstrap.sh redirects its own stdin, truncating the piped script:\n%s", boot)
+	}
+}
+
+// TestBootstrapIsValidBash catches syntax errors in the rendered template —
+// the substitutions land inside shell quoting, so a bad edit is only visible
+// after rendering.
+func TestBootstrapIsValidBash(t *testing.T) {
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not on PATH")
+	}
+	dir := t.TempDir()
+	if err := Run(dir, sampleAnswers); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	out, err := exec.Command(bash, "-n", filepath.Join(dir, "bootstrap.sh")).CombinedOutput()
+	if err != nil {
+		t.Errorf("bash -n bootstrap.sh: %v\n%s", err, out)
 	}
 }
 

@@ -75,6 +75,11 @@ installs `ca-certificates` if needed. On macOS `git` comes from the
 Xcode Command Line Tools (`xcode-select --install`), and Homebrew is
 *not* required — install it only if you declare `[packages]`.
 
+Even piped into `bash`, it hands your terminal down to `hm`, so a `sudo`
+password prompt from one of your setup scripts reaches you instead of
+failing. Run it in a container or CI, where there's no terminal to hand
+down, and nothing changes.
+
 ## Where to next?
 
 - [Commands](/docs/commands/) — every `hm` subcommand explained.

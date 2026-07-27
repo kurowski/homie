@@ -41,6 +41,33 @@ verify() {
   fi
 }
 
+# Under `curl ... | bash` stdin is the pipe this script is being read from,
+# not the terminal. Any child that needs to prompt — `sudo` inside `hm
+# bootstrap`, `sudo` inside a setup script during apply, a credential helper
+# during the clone — then dies with "a terminal is required to read the
+# password" and takes the run down with it. So hand those children the
+# controlling terminal when there is one; in CI and containers there's no
+# /dev/tty (and sudo is passwordless anyway), so they keep the stdin they had.
+#
+# This can't be a single `exec </dev/tty` up front: bash is still reading the
+# rest of this script from that same stdin. The probe runs in a subshell
+# deliberately — a failed redirection on `exec`, a special builtin, can
+# terminate a non-interactive shell outright.
+tty_in=""
+if (: </dev/tty) 2>/dev/null; then
+  tty_in=/dev/tty
+fi
+
+# withtty runs a command with the controlling terminal on stdin, or with
+# stdin untouched when there isn't one.
+withtty() {
+  if [ -n "$tty_in" ]; then
+    "$@" <"$tty_in"
+  else
+    "$@"
+  fi
+}
+
 if [ "$(id -u)" = "0" ]; then
   bindir=/usr/local/bin
 else
@@ -77,12 +104,15 @@ fi
 # Let hm install the rest of its own prereqs (git, ca-certificates) so
 # the distro-detection lives in one place (Go) and this script stays
 # tiny.
-hm bootstrap
+withtty hm bootstrap
 
 if [ ! -d "$REPO_DIR/.git" ]; then
   echo "Cloning ${REPO_URL} -> ${REPO_DIR}"
-  git clone "$REPO_URL" "$REPO_DIR"
+  withtty git clone "$REPO_URL" "$REPO_DIR"
 fi
 
 cd "$REPO_DIR"
+if [ -n "$tty_in" ]; then
+  exec hm apply <"$tty_in"
+fi
 exec hm apply
