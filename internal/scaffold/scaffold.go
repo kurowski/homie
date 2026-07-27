@@ -40,18 +40,23 @@ type Answers struct {
 }
 
 // CloneTarget renders dir as the shell snippet bootstrap.sh should use
-// for its clone destination: $HOME-relative when dir is inside $HOME, so
-// the script stays portable across machines and usernames, absolute
-// otherwise.
-func CloneTarget(dir, home string) string {
+// for its clone destination, and reports whether dir was usable at all.
+//
+// Only a $HOME-relative location is portable: bootstrap.sh's whole job
+// is running on *other* machines, where an absolute path from the
+// machine that happened to scaffold the repo means nothing — /tmp build
+// dirs and CI checkouts especially. So dir outside $HOME reports false
+// and callers fall back to the $HOME/<repo> default; a user who really
+// wants an absolute path passes --repo-dir.
+func CloneTarget(dir, home string) (string, bool) {
 	if home == "" {
-		return dir
+		return "", false
 	}
 	rel, err := filepath.Rel(home, dir)
 	if err != nil || rel == "." || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
-		return dir
+		return "", false
 	}
-	return "$HOME/" + filepath.ToSlash(rel)
+	return "$HOME/" + filepath.ToSlash(rel), true
 }
 
 // entry describes one file in the scaffold output.

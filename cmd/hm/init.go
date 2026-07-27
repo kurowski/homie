@@ -20,6 +20,7 @@ var (
 	initGitHubRepo string
 	initProfile    string
 	initShell      string
+	initRepoDir    string
 	initUpdate     bool
 	initForce      bool
 )
@@ -81,6 +82,7 @@ func init() {
 	initCmd.Flags().StringVar(&initGitHubRepo, "github-repo", "dotfiles", "GitHub repo name for the env repo")
 	initCmd.Flags().StringVar(&initProfile, "profile", "personal", "profile name (personal | work | devcontainer | ...)")
 	initCmd.Flags().StringVar(&initShell, "shell", "zsh", "default shell")
+	initCmd.Flags().StringVar(&initRepoDir, "repo-dir", "", "where bootstrap.sh clones this repo on a fresh machine (default: derived, e.g. $HOME/dotfiles)")
 	initCmd.Flags().BoolVar(&initUpdate, "update", false, "refresh generated files in an existing repo instead of scaffolding a new one")
 	initCmd.Flags().BoolVar(&initForce, "force", false, "with --update: overwrite files you've edited since Homie wrote them")
 	rootCmd.AddCommand(initCmd)
@@ -103,8 +105,14 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Where the repo is being scaffolded is where bootstrap.sh should
-	// clone it on the next machine — no reason to ask.
+	// clone it on the next machine — no reason to ask. Scaffolding
+	// somewhere outside $HOME (a build dir, a CI checkout) says nothing
+	// about where it'll live, so that falls back to the default.
 	home, _ := os.UserHomeDir()
+	repoDir := initRepoDir
+	if repoDir == "" {
+		repoDir, _ = scaffold.CloneTarget(abs, home)
+	}
 	answers := scaffold.Answers{
 		Name:         initName,
 		Email:        initEmail,
@@ -112,7 +120,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		GitHubRepo:   initGitHubRepo,
 		Profile:      initProfile,
 		DefaultShell: initShell,
-		RepoDir:      scaffold.CloneTarget(abs, home),
+		RepoDir:      repoDir,
 	}
 
 	stdin := cmd.InOrStdin()

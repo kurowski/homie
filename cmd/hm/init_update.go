@@ -137,8 +137,13 @@ func deriveAnswers(cmd *cobra.Command, dir string) (scaffold.Answers, error) {
 		GitHubUser:   initGitHubUser,
 		GitHubRepo:   initGitHubRepo,
 		// The repo is sitting right here, so where a fresh machine
-		// should clone it isn't a question either.
-		RepoDir: scaffold.CloneTarget(dir, home),
+		// should clone it isn't a question either — as long as it's
+		// under $HOME, the only thing another machine shares with this
+		// one.
+		RepoDir: initRepoDir,
+	}
+	if a.RepoDir == "" {
+		a.RepoDir, _ = scaffold.CloneTarget(dir, home)
 	}
 	if cmd.Flags().Changed("github-user") && cmd.Flags().Changed("github-repo") {
 		return a, nil

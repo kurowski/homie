@@ -7,21 +7,29 @@ import (
 	"testing"
 )
 
+// TestCloneTarget — only a $HOME-relative location generalizes to the
+// machines bootstrap.sh actually runs on. Everything else reports false
+// so the caller keeps the $HOME/<repo> default; baking in an absolute
+// path from the authoring machine (a /tmp build dir, a CI checkout) is
+// how e2e caught this the first time.
 func TestCloneTarget(t *testing.T) {
 	cases := []struct {
 		name, dir, home, want string
+		ok                    bool
 	}{
-		{"directly under home", "/home/scout/dotfiles", "/home/scout", "$HOME/dotfiles"},
-		{"nested under home", "/home/scout/Projects/dotfiles", "/home/scout", "$HOME/Projects/dotfiles"},
-		{"outside home", "/opt/dotfiles", "/home/scout", "/opt/dotfiles"},
-		{"sibling of home", "/home/other/dotfiles", "/home/scout", "/home/other/dotfiles"},
-		{"home itself", "/home/scout", "/home/scout", "/home/scout"},
-		{"unknown home", "/home/scout/dotfiles", "", "/home/scout/dotfiles"},
+		{name: "directly under home", dir: "/home/scout/dotfiles", home: "/home/scout", want: "$HOME/dotfiles", ok: true},
+		{name: "nested under home", dir: "/home/scout/Projects/dotfiles", home: "/home/scout", want: "$HOME/Projects/dotfiles", ok: true},
+		{name: "outside home", dir: "/opt/dotfiles", home: "/home/scout"},
+		{name: "build dir", dir: "/tmp/build123/userrepo-src", home: "/home/scout"},
+		{name: "sibling of home", dir: "/home/other/dotfiles", home: "/home/scout"},
+		{name: "home itself", dir: "/home/scout", home: "/home/scout"},
+		{name: "unknown home", dir: "/home/scout/dotfiles", home: ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := CloneTarget(c.dir, c.home); got != c.want {
-				t.Errorf("CloneTarget(%q, %q) = %q, want %q", c.dir, c.home, got, c.want)
+			got, ok := CloneTarget(c.dir, c.home)
+			if got != c.want || ok != c.ok {
+				t.Errorf("CloneTarget(%q, %q) = %q,%v; want %q,%v", c.dir, c.home, got, ok, c.want, c.ok)
 			}
 		})
 	}

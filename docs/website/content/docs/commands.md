@@ -60,6 +60,15 @@ REPO_DIR="${HM_REPO:-$HOME/src/dotfiles}"
 Move the repo, re-run `--update`, commit. Run it from anywhere inside
 the repo, or pass the path.
 
+Only a location under `$HOME` is derived, since that's all another
+machine is guaranteed to share — a repo outside `$HOME` (a build
+directory, a CI checkout) keeps the `$HOME/<repo>` default. Use
+`--repo-dir` to set it explicitly:
+
+```sh
+hm init --update --repo-dir /opt/dotfiles
+```
+
 Generated files carry an `hm:generated` stamp with the writing version
 and a digest, so update can tell an untouched file from an edited one:
 

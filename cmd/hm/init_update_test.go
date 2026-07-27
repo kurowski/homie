@@ -57,6 +57,58 @@ func runUpdate(t *testing.T, dir string, extra ...string) string {
 	return buf.String()
 }
 
+// TestInitOutsideHomeKeepsThePortableDefault is the e2e regression in
+// unit form: the harness scaffolds into a temp dir on the host and
+// expects the container to clone to $HOME/dotfiles. A repo built
+// somewhere outside $HOME says nothing about where it will live on the
+// machines bootstrap.sh runs on.
+func TestInitOutsideHomeKeepsThePortableDefault(t *testing.T) {
+	resetInitFlags()
+	dir := filepath.Join(t.TempDir(), "userrepo-src") // never under $HOME
+	rootCmd.SetOut(new(bytes.Buffer))
+	rootCmd.SetErr(new(bytes.Buffer))
+	rootCmd.SetArgs([]string{
+		"init", "--name", "Scout Homes", "--email", "scout@homie.sh",
+		"--github-user", "scouthomes", dir,
+	})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, "bootstrap.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), `REPO_DIR="${HM_REPO:-$HOME/dotfiles}"`) {
+		t.Errorf("expected the portable $HOME/<repo> default, got:\n%s", firstLines(string(body), 40))
+	}
+}
+
+func TestInitRepoDirFlagWins(t *testing.T) {
+	resetInitFlags()
+	dir := filepath.Join(t.TempDir(), "repo")
+	rootCmd.SetOut(new(bytes.Buffer))
+	rootCmd.SetErr(new(bytes.Buffer))
+	rootCmd.SetArgs([]string{
+		"init", "--name", "Scout Homes", "--email", "scout@homie.sh",
+		"--github-user", "scouthomes", "--repo-dir", "/opt/dotfiles", dir,
+	})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	body, _ := os.ReadFile(filepath.Join(dir, "bootstrap.sh"))
+	if !strings.Contains(string(body), `REPO_DIR="${HM_REPO:-/opt/dotfiles}"`) {
+		t.Errorf("--repo-dir should override the derived value:\n%s", firstLines(string(body), 40))
+	}
+}
+
+func firstLines(s string, n int) string {
+	lines := strings.SplitN(s, "\n", n+1)
+	if len(lines) > n {
+		lines = lines[:n]
+	}
+	return strings.Join(lines, "\n")
+}
+
 func TestInitUpdateIsCleanOnAFreshRepo(t *testing.T) {
 	dir := scaffoldRepo(t, "https://github.com/scouthomes/dotfiles.git")
 	out := runUpdate(t, dir)

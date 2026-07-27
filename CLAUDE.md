@@ -133,7 +133,9 @@ from refreshes. `Answers.RepoDir` (v0.5.3) is the first of these — the
 clone destination used to be a hardcoded `$HOME/<repo>`, so every user
 who kept their repo elsewhere edited the generated file. It's now
 `scaffold.CloneTarget(repoDir, $HOME)`, derived from where the repo
-actually is. Apply the same test to any future edit-bait.
+actually is — and only when that's under `$HOME`, since bootstrap.sh runs
+on machines that share nothing else with this one. Apply the same test to
+any future edit-bait.
 
 ---
 
@@ -405,7 +407,7 @@ and stay).
 
 ## Current state
 
-v0.5.3 shipped. The MVP (detect, config, link, render, native packages,
+v0.5.4 shipped. The MVP (detect, config, link, render, native packages,
 runner, UI, `hm apply` end-to-end, `hm init` scaffold, `bootstrap.sh`
 template, `hm status` / `hm doctor`, GitHub Actions release pipeline,
 e2e container harness covering Ubuntu/Debian/Fedora, docs site) was
@@ -471,6 +473,13 @@ v0.0.2. Since then:
   keeping a repo at e.g. `~/Projects/dotfiles` no longer requires editing a
   tool-owned file (which under v0.5.2's stamp rule would forfeit every future
   refresh). Found by running `--update` against the author's own repo.
+- **v0.5.4** — `CloneTarget` derives only `$HOME`-relative destinations. v0.5.3
+  fell back to the *absolute* scaffold path outside `$HOME`, which baked the
+  authoring machine's path into a script whose entire job is running elsewhere
+  — e2e caught it (the harness scaffolds into a host temp dir and expects the
+  container to clone to `$HOME/dotfiles`). Outside `$HOME` now keeps the
+  `$HOME/<repo>` default; `--repo-dir` sets it explicitly. Run `make e2e`
+  before tagging: `go test ./...` doesn't build the `e2e` tag.
 
 **Layout migration** (one-time, for repos created against v0.0.2):
 `git mv dotfiles/* home/ && git mv templates/* home/ && rmdir dotfiles
