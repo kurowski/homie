@@ -128,6 +128,7 @@ func deriveAnswers(cmd *cobra.Command, dir string) (scaffold.Answers, error) {
 	if err != nil {
 		return scaffold.Answers{}, fmt.Errorf("load %s: %w", filepath.Join(dir, "homie.toml"), err)
 	}
+	home, _ := os.UserHomeDir()
 	a := scaffold.Answers{
 		Name:         cfg.User.Name,
 		Email:        cfg.User.Email,
@@ -135,6 +136,9 @@ func deriveAnswers(cmd *cobra.Command, dir string) (scaffold.Answers, error) {
 		DefaultShell: cfg.Profile.DefaultShell,
 		GitHubUser:   initGitHubUser,
 		GitHubRepo:   initGitHubRepo,
+		// The repo is sitting right here, so where a fresh machine
+		// should clone it isn't a question either.
+		RepoDir: scaffold.CloneTarget(dir, home),
 	}
 	if cmd.Flags().Changed("github-user") && cmd.Flags().Changed("github-repo") {
 		return a, nil

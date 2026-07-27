@@ -21,7 +21,11 @@
 set -euo pipefail
 
 REPO_URL="https://github.com/{{ .GitHubUser }}/{{ .GitHubRepo }}.git"
-REPO_DIR="${HM_REPO:-$HOME/{{ .GitHubRepo }}}"
+# Where this repo lands on a fresh machine. Generated from wherever the
+# repo lived when you last ran `hm init` / `hm init --update`, so keeping
+# it somewhere other than $HOME/<repo> needs no hand-editing — move the
+# repo, re-run --update, commit.
+REPO_DIR="${HM_REPO:-{{ .RepoDir }}}"
 HM_RELEASE="${HM_RELEASE:-latest}"
 
 os="$(uname -s)"
@@ -115,6 +119,9 @@ withtty hm bootstrap
 
 if [ ! -d "$REPO_DIR/.git" ]; then
   echo "Cloning ${REPO_URL} -> ${REPO_DIR}"
+  # git clone won't create nested parents; a no-op when REPO_DIR sits
+  # directly under $HOME.
+  mkdir -p "$(dirname "$REPO_DIR")"
   withtty git clone "$REPO_URL" "$REPO_DIR"
 fi
 

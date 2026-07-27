@@ -126,6 +126,15 @@ Adding a tool-owned file: set `toolOwned: true` on its manifest entry.
 The stamp is a shell comment, so a non-script would need a per-entry
 comment syntax first.
 
+The corollary the dogfooding run surfaced: **anything a user would
+otherwise hand-edit in a tool-owned file has to become a derived
+answer**, or the stamp rule turns a one-line tweak into permanent opt-out
+from refreshes. `Answers.RepoDir` (v0.5.3) is the first of these — the
+clone destination used to be a hardcoded `$HOME/<repo>`, so every user
+who kept their repo elsewhere edited the generated file. It's now
+`scaffold.CloneTarget(repoDir, $HOME)`, derived from where the repo
+actually is. Apply the same test to any future edit-bait.
+
 ---
 
 ## The problem Homie solves
@@ -396,7 +405,7 @@ and stay).
 
 ## Current state
 
-v0.5.2 shipped. The MVP (detect, config, link, render, native packages,
+v0.5.3 shipped. The MVP (detect, config, link, render, native packages,
 runner, UI, `hm apply` end-to-end, `hm init` scaffold, `bootstrap.sh`
 template, `hm status` / `hm doctor`, GitHub Actions release pipeline,
 e2e container harness covering Ubuntu/Debian/Fedora, docs site) was
@@ -457,6 +466,11 @@ v0.0.2. Since then:
   seeds and tool-owned files, stamps the latter with version + digest, and
   re-renders only what nobody has edited (see "Seeds vs. tool-owned files"
   above). Answers are derived, not prompted.
+- **v0.5.3** — `Answers.RepoDir`: bootstrap.sh's clone destination is derived
+  from where the repo actually lives instead of a hardcoded `$HOME/<repo>`, so
+  keeping a repo at e.g. `~/Projects/dotfiles` no longer requires editing a
+  tool-owned file (which under v0.5.2's stamp rule would forfeit every future
+  refresh). Found by running `--update` against the author's own repo.
 
 **Layout migration** (one-time, for repos created against v0.0.2):
 `git mv dotfiles/* home/ && git mv templates/* home/ && rmdir dotfiles

@@ -15,6 +15,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 )
 
@@ -29,6 +30,28 @@ type Answers struct {
 	GitHubRepo   string // repo name on GitHub (defaults to "dotfiles")
 	Profile      string // "personal" | "work" | "devcontainer" | ...
 	DefaultShell string // "zsh" | "bash" | "fish"
+	// RepoDir is where bootstrap.sh clones the repo on a fresh machine,
+	// as a shell snippet ("$HOME/dotfiles", "$HOME/src/dotfiles",
+	// "/opt/dotfiles"). It exists because the old hardcoded
+	// $HOME/<repo> forced anyone who keeps their repo elsewhere to edit
+	// the generated file — which now costs them every future refresh.
+	// Derive it with CloneTarget rather than asking.
+	RepoDir string
+}
+
+// CloneTarget renders dir as the shell snippet bootstrap.sh should use
+// for its clone destination: $HOME-relative when dir is inside $HOME, so
+// the script stays portable across machines and usernames, absolute
+// otherwise.
+func CloneTarget(dir, home string) string {
+	if home == "" {
+		return dir
+	}
+	rel, err := filepath.Rel(home, dir)
+	if err != nil || rel == "." || strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+		return dir
+	}
+	return "$HOME/" + filepath.ToSlash(rel)
 }
 
 // entry describes one file in the scaffold output.
@@ -117,6 +140,9 @@ func (a *Answers) fillDefaults() error {
 	}
 	if a.GitHubRepo == "" {
 		a.GitHubRepo = "dotfiles"
+	}
+	if a.RepoDir == "" {
+		a.RepoDir = "$HOME/" + a.GitHubRepo
 	}
 	if a.Profile == "" {
 		a.Profile = "personal"

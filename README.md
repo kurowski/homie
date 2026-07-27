@@ -27,7 +27,7 @@ Homie does it all in one, from one repo, with no daily friction: editing
 
 ## Status
 
-v0.5.2. Supported platforms: Ubuntu, Debian, Fedora, macOS (Apple
+v0.5.3. Supported platforms: Ubuntu, Debian, Fedora, macOS (Apple
 Silicon & Intel), and Termux (Android). Dotfiles (symlinks + Go-template
 files), per-host overlays and tag-conditional `home/` and `scripts/` trees,
 native packages (apt/dnf, Homebrew formulae + casks on macOS, or `pkg` on

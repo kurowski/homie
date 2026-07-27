@@ -56,9 +56,12 @@ be launched, so it goes stale when you upgrade hm. Refresh it in place:
 
   cd ~/dotfiles && hm init --update
 
-Update needs no answers: it reads your name and email from homie.toml
-and your GitHub user/repo from the origin remote. Pass --github-user /
---github-repo if there's no remote to read.
+Update needs no answers — it reads them off the repo: name and email
+from homie.toml, GitHub user/repo from the origin remote, and the clone
+destination bootstrap.sh should use on the next machine from where this
+repo actually lives ($HOME-relative when it's under $HOME). Move the
+repo, re-run --update, commit. Pass --github-user / --github-repo if
+there's no remote to read.
 
 Generated files carry an ` + "`hm:generated`" + ` stamp recording the hm version
 and a digest of the file as written. Update rewrites a file only when
@@ -99,6 +102,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resolve %s: %w", target, err)
 	}
 
+	// Where the repo is being scaffolded is where bootstrap.sh should
+	// clone it on the next machine — no reason to ask.
+	home, _ := os.UserHomeDir()
 	answers := scaffold.Answers{
 		Name:         initName,
 		Email:        initEmail,
@@ -106,6 +112,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		GitHubRepo:   initGitHubRepo,
 		Profile:      initProfile,
 		DefaultShell: initShell,
+		RepoDir:      scaffold.CloneTarget(abs, home),
 	}
 
 	stdin := cmd.InOrStdin()
