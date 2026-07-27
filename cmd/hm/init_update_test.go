@@ -64,7 +64,11 @@ func runUpdate(t *testing.T, dir string, extra ...string) string {
 // machines bootstrap.sh runs on.
 func TestInitOutsideHomeKeepsThePortableDefault(t *testing.T) {
 	resetInitFlags()
-	dir := filepath.Join(t.TempDir(), "userrepo-src") // never under $HOME
+	// Pin $HOME somewhere unrelated rather than assuming t.TempDir()
+	// falls outside it — with TMPDIR under $HOME it doesn't, which is
+	// how this test first failed for the wrong reason.
+	t.Setenv("HOME", t.TempDir())
+	dir := filepath.Join(t.TempDir(), "userrepo-src")
 	rootCmd.SetOut(new(bytes.Buffer))
 	rootCmd.SetErr(new(bytes.Buffer))
 	rootCmd.SetArgs([]string{
@@ -80,6 +84,33 @@ func TestInitOutsideHomeKeepsThePortableDefault(t *testing.T) {
 	}
 	if !strings.Contains(string(body), `REPO_DIR="${HM_REPO:-$HOME/dotfiles}"`) {
 		t.Errorf("expected the portable $HOME/<repo> default, got:\n%s", firstLines(string(body), 40))
+	}
+}
+
+// TestInitUnderHomeDerivesTheLocation is the other half: a repo built
+// where it will live yields a $HOME-relative destination, nesting and
+// all, so bootstrap.sh clones to the same place on the next machine.
+func TestInitUnderHomeDerivesTheLocation(t *testing.T) {
+	resetInitFlags()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dir := filepath.Join(home, "Projects", "dotfiles")
+
+	rootCmd.SetOut(new(bytes.Buffer))
+	rootCmd.SetErr(new(bytes.Buffer))
+	rootCmd.SetArgs([]string{
+		"init", "--name", "Scout Homes", "--email", "scout@homie.sh",
+		"--github-user", "scouthomes", dir,
+	})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, "bootstrap.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), `REPO_DIR="${HM_REPO:-$HOME/Projects/dotfiles}"`) {
+		t.Errorf("expected the derived nested location:\n%s", firstLines(string(body), 40))
 	}
 }
 

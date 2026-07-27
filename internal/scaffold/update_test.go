@@ -206,6 +206,23 @@ func TestUpdateLeavesSeedsAlone(t *testing.T) {
 }
 
 // TestUpdateIsIdempotent — a repeatable path has to be safe to run twice.
+// TestUpdateReportsTheStampOnDisk — a release that doesn't touch the
+// template leaves the file alone, so the report has to name the version
+// that actually wrote it, not the one doing the checking.
+func TestUpdateReportsTheStampOnDisk(t *testing.T) {
+	dir := seedRepo(t, "v0.1.0")
+	got := only(t, mustUpdate(t, dir, "v0.2.0", false))
+	if got.State != StateCurrent {
+		t.Fatalf("state = %q, want %q (template unchanged between versions)", got.State, StateCurrent)
+	}
+	if got.To != "v0.1.0" {
+		t.Errorf("To = %q, want the stamp on disk (v0.1.0)", got.To)
+	}
+	if p, _ := readProvenance([]byte(readBootstrap(t, dir))); p.Version != "v0.1.0" {
+		t.Errorf("file was restamped to %q despite no content change", p.Version)
+	}
+}
+
 func TestUpdateIsIdempotent(t *testing.T) {
 	dir := seedRepo(t, "v0.1.0")
 	mustUpdate(t, dir, testVersion, false)

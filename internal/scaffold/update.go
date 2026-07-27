@@ -92,7 +92,13 @@ func updateOne(targetDir string, e entry, a Answers, version string, force bool)
 		// same version carries an identical stamp, so equal digests
 		// mean equal content.
 		case stamped && p.Digest == digestOf(want) && p.Digest == digestOf(have):
+			// Byte-identical to what this hm renders, so there's
+			// nothing to write — a release that doesn't change a
+			// template shouldn't churn the file just to bump a label.
+			// To is what's actually stamped on disk, which is the
+			// older version that wrote it.
 			res.State = StateCurrent
+			res.To = p.Version
 			return res, nil
 		case unchangedSince(have):
 			res.State = StateUpdated
