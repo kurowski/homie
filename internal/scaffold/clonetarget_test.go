@@ -18,7 +18,7 @@ func TestCloneTarget(t *testing.T) {
 		ok                    bool
 	}{
 		{name: "directly under home", dir: "/home/scout/dotfiles", home: "/home/scout", want: "$HOME/dotfiles", ok: true},
-		{name: "nested under home", dir: "/home/scout/Projects/dotfiles", home: "/home/scout", want: "$HOME/Projects/dotfiles", ok: true},
+		{name: "nested under home", dir: "/home/scout/Documents/dotfiles", home: "/home/scout", want: "$HOME/Documents/dotfiles", ok: true},
 		{name: "outside home", dir: "/opt/dotfiles", home: "/home/scout"},
 		{name: "build dir", dir: "/tmp/build123/userrepo-src", home: "/home/scout"},
 		{name: "sibling of home", dir: "/home/other/dotfiles", home: "/home/scout"},
@@ -42,7 +42,7 @@ func TestCloneTarget(t *testing.T) {
 func TestRepoDirRendersIntoBootstrap(t *testing.T) {
 	dir := t.TempDir()
 	a := sampleAnswers
-	a.RepoDir = "$HOME/Projects/dotfiles"
+	a.RepoDir = "$HOME/Documents/dotfiles"
 	if err := Run(dir, a, testVersion); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestRepoDirRendersIntoBootstrap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(body), `REPO_DIR="${HM_REPO:-$HOME/Projects/dotfiles}"`) {
+	if !strings.Contains(string(body), `REPO_DIR="${HM_REPO:-$HOME/Documents/dotfiles}"`) {
 		t.Errorf("bootstrap.sh didn't take RepoDir:\n%s", body)
 	}
 	// A nested destination is exactly when git clone needs the parent.

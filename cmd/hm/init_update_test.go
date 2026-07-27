@@ -94,7 +94,7 @@ func TestInitUnderHomeDerivesTheLocation(t *testing.T) {
 	resetInitFlags()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	dir := filepath.Join(home, "Projects", "dotfiles")
+	dir := filepath.Join(home, "Documents", "dotfiles")
 
 	rootCmd.SetOut(new(bytes.Buffer))
 	rootCmd.SetErr(new(bytes.Buffer))
@@ -109,7 +109,7 @@ func TestInitUnderHomeDerivesTheLocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(body), `REPO_DIR="${HM_REPO:-$HOME/Projects/dotfiles}"`) {
+	if !strings.Contains(string(body), `REPO_DIR="${HM_REPO:-$HOME/Documents/dotfiles}"`) {
 		t.Errorf("expected the derived nested location:\n%s", firstLines(string(body), 40))
 	}
 }

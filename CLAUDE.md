@@ -470,7 +470,7 @@ v0.0.2. Since then:
   above). Answers are derived, not prompted.
 - **v0.5.3** — `Answers.RepoDir`: bootstrap.sh's clone destination is derived
   from where the repo actually lives instead of a hardcoded `$HOME/<repo>`, so
-  keeping a repo at e.g. `~/Projects/dotfiles` no longer requires editing a
+  keeping a repo at e.g. `~/Documents/dotfiles` no longer requires editing a
   tool-owned file (which under v0.5.2's stamp rule would forfeit every future
   refresh). Found by running `--update` against the author's own repo.
 - **v0.5.4** — `CloneTarget` derives only `$HOME`-relative destinations. v0.5.3

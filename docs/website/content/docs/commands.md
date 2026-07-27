@@ -50,11 +50,11 @@ It derives its answers rather than asking: identity from `homie.toml`,
 GitHub user and repo from the `origin` remote (`--github-user` /
 `--github-repo` override, for a repo with no remote), and the clone
 destination from where the repo actually sits. Keep your repo at
-`~/src/dotfiles` instead of `~/dotfiles` and `bootstrap.sh` picks that
+`~/Documents/dotfiles` instead of `~/dotfiles` and `bootstrap.sh` picks that
 up — `$HOME`-relative, so it stays portable across machines:
 
 ```sh
-REPO_DIR="${HM_REPO:-$HOME/src/dotfiles}"
+REPO_DIR="${HM_REPO:-$HOME/Documents/dotfiles}"
 ```
 
 Move the repo, re-run `--update`, commit. Run it from anywhere inside

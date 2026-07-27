@@ -31,7 +31,7 @@ type Answers struct {
 	Profile      string // "personal" | "work" | "devcontainer" | ...
 	DefaultShell string // "zsh" | "bash" | "fish"
 	// RepoDir is where bootstrap.sh clones the repo on a fresh machine,
-	// as a shell snippet ("$HOME/dotfiles", "$HOME/src/dotfiles",
+	// as a shell snippet ("$HOME/dotfiles", "$HOME/Documents/dotfiles",
 	// "/opt/dotfiles"). It exists because the old hardcoded
 	// $HOME/<repo> forced anyone who keeps their repo elsewhere to edit
 	// the generated file — which now costs them every future refresh.
