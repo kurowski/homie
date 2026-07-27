@@ -37,27 +37,39 @@ type entry struct {
 	dst      string      // relative output path
 	mode     os.FileMode // mode to write the output with
 	rendered bool        // if true, run through text/template with Answers
+	// toolOwned marks a file Homie keeps current across releases rather
+	// than handing to the user on day one: it gets a provenance stamp on
+	// write and `hm init --update` refreshes it in place. Everything else
+	// in the manifest is a seed — Homie writes it once and never again.
+	toolOwned bool
 }
 
 var manifest = []entry{
-	{"files/homie.toml", "homie.toml", 0o644, true},
-	{"files/bootstrap.sh", "bootstrap.sh", 0o755, true},
-	{"files/README.md", "README.md", 0o644, true},
+	{src: "files/homie.toml", dst: "homie.toml", mode: 0o644, rendered: true},
+	// bootstrap.sh is the one generated file that stays Homie's: it
+	// encodes how the current hm wants to be launched (which release URL,
+	// which os/arch names, how stdin is handed to sudo — see #46), so it
+	// goes stale on upgrade in a way a sample .zshrc never does.
+	{src: "files/bootstrap.sh", dst: "bootstrap.sh", mode: 0o755, rendered: true, toolOwned: true},
+	{src: "files/README.md", dst: "README.md", mode: 0o644, rendered: true},
 	// The leading-dot files have to be named without the dot in the
 	// embed source so plain `//go:embed` would include them too; we use
 	// `all:` so it doesn't actually matter, but renaming `gitignore` to
 	// `.gitignore` at write time keeps git happy.
-	{"files/gitignore", ".gitignore", 0o644, false},
-	{"files/home/.zshrc", "home/.zshrc", 0o644, false},
-	{"files/home/.gitconfig.tmpl", "home/.gitconfig.tmpl", 0o644, false},
-	{"files/scripts/01-shell.sh", "scripts/01-shell.sh", 0o755, false},
+	{src: "files/gitignore", dst: ".gitignore", mode: 0o644},
+	{src: "files/home/.zshrc", dst: "home/.zshrc", mode: 0o644},
+	{src: "files/home/.gitconfig.tmpl", dst: "home/.gitconfig.tmpl", mode: 0o644},
+	{src: "files/scripts/01-shell.sh", dst: "scripts/01-shell.sh", mode: 0o755},
 }
 
 // Run materializes a new user environment repo at targetDir. The
 // directory is created if missing; existing files are NOT overwritten
 // — running scaffold against a non-empty dir errors out so we don't
-// clobber user work.
-func Run(targetDir string, a Answers) error {
+// clobber user work. Refreshing an existing repo is Update's job.
+//
+// version is the hm version stamped onto tool-owned files so a later
+// Update can tell an untouched generation from an edited one.
+func Run(targetDir string, a Answers, version string) error {
 	if err := a.fillDefaults(); err != nil {
 		return err
 	}
@@ -79,6 +91,9 @@ func Run(targetDir string, a Answers) error {
 			if err != nil {
 				return fmt.Errorf("render %s: %w", e.src, err)
 			}
+		}
+		if e.toolOwned {
+			body = stampProvenance(body, version)
 		}
 		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
 			return fmt.Errorf("mkdir %s: %w", filepath.Dir(out), err)

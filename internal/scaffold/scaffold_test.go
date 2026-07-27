@@ -21,7 +21,7 @@ var sampleAnswers = Answers{
 
 func TestRunWritesAllFiles(t *testing.T) {
 	dir := t.TempDir()
-	if err := Run(dir, sampleAnswers); err != nil {
+	if err := Run(dir, sampleAnswers, testVersion); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	want := map[string]os.FileMode{
@@ -47,7 +47,7 @@ func TestRunWritesAllFiles(t *testing.T) {
 
 func TestRunSubstitutesAnswers(t *testing.T) {
 	dir := t.TempDir()
-	if err := Run(dir, sampleAnswers); err != nil {
+	if err := Run(dir, sampleAnswers, testVersion); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -79,7 +79,7 @@ func TestRunSubstitutesAnswers(t *testing.T) {
 // `exec </dev/tty` — bash still needs that stdin to read the rest of itself.
 func TestBootstrapHandsChildrenTheTerminal(t *testing.T) {
 	dir := t.TempDir()
-	if err := Run(dir, sampleAnswers); err != nil {
+	if err := Run(dir, sampleAnswers, testVersion); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	boot, err := os.ReadFile(filepath.Join(dir, "bootstrap.sh"))
@@ -109,7 +109,7 @@ func TestBootstrapIsValidBash(t *testing.T) {
 		t.Skip("bash not on PATH")
 	}
 	dir := t.TempDir()
-	if err := Run(dir, sampleAnswers); err != nil {
+	if err := Run(dir, sampleAnswers, testVersion); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	out, err := exec.Command(bash, "-n", filepath.Join(dir, "bootstrap.sh")).CombinedOutput()
@@ -120,7 +120,7 @@ func TestBootstrapIsValidBash(t *testing.T) {
 
 func TestRunRoundtripsThroughConfigLoad(t *testing.T) {
 	dir := t.TempDir()
-	if err := Run(dir, sampleAnswers); err != nil {
+	if err := Run(dir, sampleAnswers, testVersion); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	cfg, err := config.Load(dir, "")
@@ -141,7 +141,7 @@ func TestRunRefusesToOverwrite(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "homie.toml"), []byte("pre-existing"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := Run(dir, sampleAnswers); err == nil {
+	if err := Run(dir, sampleAnswers, testVersion); err == nil {
 		t.Errorf("expected Run to refuse overwrite, got nil")
 	}
 	body, _ := os.ReadFile(filepath.Join(dir, "homie.toml"))
@@ -153,7 +153,7 @@ func TestRunRefusesToOverwrite(t *testing.T) {
 func TestRunFillsDefaults(t *testing.T) {
 	dir := t.TempDir()
 	min := Answers{Name: "Scout Homes", Email: "scout@homie.sh", GitHubUser: "scouthomes"}
-	if err := Run(dir, min); err != nil {
+	if err := Run(dir, min, testVersion); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	toml, _ := os.ReadFile(filepath.Join(dir, "homie.toml"))
@@ -176,7 +176,7 @@ func TestRunRequiresIdentity(t *testing.T) {
 		{Name: "Scout", Email: "scout@homie.sh"},
 	}
 	for i, a := range cases {
-		if err := Run(t.TempDir(), a); err == nil {
+		if err := Run(t.TempDir(), a, testVersion); err == nil {
 			t.Errorf("case %d: expected required-field error, got nil", i)
 		}
 	}

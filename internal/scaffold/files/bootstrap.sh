@@ -11,6 +11,13 @@
 #      work and the next step plus all future `hm apply` runs can
 #      reach GitHub.
 #   3. Clone this repo and exec `hm apply`.
+#
+# This file is generated and stays Homie's — it tracks how the current hm
+# wants to be launched, so it goes stale when you upgrade. Refresh it with
+# `hm init --update` from this repo, then commit the diff. Local edits are
+# safe: update shows what it would change and stops rather than clobbering
+# (`--force` to override). Delete the hm:generated line below to opt out
+# and own this file yourself.
 set -euo pipefail
 
 REPO_URL="https://github.com/{{ .GitHubUser }}/{{ .GitHubRepo }}.git"

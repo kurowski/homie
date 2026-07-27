@@ -90,6 +90,42 @@ stdin. The `/dev/tty` probe sits in a subshell because a failed redirection
 on `exec` — a special builtin — can terminate a non-interactive shell.
 Containers and CI have no `/dev/tty`, fall through, and are unaffected.
 
+### Seeds vs. tool-owned files
+
+The scaffold manifest (`internal/scaffold/scaffold.go`) splits in two.
+Most entries are **seeds** — `homie.toml`, `home/`, `scripts/`, README —
+written once and the user's from that moment. `bootstrap.sh` is the lone
+**tool-owned** file (`entry.toolOwned`): it encodes how *this* `hm`
+expects to be launched (release URL shape, os/arch names, the stdin
+handoff above), so it goes stale on upgrade in a way a sample `.zshrc`
+never does. That's what #46 actually exposed — a shipped fix that no
+existing repo could receive.
+
+`hm init --update` (`cmd/hm/init_update.go`, `internal/scaffold/update.go`)
+re-renders the tool-owned entries in place and never touches seeds. It
+derives its answers instead of prompting — identity from `config.Load`,
+GitHub coordinates from the `origin` remote — because a refresh you have
+to re-answer isn't a repeatable path.
+
+Tool-owned files are written with a provenance stamp under the shebang:
+
+```
+# hm:generated version=v0.5.2 sha256=<digest of the file, stamp line excluded>
+```
+
+Recording the *digest* rather than only the version is what makes the
+check version-agnostic: update can tell an untouched v0.1.0 file from an
+edited one without shipping every historical template. Anything that
+doesn't verify — edited locally, or unstamped, which covers every repo
+scaffolded before v0.5.2 — is reported as `StateCustomized` with the
+would-be content in `Result.Want`, and the command renders a diff via
+`git diff --no-index` rather than writing. Deleting the stamp line is
+the supported opt-out; `--force` is the override.
+
+Adding a tool-owned file: set `toolOwned: true` on its manifest entry.
+The stamp is a shell comment, so a non-script would need a per-entry
+comment syntax first.
+
 ---
 
 ## The problem Homie solves
@@ -360,7 +396,7 @@ and stay).
 
 ## Current state
 
-v0.5.1 shipped. The MVP (detect, config, link, render, native packages,
+v0.5.2 shipped. The MVP (detect, config, link, render, native packages,
 runner, UI, `hm apply` end-to-end, `hm init` scaffold, `bootstrap.sh`
 template, `hm status` / `hm doctor`, GitHub Actions release pipeline,
 e2e container harness covering Ubuntu/Debian/Fedora, docs site) was
@@ -416,6 +452,11 @@ v0.0.2. Since then:
   the documented `curl … | bash` path (see "Bootstrap and trust model" above,
   and #46). Repos scaffolded earlier carry the old script — the hand-patch is
   in the FAQ.
+- **v0.5.2** — `hm init --update`: the repeatable path for getting a fix like
+  v0.5.1's into repos that already exist. Splits the scaffold manifest into
+  seeds and tool-owned files, stamps the latter with version + digest, and
+  re-renders only what nobody has edited (see "Seeds vs. tool-owned files"
+  above). Answers are derived, not prompted.
 
 **Layout migration** (one-time, for repos created against v0.0.2):
 `git mv dotfiles/* home/ && git mv templates/* home/ && rmdir dotfiles

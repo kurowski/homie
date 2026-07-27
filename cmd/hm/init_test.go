@@ -15,6 +15,13 @@ func resetInitFlags() {
 	initGitHubRepo = "dotfiles"
 	initProfile = "personal"
 	initShell = "zsh"
+	initUpdate = false
+	initForce = false
+	// Cobra's Changed bits survive between Execute calls in-process, and
+	// --update reads them to decide whether a flag beats the git remote.
+	for _, name := range []string{"github-user", "github-repo", "update", "force"} {
+		initCmd.Flags().Lookup(name).Changed = false
+	}
 }
 
 func TestInitNonInteractiveScaffold(t *testing.T) {

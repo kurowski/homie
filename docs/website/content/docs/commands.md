@@ -33,6 +33,38 @@ hm init \
   ~/dotfiles
 ```
 
+### `hm init --update` — refresh generated files
+
+Init never overwrites; `--update` is the supported way back into an
+existing repo. It re-renders the files Homie keeps current across
+releases — today just `bootstrap.sh`, which tracks how the current `hm`
+expects to be launched — and leaves your seeds (`homie.toml`, `home/`,
+`scripts/`) untouched.
+
+```sh
+cd ~/dotfiles
+hm init --update
+```
+
+It derives its answers rather than asking: identity from `homie.toml`,
+GitHub user and repo from the `origin` remote (`--github-user` /
+`--github-repo` override, for a repo with no remote). Run it from
+anywhere inside the repo, or pass the path.
+
+Generated files carry an `hm:generated` stamp with the writing version
+and a digest, so update can tell an untouched file from an edited one:
+
+| State | Meaning |
+|---|---|
+| `current` | already what this `hm` writes — no-op |
+| `updated` | untouched since an older `hm` wrote it; refreshed |
+| `created` | missing; written fresh |
+| `skipped` | edited locally, or unstamped — diff shown, nothing written |
+
+`--force` overwrites a skipped file. Deleting the `hm:generated` line
+opts a file out for good. Nothing is committed for you — review with
+`git diff`.
+
 ---
 
 ## `hm apply`

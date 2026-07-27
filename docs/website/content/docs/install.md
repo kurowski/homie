@@ -151,3 +151,16 @@ left on `PATH` by a different install method is probably shadowing it —
 Re-running your environment repo's `bootstrap.sh` also pulls the latest
 `hm` before applying, but that's a full reapply of your environment, not
 just a binary bump — `hm selfupdate` when you only want the binary.
+
+After upgrading, refresh the generated files in your environment repo:
+
+```sh
+cd ~/dotfiles && hm init --update
+```
+
+`bootstrap.sh` is versioned against `hm` — it encodes which release URL
+to fetch and how to hand your terminal to `sudo` — so a repo scaffolded
+against an older release keeps launching the old way until you refresh
+it. `--update` is a no-op when there's nothing to do, and stops with a
+diff rather than clobbering anything you've edited. See
+[Commands](/docs/commands/#hm-init---update--refresh-generated-files).
