@@ -407,7 +407,7 @@ and stay).
 
 ## Current state
 
-v0.5.4 shipped. The MVP (detect, config, link, render, native packages,
+v0.5.5 shipped. The MVP (detect, config, link, render, native packages,
 runner, UI, `hm apply` end-to-end, `hm init` scaffold, `bootstrap.sh`
 template, `hm status` / `hm doctor`, GitHub Actions release pipeline,
 e2e container harness covering Ubuntu/Debian/Fedora, docs site) was
@@ -480,6 +480,11 @@ v0.0.2. Since then:
   container to clone to `$HOME/dotfiles`). Outside `$HOME` now keeps the
   `$HOME/<repo>` default; `--repo-dir` sets it explicitly. Run `make e2e`
   before tagging: `go test ./...` doesn't build the `e2e` tag.
+- **v0.5.5** — reporting and test-hygiene follow-ups: `current` names the hm
+  version stamped on the file rather than the one checking it (a release that
+  doesn't touch a template leaves the file, and its stamp, alone), and the
+  scaffold-location tests pin `$HOME` instead of assuming `TMPDIR` sits
+  outside it.
 
 **Layout migration** (one-time, for repos created against v0.0.2):
 `git mv dotfiles/* home/ && git mv templates/* home/ && rmdir dotfiles
