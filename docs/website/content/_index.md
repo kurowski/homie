@@ -1,19 +1,27 @@
 ---
 title: "Homie"
-description: "Make every Linux & macOS box feel like home."
+description: "One command to make a fresh Linux or macOS box your own."
 ---
 
-# Make every Linux & macOS box feel like home.
+# One command to make a fresh Linux or macOS box your own.
 
-Homie is a single binary that turns a fresh Linux or macOS install into
-_your_ install — dotfiles, packages, setup scripts, all from one repo
-you own. One command from a bare box to a working environment:
+Homie gives you your own curl bash command to paste into a fresh Linux or macOS install 
+that will install all your preferred packages, install your dotfiles, and run setup
+scripts to make a blank machine _your_ machine.
+
+Step 1:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/USERNAME/dotfiles/main/bootstrap.sh | bash
 ```
 
-That's it! That's the whole setup story.
+_There is no step 2_.
+
+I wrote this because I setup new computers frequently, and nothing I could find did everything I wanted. Ansible was too much ceremony for my personal machines. Chezmoi was awkward for dotfiles and awkward for provisioning. Stow was too limited, Nix was too much.
+
+If you try Homie, I think you'll find it's _just right_: you tell it what packages you want installed, and you give it your dotfiles. It makes simple things easy, and complex things possible. Want to templatize your dotfiles? We got you. Need a script to customize your install? Done.
+
+But to get back to the original story: it's a single copy-pasted curl-bash line that's all you need to setup (or update) your system. And it comes from _your own repo_, so there's nobody to trust: the shebang you're running is the shebang you wrote. So give it a whirl, I think you'll like it.
 
 {{< cast name="bootstrap" alt="A fresh machine becomes a working environment with one curl | bash command" >}}
 
