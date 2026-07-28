@@ -18,6 +18,7 @@ type fakeRunner struct {
 	brewOK    map[string]bool // formula -> appears in `brew list --formula` output
 	caskOK    map[string]bool // cask -> appears in `brew list --cask` output
 	snapOK    map[string]bool // snap name -> appears in `snap list` output
+	pacmanOK  map[string]bool // pkg -> satisfied per `pacman -T`
 	failCmd   string          // if set, return error when arg[0]+args matches
 }
 
@@ -39,6 +40,13 @@ func (f *fakeRunner) run(name string, args ...string) ([]byte, error) {
 			return []byte(args[1] + "-1.0\n"), nil
 		}
 		return []byte("package " + args[1] + " is not installed"), errors.New("exit 1")
+	case name == "pacman" && len(args) == 2 && args[0] == "-T":
+		// `pacman -T` prints the unsatisfied requirements and exits
+		// non-zero; satisfied ones produce no output and exit 0.
+		if f.pacmanOK[args[1]] {
+			return nil, nil
+		}
+		return []byte(args[1] + "\n"), errors.New("exit 127")
 	case name == "flatpak" && len(args) >= 1 && args[0] == "list":
 		var b strings.Builder
 		for ref := range f.flatpakOK {
@@ -226,6 +234,88 @@ func TestDnfInstallSudo(t *testing.T) {
 	}
 }
 
+func TestPacmanIsInstalled(t *testing.T) {
+	f := &fakeRunner{pacmanOK: map[string]bool{"git": true}}
+	p := &Pacman{Runner: f.run}
+	if !p.IsInstalled("git") {
+		t.Errorf("git should report installed")
+	}
+	if p.IsInstalled("nope") {
+		t.Errorf("nope should report not installed")
+	}
+	if got := f.calls[0]; got.name != "pacman" || got.args[0] != "-T" {
+		t.Errorf("installed check = %s %v, want `pacman -T`", got.name, got.args)
+	}
+}
+
+func TestPacmanInstallSudo(t *testing.T) {
+	f := &fakeRunner{pacmanOK: map[string]bool{"git": true}}
+	p := &Pacman{Runner: f.run, Sudo: true}
+	if err := p.Install([]string{"git", "tmux"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	last := f.calls[len(f.calls)-1]
+	if last.name != "sudo" || last.args[0] != "pacman" {
+		t.Errorf("expected `sudo pacman ...`, got %s %v", last.name, last.args)
+	}
+	args := strings.Join(last.args, " ")
+	if !strings.Contains(args, "-S --needed --noconfirm tmux") {
+		t.Errorf("install args = %q, want tmux with --needed", args)
+	}
+	if strings.Contains(args, "git") {
+		t.Errorf("git was installed; must not appear: %q", args)
+	}
+}
+
+// Install must not refresh the sync database first: `pacman -Sy` followed
+// by an install is the partial-upgrade footgun, and a full -Syu isn't
+// hm's call to make. See Pacman.Install.
+func TestPacmanInstallDoesNotRefreshDatabase(t *testing.T) {
+	f := &fakeRunner{}
+	p := &Pacman{Runner: f.run}
+	if err := p.Install([]string{"tmux"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	for _, c := range f.calls {
+		joined := strings.Join(c.args, " ")
+		if strings.Contains(joined, "-Sy") || strings.Contains(joined, "-Syu") {
+			t.Errorf("Install must not refresh the database: %s %v", c.name, c.args)
+		}
+	}
+}
+
+func TestPacmanInstallNoopWhenAllInstalled(t *testing.T) {
+	f := &fakeRunner{pacmanOK: map[string]bool{"git": true, "tmux": true}}
+	p := &Pacman{Runner: f.run}
+	if err := p.Install([]string{"git", "tmux"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	for _, c := range f.calls {
+		if len(c.args) > 0 && c.args[0] == "-S" {
+			t.Errorf("pacman -S should not have been invoked: calls=%+v", f.calls)
+		}
+	}
+}
+
+// A stale sync database is the most likely install failure on Arch, and
+// "target not found" is opaque unless we say what to do about it.
+func TestPacmanInstallStaleDatabaseHint(t *testing.T) {
+	run := func(name string, args ...string) ([]byte, error) {
+		if len(args) > 0 && args[0] == "-T" {
+			return []byte("tmux\n"), errors.New("exit 127") // not installed
+		}
+		return []byte("error: target not found: tmux"), errors.New("exit 1")
+	}
+	p := &Pacman{Runner: run}
+	err := p.Install([]string{"tmux"})
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if !strings.Contains(err.Error(), "pacman -Syu") {
+		t.Errorf("error should suggest a database refresh, got: %v", err)
+	}
+}
+
 func TestForPicksBackend(t *testing.T) {
 	cases := []struct {
 		env  detect.Env
@@ -235,7 +325,8 @@ func TestForPicksBackend(t *testing.T) {
 		{detect.Env{PackageManager: "dnf", IsRoot: false}, "dnf"},
 		{detect.Env{PackageManager: "brew", Distro: "macos"}, "brew"},
 		{detect.Env{PackageManager: "pkg", Distro: "termux"}, "pkg"},
-		{detect.Env{PackageManager: "unknown", Distro: "arch"}, "noop"},
+		{detect.Env{PackageManager: "pacman", Distro: "arch", IsRoot: false}, "pacman"},
+		{detect.Env{PackageManager: "unknown", Distro: "alpine"}, "noop"},
 		{detect.Env{}, "noop"},
 	}
 	for _, tc := range cases {

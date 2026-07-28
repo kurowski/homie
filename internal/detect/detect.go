@@ -16,8 +16,8 @@ import (
 
 // Env is the resolved view of the runtime environment.
 type Env struct {
-	Distro         string // ubuntu, debian, fedora, macos, termux, unknown
-	PackageManager string // apt, dnf, brew, pkg, unknown
+	Distro         string // ubuntu, debian, fedora, arch, macos, termux, unknown
+	PackageManager string // apt, dnf, pacman, brew, pkg, unknown
 	Arch           string // amd64, arm64, ...
 	Hostname       string // short hostname (everything before the first dot)
 	IsContainer    bool
@@ -133,7 +133,7 @@ func parseDistro(root fs.FS) string {
 		}
 		id := strings.Trim(strings.TrimPrefix(line, "ID="), `"'`)
 		switch id {
-		case "ubuntu", "debian", "fedora":
+		case "ubuntu", "debian", "fedora", "arch":
 			return id
 		default:
 			// TODO(contrib): add support for additional distros here.
@@ -153,6 +153,8 @@ func packageManagerFor(distro string) string {
 		return "apt"
 	case "fedora":
 		return "dnf"
+	case "arch":
+		return "pacman"
 	case "macos":
 		// brew is the default macOS package manager, but it's optional:
 		// a missing brew degrades to a warning+skip (see packages.For and

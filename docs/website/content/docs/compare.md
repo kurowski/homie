@@ -134,7 +134,7 @@ Store apps, and `brew bundle` installs them.
   dotfiles, templates, and ordered scripts in one pass.
 - **Platform.** `brew bundle` is macOS (and Linuxbrew) only. Homie
   manages the same repo across Linux and macOS, with native packages on
-  each (apt/dnf on Linux, `brew` on macOS — formulae by bare name, casks
+  each (apt/dnf/pacman on Linux, `brew` on macOS — formulae by bare name, casks
   with a `/cask` suffix).
 
 **Pick `brew bundle` if** all you want is a reproducible package list on

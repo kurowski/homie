@@ -59,24 +59,33 @@ machines you actually use.
 ## `[packages]`
 
 Native packages to install via the detected package manager (`apt` on
-Ubuntu/Debian, `dnf` on Fedora, `brew` on macOS, `pkg` on Termux). Idempotent
-— each package is checked with `dpkg -s` / `rpm -q` / `brew list` before
-install.
+Ubuntu/Debian, `dnf` on Fedora, `pacman` on Arch, `brew` on macOS, `pkg` on
+Termux). Idempotent — each package is checked with `dpkg -s` / `rpm -q` /
+`pacman -T` / `brew list` before install.
 
 ```toml
 [packages]
-all    = ["git", "zsh", "neovim", "tmux", "ripgrep", "fd", "fzf"]
-fedora = ["util-linux-user"]
+all    = ["git", "zsh", "neovim", "tmux", "ripgrep", "fzf"]
+fedora = ["util-linux-user", "fd-find"]
 ubuntu = ["fd-find"]
 debian = ["fd-find"]
-macos  = ["coreutils", "firefox/cask"]
-termux = ["openssh"]
+arch   = ["fd"]
+macos  = ["fd", "coreutils", "firefox/cask"]
+termux = ["fd", "openssh"]
 ```
 
 `all` runs on every platform. Per-platform keys (`fedora`, `ubuntu`,
-`debian`, `macos`, `termux`) merge on top — useful for the
+`debian`, `arch`, `macos`, `termux`) merge on top — useful for the
 rename-on-this-platform case (`fd` vs `fd-find`) or for platform-specific
 tools.
+
+On Arch, `[packages]` covers the official repos. Homie never refreshes the
+package database — `pacman -Sy` followed by an install is the partial-upgrade
+footgun, and a full `pacman -Syu` isn't a call `hm apply` should make for you.
+Keep the system current the way you normally would; if a package can't be
+found, Homie says so and points at `pacman -Syu`. The AUR is out of scope:
+it needs a helper that isn't part of a base install, so drive it from a
+`scripts/` step if you want it.
 
 On macOS, native packages install through Homebrew. A GUI app (a Homebrew
 **cask**) is named with a `/cask` suffix — `firefox/cask` installs with
@@ -221,12 +230,15 @@ extra = ["laptop"]
 
 Active tags on every run are the union of:
 
-- **Detected:** the platform (`ubuntu`, `debian`, `fedora`, `macos`,
-  `termux`), the arch (`amd64`, `arm64`), the short hostname (so
+- **Detected:** the platform (`ubuntu`, `debian`, `fedora`, `arch`, `macos`,
+  `termux`), the CPU architecture (`amd64`, `arm64`), the short hostname (so
   `hasTag "coach"` works with no config), plus `container` and `root` when
   those apply.
 - **Profile:** `profile.name`, if set.
 - **Extra:** everything in `tags.extra`.
+
+The `arch` tag is Arch Linux, the platform. The CPU is `amd64` / `arm64`
+and is also available as `{{ .Arch }}` in templates.
 
 Duplicates are deduped; the resulting list is sorted, exposed to
 templates as `{{ .Tags }}`, and to scripts as `$HM_TAGS` (space-joined).

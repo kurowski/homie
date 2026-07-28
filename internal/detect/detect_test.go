@@ -64,8 +64,27 @@ func TestDetect(t *testing.T) {
 			},
 		},
 		{
-			name:     "unknown distro stays unknown",
+			name:     "arch pacman",
 			fsys:     fstest.MapFS{"etc/os-release": osRelease("arch")},
+			uid:      1000,
+			arch:     "amd64",
+			hostname: "forge",
+			want: Env{
+				Distro: "arch", PackageManager: "pacman", Arch: "amd64",
+				Hostname: "forge",
+				// "arch" is the distro tag; the CPU is a separate tag
+				// ("amd64") and a separate field (.Arch).
+				Tags: []string{"amd64", "arch", "forge"},
+			},
+		},
+		{
+			name: "arch derivative is not arch",
+			// ID_LIKE is deliberately not consulted — a derivative can
+			// diverge in package names, so it gets the unsupported path
+			// rather than a silent guess. Same rule as ubuntu derivatives.
+			fsys: fstest.MapFS{"etc/os-release": &fstest.MapFile{
+				Data: []byte("NAME=\"Manjaro Linux\"\nID=manjaro\nID_LIKE=arch\n"),
+			}},
 			uid:      1000,
 			arch:     "amd64",
 			hostname: "weird",

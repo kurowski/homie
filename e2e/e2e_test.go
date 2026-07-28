@@ -38,6 +38,7 @@ var distros = []struct {
 	{"ubuntu", []string{"dpkg", "-s", "tmux"}},
 	{"debian", []string{"dpkg", "-s", "tmux"}},
 	{"fedora", []string{"rpm", "-q", "tmux"}},
+	{"arch", []string{"pacman", "-Q", "tmux"}},
 }
 
 const (
