@@ -1,9 +1,10 @@
 //go:build e2e
 
-// Package e2e drives the real curl|bash flow against Ubuntu, Debian, and
-// Fedora containers. A tiny nginx sidecar serves the hm release artifacts,
-// a bare clone of a scaffold-generated user repo, and the bootstrap.sh,
-// all over HTTPS using the committed test CA + leaf cert under e2e/certs.
+// Package e2e drives the real curl|bash flow against Ubuntu, Debian,
+// Fedora, and Arch containers. A tiny nginx sidecar serves the hm release
+// artifacts, a bare clone of a scaffold-generated user repo, and the
+// bootstrap.sh, all over HTTPS using the committed test CA + leaf cert
+// under e2e/certs.
 // Each distro container joins the nginx network with --network-alias
 // github.com so the URLs inside bootstrap.sh resolve to nginx without
 // modification.

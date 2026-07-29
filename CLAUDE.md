@@ -323,11 +323,22 @@ equivalent isn't — `pacman -Sy` followed by an install is the documented
 partial-upgrade footgun, and the only safe refresh, `-Syu`, upgrades the
 whole system, which isn't a decision `hm apply` gets to make. So Install
 runs against the sync database as it stands and, when that's what failed
-(`target not found`), the error names `pacman -Syu` as the fix. Its
-installed check is `pacman -T` (deptest) rather than `-Q`, so a spec
-satisfied by a *provides* counts as installed; groups (`base-devel`)
-satisfy neither, which is why Install passes `--needed` — a re-offered
-group is then a no-op rather than a reinstall. The AUR is out of scope:
+(`target not found`), the error names `pacman -Syu` as the fix — spelled
+with or without `sudo` per `p.command`, since that failure lands most
+often in a root container with no `sudo` installed.
+
+Its installed check is two queries. A cached `pacman -Qq` dump answers
+literal package names from the local database (no sync needed), and a
+miss falls through to one memoized `pacman -T` (deptest), which is the
+only form that resolves a spec satisfied by a *provides* (`sh` from
+bash). `-Q` alone would miss those; `-T` alone would fork per package
+per pass. Groups (`base-devel`) satisfy neither, which is why Install
+passes `--needed` — a re-offered group is a no-op rather than a
+reinstall. That keeps *state* right but leaves the *report* wrong:
+doctor warns forever and apply announces an install it won't perform.
+Expanding a group needs `pacman -Sg` and therefore the sync database
+Install refuses to refresh, so `/docs/config/` tells users to declare
+members, not groups. The AUR is out of scope:
 it needs a helper that isn't in a base install, and it's a natural
 `ForBackend` candidate if anyone wants it.
 
@@ -348,10 +359,12 @@ bad suffix surfaces before any install, the same pattern as snap's
 confinement suffixes.
 
 Each backend checks `IsInstalled` before installing so runs are
-idempotent without a state file. Non-native backends additionally cache
-the parsed installed-set with `sync.Once` so a `bucket+Install` round
-shells out once per phase rather than 2N times. Unknown distros get a
-`NoopManager` that warns and skips.
+idempotent without a state file. The non-native backends and `Pacman`
+additionally cache the parsed installed-set with `sync.Once` so a
+`bucket+Install` round shells out once per phase rather than 2N times —
+`apt`/`dnf`/`pkg` still pay the 2N, since `dpkg -s` and `rpm -q` are
+per-package by construction. Unknown distros get a `NoopManager` that
+warns and skips.
 
 Adding a backend: extend `config.KnownBackends`, implement `Manager`
 in `internal/packages`, add a case to `packages.ForBackend`. The apply

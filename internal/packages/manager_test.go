@@ -18,6 +18,7 @@ type fakeRunner struct {
 	brewOK    map[string]bool // formula -> appears in `brew list --formula` output
 	caskOK    map[string]bool // cask -> appears in `brew list --cask` output
 	snapOK    map[string]bool // snap name -> appears in `snap list` output
+	pacmanQq  []string        // lines of `pacman -Qq` (installed package names)
 	pacmanOK  map[string]bool // pkg -> satisfied per `pacman -T`
 	failCmd   string          // if set, return error when arg[0]+args matches
 }
@@ -40,6 +41,16 @@ func (f *fakeRunner) run(name string, args ...string) ([]byte, error) {
 			return []byte(args[1] + "-1.0\n"), nil
 		}
 		return []byte("package " + args[1] + " is not installed"), errors.New("exit 1")
+	case name == "pacman" && len(args) == 1 && args[0] == "-Qq":
+		// One name per line. Real pacman also writes stderr warnings into
+		// this stream when the sync database is missing, which is why the
+		// parser drops lines containing spaces.
+		var b strings.Builder
+		b.WriteString("warning: database file for 'core' does not exist\n")
+		for _, n := range f.pacmanQq {
+			b.WriteString(n + "\n")
+		}
+		return []byte(b.String()), nil
 	case name == "pacman" && len(args) == 2 && args[0] == "-T":
 		// `pacman -T` prints the unsatisfied requirements and exits
 		// non-zero; satisfied ones produce no output and exit 0.
@@ -235,7 +246,10 @@ func TestDnfInstallSudo(t *testing.T) {
 }
 
 func TestPacmanIsInstalled(t *testing.T) {
-	f := &fakeRunner{pacmanOK: map[string]bool{"git": true}}
+	f := &fakeRunner{
+		pacmanQq: []string{"git"},
+		pacmanOK: map[string]bool{"git": true},
+	}
 	p := &Pacman{Runner: f.run}
 	if !p.IsInstalled("git") {
 		t.Errorf("git should report installed")
@@ -243,8 +257,71 @@ func TestPacmanIsInstalled(t *testing.T) {
 	if p.IsInstalled("nope") {
 		t.Errorf("nope should report not installed")
 	}
-	if got := f.calls[0]; got.name != "pacman" || got.args[0] != "-T" {
-		t.Errorf("installed check = %s %v, want `pacman -T`", got.name, got.args)
+	// The dump comes first and answers the hit; only the miss reaches -T.
+	if got := f.calls[0]; got.name != "pacman" || got.args[0] != "-Qq" {
+		t.Errorf("first call = %s %v, want `pacman -Qq`", got.name, got.args)
+	}
+	if got := f.calls[1]; got.name != "pacman" || got.args[0] != "-T" || got.args[1] != "nope" {
+		t.Errorf("second call = %s %v, want `pacman -T nope`", got.name, got.args)
+	}
+	if len(f.calls) != 2 {
+		t.Errorf("want exactly 2 calls, got %d: %+v", len(f.calls), f.calls)
+	}
+}
+
+// The whole point of the -Qq cache: a converged apply buckets into
+// already/todo and then calls Install, which filters again. Both passes
+// must come out of one dump rather than forking per package per pass.
+func TestPacmanQueryIsCachedAcrossCalls(t *testing.T) {
+	f := &fakeRunner{pacmanQq: []string{"git", "tmux"}}
+	p := &Pacman{Runner: f.run}
+	for _, name := range []string{"git", "tmux", "git", "tmux"} {
+		if !p.IsInstalled(name) {
+			t.Fatalf("%s should report installed", name)
+		}
+	}
+	if err := p.Install([]string{"git", "tmux"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	var dumps, deptests int
+	for _, c := range f.calls {
+		switch {
+		case c.name == "pacman" && c.args[0] == "-Qq":
+			dumps++
+		case c.name == "pacman" && c.args[0] == "-T":
+			deptests++
+		}
+	}
+	if dumps != 1 {
+		t.Errorf("`pacman -Qq` ran %d times, want exactly 1: %+v", dumps, f.calls)
+	}
+	if deptests != 0 {
+		t.Errorf("names present in -Qq must not fall through to -T: %+v", f.calls)
+	}
+}
+
+// A spec satisfied by a *provides* is absent from `pacman -Qq` — that's
+// the case -T exists to answer, and the reason a miss can't be treated
+// as "not installed". The answer is memoized, so a second filtering pass
+// doesn't pay for it twice.
+func TestPacmanFallsBackToDeptestForProvides(t *testing.T) {
+	f := &fakeRunner{
+		pacmanQq: []string{"bash"}, // `sh` is provided by bash, not a package
+		pacmanOK: map[string]bool{"sh": true},
+	}
+	p := &Pacman{Runner: f.run}
+	if !p.IsInstalled("sh") {
+		t.Error("sh is satisfied by a provides; should report installed")
+	}
+	if p.IsInstalled("nope") {
+		t.Error("nope should report not installed")
+	}
+	before := len(f.calls)
+	_ = p.IsInstalled("sh")
+	_ = p.IsInstalled("nope")
+	if len(f.calls) != before {
+		t.Errorf("repeat lookups should hit the memo, got %d new calls: %+v",
+			len(f.calls)-before, f.calls[before:])
 	}
 }
 

@@ -1,9 +1,12 @@
 package packages
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
 // Pacman is the package manager backend for Arch Linux.
@@ -16,6 +19,21 @@ import (
 type Pacman struct {
 	Runner Runner
 	Sudo   bool // prepend `sudo` to mutating commands when not root
+
+	// loadOnce + installed cache one `pacman -Qq` per Manager instance,
+	// so the apply path's "bucket into already / todo, then call Install"
+	// doesn't fork pacman N times and then N more inside filterUninstalled.
+	// Same trick the non-native backends use; pacman is the one native
+	// backend where a whole-database dump is a single cheap command that
+	// needs no sync database.
+	loadOnce  sync.Once
+	installed map[string]struct{}
+
+	// resolved memoizes the -T answers for specs that aren't literal
+	// installed package names, so the second filtering pass over a list of
+	// genuinely-missing packages doesn't re-fork for every one of them.
+	mu       sync.Mutex
+	resolved map[string]bool
 }
 
 // Name returns "pacman".
@@ -31,12 +49,19 @@ func (p *Pacman) IsAvailable() bool {
 
 // IsInstalled reports whether name is already satisfied locally.
 //
-// `pacman -T` (deptest) rather than `pacman -Q`: -T asks "is this
-// requirement met by the local database", which resolves virtual
-// packages via provides — so a spec like `sh` or `java-runtime` counts
-// as installed when something providing it is. -Q matches the literal
-// package name only. -T exits non-zero (and lists the misses) when a
-// requirement isn't satisfied.
+// Two queries, because neither answers the whole question. `pacman -Qq`
+// dumps every installed package name in one fork and is cached, so the
+// common case — a literal package name — is a set lookup, and a hit is
+// conclusive. A name absent from that set may still be satisfied by a
+// *provides* (`sh` comes from bash, `java-runtime` from a JDK), which
+// only `pacman -T` (deptest) resolves — -Q matches literal names only —
+// so a miss falls through to one memoized -T fork. -T exits non-zero,
+// listing the misses, when a requirement isn't satisfied.
+//
+// The cached view is frozen for this Manager instance's lifetime. apply
+// builds a fresh Manager per phase and nothing re-checks after Install,
+// so staleness never surfaces — the same contract the non-native
+// backends' caches carry.
 //
 // Groups (`base-devel`) are the gap in both: a group is a label on a set
 // of packages, not a requirement, so neither -T nor -Q reports a
@@ -50,8 +75,46 @@ func (p *Pacman) IsAvailable() bool {
 // that doesn't fight that rule. Documented instead — /docs/config/ tells
 // users to declare group members rather than groups.
 func (p *Pacman) IsInstalled(name string) bool {
+	p.loadOnce.Do(p.loadInstalled)
+	if _, ok := p.installed[name]; ok {
+		return true
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if satisfied, ok := p.resolved[name]; ok {
+		return satisfied
+	}
 	_, err := p.Runner("pacman", "-T", name)
-	return err == nil
+	satisfied := err == nil
+	if p.resolved == nil {
+		p.resolved = make(map[string]bool)
+	}
+	p.resolved[name] = satisfied
+	return satisfied
+}
+
+// loadInstalled parses `pacman -Qq` — one package name per line, read
+// from the local database, so it works on a host that has never synced.
+// A failure leaves the set empty, which degrades to a -T fork per spec:
+// slower, same answers.
+func (p *Pacman) loadInstalled() {
+	p.installed = make(map[string]struct{})
+	out, err := p.Runner("pacman", "-Qq")
+	if err != nil {
+		return
+	}
+	sc := bufio.NewScanner(bytes.NewReader(out))
+	for sc.Scan() {
+		name := strings.TrimSpace(sc.Text())
+		// Package names never contain spaces, so this drops pacman's
+		// stderr chatter ("warning: database file for 'core' does not
+		// exist"), which execRunner merges into the same stream.
+		if name == "" || strings.ContainsAny(name, " \t") {
+			continue
+		}
+		p.installed[name] = struct{}{}
+	}
 }
 
 // Install installs pkgs that aren't already present.

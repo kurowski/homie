@@ -5,8 +5,13 @@ FROM archlinux:base
 # network. -Syu (not -Sy) because a refresh followed by an install is the
 # partial-upgrade footgun; inside the image build, upgrading first is
 # free. hm itself never syncs — see internal/packages/pacman.go.
+#
+# The sync databases this leaves behind are what the test run installs
+# against, so the cleanup only clears downloaded packages. `pacman -Scc`
+# would work today (it keeps dbs for repos still in pacman.conf) but ties
+# the image to the retention rule of the very thing it must not lose.
 RUN pacman -Syu --needed --noconfirm sudo curl ca-certificates \
- && pacman -Scc --noconfirm
+ && rm -rf /var/cache/pacman/pkg/*
 
 # Trust the test CA so curl/git can validate the e2e webserver's cert.
 COPY certs/ca.crt /etc/ca-certificates/trust-source/anchors/homie-e2e.crt
