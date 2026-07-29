@@ -60,10 +60,9 @@ name          = "personal"
 default_shell = "zsh"
 
 [packages]
-all    = ["git", "zsh", "neovim", "tmux", "ripgrep", "fzf"]
-fedora = ["util-linux-user", "fd-find"]
+all    = ["git", "zsh", "neovim", "tmux", "ripgrep", "fd", "fzf"]
+fedora = ["util-linux-user"]
 ubuntu = ["fd-find"]
-arch   = ["fd"]
 
 [vars]
 EDITOR = "nvim"

@@ -517,10 +517,12 @@ v0.0.2. Since then:
   keeping four copies in sync is what the previous shape asked for. Unlike
   macOS and Termux, e2e covers it: `arch.Dockerfile` plus a fourth entry in
   the harness table, so the full curl|bash → bootstrap → pacman → apply →
-  reapply path is verified. The scaffold's default `[packages]` moved `fd`
-  out of `all` into per-platform keys — it's `fd-find` on apt/dnf and `fd`
-  everywhere else, so the shipped seed was wrong on Arch, macOS and Termux
-  and now demonstrates the feature that fixes it.
+  reapply path is verified — which is what caught `fd-find` in the scaffold
+  seed's `[packages].all`: that name exists only on apt/dnf, so the shipped
+  default failed on Arch (and would on macOS and Termux, which e2e doesn't
+  cover). Dropped from the seed rather than split into per-platform keys —
+  a starter file shouldn't carry the rename table, and `/docs/config/`
+  already documents it.
 
 **Layout migration** (one-time, for repos created against v0.0.2):
 `git mv dotfiles/* home/ && git mv templates/* home/ && rmdir dotfiles

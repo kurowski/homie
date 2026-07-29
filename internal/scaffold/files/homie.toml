@@ -7,20 +7,12 @@ name          = "{{ .Profile }}"
 default_shell = "{{ .DefaultShell }}"
 
 [packages]
-# Packages installed on every supported platform.
+# Packages installed on every supported distro.
 all = ["git", "zsh", "neovim", "tmux", "ripgrep", "fzf"]
 
-# Per-platform lists, merged onto `all`. fd ships under two different
-# names depending on the platform — that's exactly what these keys are
-# for. Add anything else platform-specific here:
+# Per-distro overrides, merged onto `all`. Examples:
 #   fedora = ["dejavu-sans-mono-fonts"]
 #   ubuntu = ["fonts-dejavu"]
-ubuntu = ["fd-find"]
-debian = ["fd-find"]
-fedora = ["fd-find"]
-arch   = ["fd"]
-macos  = ["fd"]
-termux = ["fd"]
 
 [tags]
 # Auto tags from environment detection (distro, arch, container, root,
