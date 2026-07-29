@@ -298,7 +298,10 @@ func TestPacmanInstallNoopWhenAllInstalled(t *testing.T) {
 }
 
 // A stale sync database is the most likely install failure on Arch, and
-// "target not found" is opaque unless we say what to do about it.
+// "target not found" is opaque unless we say what to do about it. The
+// suggestion has to match how this host would actually run the command:
+// as root — a container or arch-chroot, where this fires most often —
+// there may be no sudo binary to prepend.
 func TestPacmanInstallStaleDatabaseHint(t *testing.T) {
 	run := func(name string, args ...string) ([]byte, error) {
 		if len(args) > 0 && args[0] == "-T" {
@@ -306,13 +309,24 @@ func TestPacmanInstallStaleDatabaseHint(t *testing.T) {
 		}
 		return []byte("error: target not found: tmux"), errors.New("exit 1")
 	}
-	p := &Pacman{Runner: run}
-	err := p.Install([]string{"tmux"})
-	if err == nil {
-		t.Fatal("expected an error")
-	}
-	if !strings.Contains(err.Error(), "pacman -Syu") {
-		t.Errorf("error should suggest a database refresh, got: %v", err)
+	for _, tc := range []struct {
+		name string
+		sudo bool
+		want string
+	}{
+		{"as root", false, "`pacman -Syu`"},
+		{"as user", true, "`sudo pacman -Syu`"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &Pacman{Runner: run, Sudo: tc.sudo}
+			err := p.Install([]string{"tmux"})
+			if err == nil {
+				t.Fatal("expected an error")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error should suggest %s, got: %v", tc.want, err)
+			}
+		})
 	}
 }
 

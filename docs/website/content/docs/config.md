@@ -87,6 +87,15 @@ found, Homie says so and points at `pacman -Syu`. The AUR is out of scope:
 it needs a helper that isn't part of a base install, so drive it from a
 `scripts/` step if you want it.
 
+**Declare packages, not groups.** A pacman *group* (`base-devel`) is a label
+on a set of packages rather than something that can itself be installed, and
+nothing in the local package database records that you asked for the group.
+Homie can't tell a fully-installed group from a missing one, so listing a
+group leaves `hm doctor` warning that it isn't installed and `hm apply`
+re-announcing it every run — on a machine where every member is present.
+List the members you actually want, or install the group from a `scripts/`
+step.
+
 On macOS, native packages install through Homebrew. A GUI app (a Homebrew
 **cask**) is named with a `/cask` suffix — `firefox/cask` installs with
 `brew install --cask firefox`; a bare name is a formula. A typo'd suffix

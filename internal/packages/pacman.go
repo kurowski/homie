@@ -38,10 +38,17 @@ func (p *Pacman) IsAvailable() bool {
 // package name only. -T exits non-zero (and lists the misses) when a
 // requirement isn't satisfied.
 //
-// Groups (`base-devel`) are the gap in both: neither -T nor -Q reports a
-// fully-installed group as present, so a declared group is re-offered to
-// Install on every run. `pacman -S --needed` makes that a no-op rather
-// than a reinstall, so runs stay idempotent in effect.
+// Groups (`base-devel`) are the gap in both: a group is a label on a set
+// of packages, not a requirement, so neither -T nor -Q reports a
+// fully-installed one as present. The state stays correct — Install
+// re-offers the group every run and `pacman -S --needed` makes that a
+// no-op — but every *caller that reports* on this method is then wrong
+// about a converged machine: `hm doctor` warns "not installed" forever,
+// and `hm apply` announces an install it doesn't perform. Expanding a
+// group into its members needs `pacman -Sg`, which reads the sync
+// database Install deliberately never refreshes, so there's no fix here
+// that doesn't fight that rule. Documented instead — /docs/config/ tells
+// users to declare group members rather than groups.
 func (p *Pacman) IsInstalled(name string) bool {
 	_, err := p.Runner("pacman", "-T", name)
 	return err == nil
@@ -69,7 +76,13 @@ func (p *Pacman) Install(pkgs []string) error {
 	if err != nil {
 		msg := strings.TrimSpace(string(out))
 		if strings.Contains(msg, "target not found") {
-			return fmt.Errorf("pacman -S: %w: %s (the package database may be stale — run `sudo pacman -Syu` and re-run)", err, msg)
+			// Spell the suggestion the way this host would run it. The
+			// failure fires most often on a fresh root environment
+			// (container, arch-chroot, rescue boot) — precisely where
+			// there's no sudo binary to prepend.
+			refresh, rest := p.command([]string{"pacman", "-Syu"})
+			suggest := strings.Join(append([]string{refresh}, rest...), " ")
+			return fmt.Errorf("pacman -S: %w: %s (the package database may be stale — run `%s` and re-run)", err, msg, suggest)
 		}
 		return fmt.Errorf("pacman -S: %w: %s", err, msg)
 	}
