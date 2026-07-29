@@ -58,8 +58,8 @@ recipe.
 
 ## Does Homie work on macOS?
 
-Yes — macOS is a first-class platform alongside Ubuntu, Debian, and
-Fedora, on both Apple Silicon (arm64) and Intel (amd64). The same
+Yes — macOS is a first-class platform alongside Ubuntu, Debian, Fedora,
+and Arch, on both Apple Silicon (arm64) and Intel (amd64). The same
 install one-liner works:
 
 ```sh
@@ -119,13 +119,47 @@ Codespaces, devcontainers, and the box your USB stick boots into.
 Windows isn't ruled out forever; it's ruled out for v1 so we ship the
 Linux and macOS story cleanly first.
 
-## My distro isn't Ubuntu, Debian, or Fedora. Now what?
+## My distro isn't Ubuntu, Debian, Fedora, or Arch. Now what?
 
 `hm apply` will detect your distro as `unknown` and print a friendly
 notice with a link to the [contributing guide](/docs/contributing/).
 You can still use Homie — dotfiles, templates, and scripts all work —
 but the package install phase becomes a no-op. Adding distro support is
 a small, well-isolated change; PRs welcome.
+
+This includes derivatives of a supported distro — Mint, Pop!\_OS,
+Manjaro, EndeavourOS. Only the exact `ID=` in `/etc/os-release` is
+matched, never `ID_LIKE`, because a derivative is free to rename or drop
+packages its parent ships and a silent guess would fail at install time
+instead of detection time.
+
+## Does Homie install from the AUR?
+
+No. `[packages]` on Arch covers the official repos via `pacman`. The AUR
+needs a helper (`yay`, `paru`) that isn't part of a base install, and
+building from source is a different proposition from fetching a signed
+package — so it stays an explicit choice you make in a `scripts/` step:
+
+```sh
+# scripts/20-aur.sh
+command -v paru >/dev/null || {
+  sudo pacman -S --needed --noconfirm base-devel git
+  rm -rf /tmp/paru   # a half-finished earlier run would fail the clone
+  git clone https://aur.archlinux.org/paru-bin.git /tmp/paru && \
+    (cd /tmp/paru && makepkg -si --noconfirm)
+}
+paru -S --needed --noconfirm my-aur-package
+```
+
+**This one can't run as root.** `makepkg` refuses to, by design — so unlike
+the rest of `hm apply`, an AUR step only works on the run-as-your-user path,
+not the fresh-bare-metal-as-root one. It sudoes for the `pacman` calls it
+needs and no further.
+
+Homie also never runs `pacman -Sy` or `-Syu` for you: refreshing the
+database and then installing is the documented partial-upgrade footgun,
+and upgrading your whole system isn't a decision `hm apply` should make.
+If a package can't be found, Homie says so and suggests `pacman -Syu`.
 
 ## `sudo` says "a terminal is required" when I pipe `bootstrap.sh` into bash
 

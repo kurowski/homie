@@ -18,6 +18,8 @@ type fakeRunner struct {
 	brewOK    map[string]bool // formula -> appears in `brew list --formula` output
 	caskOK    map[string]bool // cask -> appears in `brew list --cask` output
 	snapOK    map[string]bool // snap name -> appears in `snap list` output
+	pacmanQq  []string        // lines of `pacman -Qq` (installed package names)
+	pacmanOK  map[string]bool // pkg -> satisfied per `pacman -T`
 	failCmd   string          // if set, return error when arg[0]+args matches
 }
 
@@ -39,6 +41,23 @@ func (f *fakeRunner) run(name string, args ...string) ([]byte, error) {
 			return []byte(args[1] + "-1.0\n"), nil
 		}
 		return []byte("package " + args[1] + " is not installed"), errors.New("exit 1")
+	case name == "pacman" && len(args) == 1 && args[0] == "-Qq":
+		// One name per line. Real pacman also writes stderr warnings into
+		// this stream when the sync database is missing, which is why the
+		// parser drops lines containing spaces.
+		var b strings.Builder
+		b.WriteString("warning: database file for 'core' does not exist\n")
+		for _, n := range f.pacmanQq {
+			b.WriteString(n + "\n")
+		}
+		return []byte(b.String()), nil
+	case name == "pacman" && len(args) == 2 && args[0] == "-T":
+		// `pacman -T` prints the unsatisfied requirements and exits
+		// non-zero; satisfied ones produce no output and exit 0.
+		if f.pacmanOK[args[1]] {
+			return nil, nil
+		}
+		return []byte(args[1] + "\n"), errors.New("exit 127")
 	case name == "flatpak" && len(args) >= 1 && args[0] == "list":
 		var b strings.Builder
 		for ref := range f.flatpakOK {
@@ -226,6 +245,168 @@ func TestDnfInstallSudo(t *testing.T) {
 	}
 }
 
+func TestPacmanIsInstalled(t *testing.T) {
+	f := &fakeRunner{
+		pacmanQq: []string{"git"},
+		pacmanOK: map[string]bool{"git": true},
+	}
+	p := &Pacman{Runner: f.run}
+	if !p.IsInstalled("git") {
+		t.Errorf("git should report installed")
+	}
+	if p.IsInstalled("nope") {
+		t.Errorf("nope should report not installed")
+	}
+	// The dump comes first and answers the hit; only the miss reaches -T.
+	if got := f.calls[0]; got.name != "pacman" || got.args[0] != "-Qq" {
+		t.Errorf("first call = %s %v, want `pacman -Qq`", got.name, got.args)
+	}
+	if got := f.calls[1]; got.name != "pacman" || got.args[0] != "-T" || got.args[1] != "nope" {
+		t.Errorf("second call = %s %v, want `pacman -T nope`", got.name, got.args)
+	}
+	if len(f.calls) != 2 {
+		t.Errorf("want exactly 2 calls, got %d: %+v", len(f.calls), f.calls)
+	}
+}
+
+// The whole point of the -Qq cache: a converged apply buckets into
+// already/todo and then calls Install, which filters again. Both passes
+// must come out of one dump rather than forking per package per pass.
+func TestPacmanQueryIsCachedAcrossCalls(t *testing.T) {
+	f := &fakeRunner{pacmanQq: []string{"git", "tmux"}}
+	p := &Pacman{Runner: f.run}
+	for _, name := range []string{"git", "tmux", "git", "tmux"} {
+		if !p.IsInstalled(name) {
+			t.Fatalf("%s should report installed", name)
+		}
+	}
+	if err := p.Install([]string{"git", "tmux"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	var dumps, deptests int
+	for _, c := range f.calls {
+		switch {
+		case c.name == "pacman" && c.args[0] == "-Qq":
+			dumps++
+		case c.name == "pacman" && c.args[0] == "-T":
+			deptests++
+		}
+	}
+	if dumps != 1 {
+		t.Errorf("`pacman -Qq` ran %d times, want exactly 1: %+v", dumps, f.calls)
+	}
+	if deptests != 0 {
+		t.Errorf("names present in -Qq must not fall through to -T: %+v", f.calls)
+	}
+}
+
+// A spec satisfied by a *provides* is absent from `pacman -Qq` — that's
+// the case -T exists to answer, and the reason a miss can't be treated
+// as "not installed". The answer is memoized, so a second filtering pass
+// doesn't pay for it twice.
+func TestPacmanFallsBackToDeptestForProvides(t *testing.T) {
+	f := &fakeRunner{
+		pacmanQq: []string{"bash"}, // `sh` is provided by bash, not a package
+		pacmanOK: map[string]bool{"sh": true},
+	}
+	p := &Pacman{Runner: f.run}
+	if !p.IsInstalled("sh") {
+		t.Error("sh is satisfied by a provides; should report installed")
+	}
+	if p.IsInstalled("nope") {
+		t.Error("nope should report not installed")
+	}
+	before := len(f.calls)
+	_ = p.IsInstalled("sh")
+	_ = p.IsInstalled("nope")
+	if len(f.calls) != before {
+		t.Errorf("repeat lookups should hit the memo, got %d new calls: %+v",
+			len(f.calls)-before, f.calls[before:])
+	}
+}
+
+func TestPacmanInstallSudo(t *testing.T) {
+	f := &fakeRunner{pacmanOK: map[string]bool{"git": true}}
+	p := &Pacman{Runner: f.run, Sudo: true}
+	if err := p.Install([]string{"git", "tmux"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	last := f.calls[len(f.calls)-1]
+	if last.name != "sudo" || last.args[0] != "pacman" {
+		t.Errorf("expected `sudo pacman ...`, got %s %v", last.name, last.args)
+	}
+	args := strings.Join(last.args, " ")
+	if !strings.Contains(args, "-S --needed --noconfirm tmux") {
+		t.Errorf("install args = %q, want tmux with --needed", args)
+	}
+	if strings.Contains(args, "git") {
+		t.Errorf("git was installed; must not appear: %q", args)
+	}
+}
+
+// Install must not refresh the sync database first: `pacman -Sy` followed
+// by an install is the partial-upgrade footgun, and a full -Syu isn't
+// hm's call to make. See Pacman.Install.
+func TestPacmanInstallDoesNotRefreshDatabase(t *testing.T) {
+	f := &fakeRunner{}
+	p := &Pacman{Runner: f.run}
+	if err := p.Install([]string{"tmux"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	for _, c := range f.calls {
+		joined := strings.Join(c.args, " ")
+		if strings.Contains(joined, "-Sy") || strings.Contains(joined, "-Syu") {
+			t.Errorf("Install must not refresh the database: %s %v", c.name, c.args)
+		}
+	}
+}
+
+func TestPacmanInstallNoopWhenAllInstalled(t *testing.T) {
+	f := &fakeRunner{pacmanOK: map[string]bool{"git": true, "tmux": true}}
+	p := &Pacman{Runner: f.run}
+	if err := p.Install([]string{"git", "tmux"}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	for _, c := range f.calls {
+		if len(c.args) > 0 && c.args[0] == "-S" {
+			t.Errorf("pacman -S should not have been invoked: calls=%+v", f.calls)
+		}
+	}
+}
+
+// A stale sync database is the most likely install failure on Arch, and
+// "target not found" is opaque unless we say what to do about it. The
+// suggestion has to match how this host would actually run the command:
+// as root — a container or arch-chroot, where this fires most often —
+// there may be no sudo binary to prepend.
+func TestPacmanInstallStaleDatabaseHint(t *testing.T) {
+	run := func(name string, args ...string) ([]byte, error) {
+		if len(args) > 0 && args[0] == "-T" {
+			return []byte("tmux\n"), errors.New("exit 127") // not installed
+		}
+		return []byte("error: target not found: tmux"), errors.New("exit 1")
+	}
+	for _, tc := range []struct {
+		name string
+		sudo bool
+		want string
+	}{
+		{"as root", false, "`pacman -Syu`"},
+		{"as user", true, "`sudo pacman -Syu`"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &Pacman{Runner: run, Sudo: tc.sudo}
+			err := p.Install([]string{"tmux"})
+			if err == nil {
+				t.Fatal("expected an error")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error should suggest %s, got: %v", tc.want, err)
+			}
+		})
+	}
+}
+
 func TestForPicksBackend(t *testing.T) {
 	cases := []struct {
 		env  detect.Env
@@ -235,7 +416,8 @@ func TestForPicksBackend(t *testing.T) {
 		{detect.Env{PackageManager: "dnf", IsRoot: false}, "dnf"},
 		{detect.Env{PackageManager: "brew", Distro: "macos"}, "brew"},
 		{detect.Env{PackageManager: "pkg", Distro: "termux"}, "pkg"},
-		{detect.Env{PackageManager: "unknown", Distro: "arch"}, "noop"},
+		{detect.Env{PackageManager: "pacman", Distro: "arch", IsRoot: false}, "pacman"},
+		{detect.Env{PackageManager: "unknown", Distro: "alpine"}, "noop"},
 		{detect.Env{}, "noop"},
 	}
 	for _, tc := range cases {

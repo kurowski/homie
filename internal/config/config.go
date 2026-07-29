@@ -49,7 +49,7 @@ type Config struct {
 // through [Config.PackagesFor] / [Config.PackagesForBackend] rather
 // than touching these maps.
 type Packages struct {
-	// Base maps "all" or a distro key (ubuntu, debian, fedora) to a list
+	// Base maps "all" or a distro key (ubuntu, debian, fedora, arch) to a list
 	// of package names to install on every run for matching distros.
 	Base map[string][]string
 
@@ -97,19 +97,25 @@ var KnownBackends = map[string]struct{}{
 	"snap":    {},
 }
 
-// knownDistroKeys are the keys accepted as base distro lists or as
+// knownDistroKeyOrder are the keys accepted as base distro lists or as
 // sub-table keys inside `[packages."tag:X"]`. "all" applies to every
 // distro; the others must match a supported distro. Keys outside this
 // set are kept (so newer schemas don't hard-fail older binaries) but
-// generate a warning.
-var knownDistroKeys = map[string]struct{}{
-	"all":    {},
-	"ubuntu": {},
-	"debian": {},
-	"fedora": {},
-	"macos":  {},
-	"termux": {},
-}
+// generate a warning. Ordered because it's also rendered into those
+// warnings; a map would shuffle the list on every run.
+var knownDistroKeyOrder = []string{"all", "ubuntu", "debian", "fedora", "arch", "macos", "termux"}
+
+// knownDistroKeys is knownDistroKeyOrder as a lookup set.
+var knownDistroKeys = func() map[string]struct{} {
+	m := make(map[string]struct{}, len(knownDistroKeyOrder))
+	for _, k := range knownDistroKeyOrder {
+		m[k] = struct{}{}
+	}
+	return m
+}()
+
+// knownDistroKeyList is the human-readable rendering used in warnings.
+var knownDistroKeyList = strings.Join(knownDistroKeyOrder, ", ")
 
 // UnmarshalTOML decodes a heterogeneous [packages] table. Each top-level
 // key is dispatched by value shape:
@@ -169,7 +175,7 @@ func (p *Packages) UnmarshalTOML(data any) error {
 			return fmt.Errorf("packages.%s: %w", k, err)
 		}
 		if _, known := knownDistroKeys[k]; !known {
-			p.warnf(`packages.%s is not a recognized distro key — known: all, ubuntu, debian, fedora, macos, termux (use [packages."tag:%s"] for a tag-keyed list)`, k, k)
+			p.warnf(`packages.%s is not a recognized distro key — known: %s (use [packages."tag:%s"] for a tag-keyed list)`, k, knownDistroKeyList, k)
 		}
 		p.Base[k] = list
 	}
@@ -215,7 +221,7 @@ func (p *Packages) absorbTagTable(canonical string, sub map[string]any, ctx stri
 			return fmt.Errorf("%s.%s: %w", ctx, k, err)
 		}
 		if _, known := knownDistroKeys[k]; !known {
-			p.warnf(`%s.%s is not a recognized distro key — known: all, ubuntu, debian, fedora, macos, termux`, ctx, k)
+			p.warnf(`%s.%s is not a recognized distro key — known: %s`, ctx, k, knownDistroKeyList)
 		}
 		tagBase[k] = list
 	}
@@ -239,7 +245,7 @@ func (p *Packages) decodeDistroLists(m map[string]any, ctx string) (map[string][
 			return nil, fmt.Errorf("%s.%s: %w", ctx, k, err)
 		}
 		if _, known := knownDistroKeys[k]; !known {
-			p.warnf(`%s.%s is not a recognized distro key — known: all, ubuntu, debian, fedora, macos, termux`, ctx, k)
+			p.warnf(`%s.%s is not a recognized distro key — known: %s`, ctx, k, knownDistroKeyList)
 		}
 		lists[k] = list
 	}

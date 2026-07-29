@@ -24,16 +24,22 @@ git grep -n 'TODO(contrib)'
 
 1. **`internal/detect/detect.go`** — recognise the distro's
    `/etc/os-release` `ID=` value and return it from `Detect()`. Map it
-   to the right package manager (`apt`, `dnf`, or a new one you're
-   adding alongside). Two platforms are special-cased *before* the
+   to the right package manager (`apt`, `dnf`, `pacman`, or a new one
+   you're adding alongside). Only the exact `ID=` is matched — `ID_LIKE`
+   is deliberately ignored, since a derivative can rename packages out
+   from under its parent. Two platforms are special-cased *before* the
    `/etc/os-release` parse: macOS (`GOOS == "darwin"` → platform key
    `macos`, manager `brew`) and Termux (`$TERMUX_VERSION` set → platform
    key `termux`, manager `pkg`), neither of which has an os-release at the
    real root.
 
 2. **`internal/packages/`** — if the distro uses an existing manager
-   (`apt` or `dnf`), you're done after step 1. If it needs a new manager,
-   see [adding a package manager](#adding-a-package-manager) below.
+   (`apt`, `dnf`, `pacman`), you're done after step 1. If it needs a new
+   manager, see [adding a package manager](#adding-a-package-manager) below.
+
+   Also add the platform key to `knownDistroKeyOrder` in
+   `internal/config/config.go`, or `[packages].<yourdistro>` parses with
+   an "unrecognized distro key" warning.
 
 3. **`e2e/dockerfiles/`** — add a minimal base image so the e2e harness
    exercises the new distro. Copy the existing `fedora.Dockerfile` or
@@ -57,7 +63,7 @@ type Manager interface {
 }
 ```
 
-To add one (e.g. `pacman`, `zypper`, `apk`):
+To add one (e.g. `zypper`, `apk`):
 
 1. Create `internal/packages/<name>.go` implementing `Manager`. Mirror
    the structure of `apt.go` or `dnf.go` — both use an injectable
@@ -82,6 +88,12 @@ Key invariants every manager must hold:
 - **No prompts.** Pass whatever flag suppresses interactive prompts
   (`-y` for apt/dnf, `--noconfirm` for pacman, etc.). A `hm apply` mid-run
   should never block on a TTY question.
+- **Never upgrade the world.** Refresh the package index only where that's
+  safe on its own. `apt-get update` is, so `apt.go` runs it. On Arch it
+  isn't — `pacman -Sy` followed by an install is the partial-upgrade
+  footgun and the only safe refresh is a full `-Syu` — so `pacman.go`
+  installs against the database as it stands and puts the fix in the
+  error message instead.
 
 ---
 

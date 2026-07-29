@@ -1,6 +1,6 @@
 // Package packages installs OS packages via the host's native package
 // manager. Each backend implements the same Manager interface so the rest
-// of Homie doesn't care whether we're on apt or dnf.
+// of Homie doesn't care whether we're on apt, dnf or pacman.
 //
 // Idempotency: Install filters out already-installed packages before
 // invoking the manager, so repeated `hm apply` runs are cheap. There is
@@ -53,6 +53,8 @@ func For(env detect.Env) Manager {
 		return &Apt{Runner: execRunner, Sudo: !env.IsRoot}
 	case "dnf":
 		return &Dnf{Runner: execRunner, Sudo: !env.IsRoot}
+	case "pacman":
+		return &Pacman{Runner: execRunner, Sudo: !env.IsRoot}
 	case "brew":
 		// brew is the native manager on macOS. It never sudoes, so there's
 		// no Sudo field. Unlike apt/dnf, its absence is non-fatal — the
@@ -66,7 +68,7 @@ func For(env detect.Env) Manager {
 		return &Pkg{Runner: execRunner}
 	default:
 		// TODO(contrib): add support for additional package managers
-		// (pacman, zypper, apk). Flatpak/snap live in ForBackend.
+		// (zypper, apk). Flatpak/snap live in ForBackend.
 		return &Noop{Distro: env.Distro}
 	}
 }

@@ -57,20 +57,25 @@ and a few that only Fedora has. Use a per-distro override.
 [packages]
 all = [
   "git", "zsh", "neovim", "tmux",
-  "ripgrep", "fd", "fzf", "jq",
+  "ripgrep", "fzf", "jq",
 ]
 fedora = [
+  "fd-find",            # plain `fd` only on Arch, macOS and Termux
   "util-linux-user",    # provides `chsh`
   "dejavu-sans-fonts",
   "dejavu-sans-mono-fonts",
 ]
 ubuntu = [
-  "fd-find",            # `fd` on Ubuntu/Debian
+  "fd-find",
   "fonts-dejavu",
 ]
 debian = [
   "fd-find",
   "fonts-dejavu",
+]
+arch = [
+  "fd",
+  "ttf-dejavu",
 ]
 ```
 
@@ -226,7 +231,8 @@ hosts where secrets aren't available, and the template skips itself.
 
 ## Third-party package repos via pre-scripts
 
-`[packages]` runs against the native package manager — `dnf` or `apt`.
+`[packages]` runs against the native package manager — `dnf`, `apt` or
+`pacman`.
 To install something that lives in a *third-party* repo (VS Code,
 1Password, HashiCorp, Docker, RPM Fusion, etc.) you need that repo
 registered with the package manager **before** `hm apply`'s install

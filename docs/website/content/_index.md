@@ -60,8 +60,8 @@ name          = "personal"
 default_shell = "zsh"
 
 [packages]
-all    = ["git", "zsh", "neovim", "tmux", "ripgrep", "fd", "fzf"]
-fedora = ["util-linux-user"]
+all    = ["git", "zsh", "neovim", "tmux", "ripgrep", "fzf"]
+fedora = ["util-linux-user", "fd-find"]
 ubuntu = ["fd-find"]
 
 [vars]

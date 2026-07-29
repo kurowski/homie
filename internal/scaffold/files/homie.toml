@@ -8,7 +8,7 @@ default_shell = "{{ .DefaultShell }}"
 
 [packages]
 # Packages installed on every supported distro.
-all = ["git", "zsh", "neovim", "tmux", "ripgrep", "fd-find", "fzf"]
+all = ["git", "zsh", "neovim", "tmux", "ripgrep", "fzf"]
 
 # Per-distro overrides, merged onto `all`. Examples:
 #   fedora = ["dejavu-sans-mono-fonts"]

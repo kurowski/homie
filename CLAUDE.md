@@ -223,7 +223,7 @@ homie/
     tree/           # home/ tree convention (Active, Classify, Resolve, ParseDir)
     link/           # symlink phase (consumes tree.Resolve)
     render/         # template phase (consumes tree.Resolve)
-    packages/       # package manager abstraction (apt, dnf, brew, flatpak, snap, noop)
+    packages/       # package manager abstraction (apt, dnf, pacman, brew, flatpak, snap, noop)
     externals/      # externals phase: keep declared git repos cloned/updated
     runner/         # ordered script execution (pre + post phases, scripts.tag-X/ trees)
     doctor/         # read-only audit, emits Findings
@@ -250,8 +250,8 @@ The `detect` package determines:
 
 | Field             | Values / notes                                              |
 |-------------------|-------------------------------------------------------------|
-| `Distro`          | `ubuntu`, `debian`, `fedora`, `macos`, `termux`, `unknown`  |
-| `PackageManager`  | `apt` (Ubuntu/Debian), `dnf` (Fedora), `brew` (macOS), `pkg` (Termux), `unknown` |
+| `Distro`          | `ubuntu`, `debian`, `fedora`, `arch`, `macos`, `termux`, `unknown` |
+| `PackageManager`  | `apt` (Ubuntu/Debian), `dnf` (Fedora), `pacman` (Arch), `brew` (macOS), `pkg` (Termux), `unknown` |
 | `Arch`            | `amd64`, `arm64`                                            |
 | `Hostname`        | short hostname (truncated at first `.`)                     |
 | `IsContainer`     | bool — via `/proc/1/cgroup`, `/.dockerenv`                  |
@@ -279,10 +279,20 @@ TERMUX_VERSION` in the guest (then `parseDistro` reads its `/etc/os-release`
 normally). Disambiguating in code would mean probing `$PREFIX` for the real
 Termux userland; deliberately not done for v1.
 
-**Supported platforms for v1: Ubuntu, Debian, Fedora, macOS, Termux (Android).**
+Arch is an ordinary `/etc/os-release` `ID=arch` match — no pre-parse
+branch, unlike macOS and Termux. Only the exact `ID` is matched, never
+`ID_LIKE`: a derivative (Manjaro, EndeavourOS, Mint, Pop!\_OS) is free to
+rename or drop what its parent ships, so guessing would move the failure
+from detection time to install time. Derivatives take the `unknown` path
+and can be promoted individually. Note the `arch` auto-tag (the distro)
+sits alongside `amd64`/`arm64` (the CPU) — same word, different axis;
+`.Arch` in templates is always the CPU.
 
-Arch Linux and other distros should be detected as `unknown` with a clear,
-friendly error telling the user it's not yet supported and pointing to
+**Supported platforms for v1: Ubuntu, Debian, Fedora, Arch, macOS,
+Termux (Android).**
+
+Other distros should be detected as `unknown` with a clear, friendly
+error telling the user it's not yet supported and pointing to
 `homie.sh/contributing` to add support. Leave this path clearly marked as
 an open contribution opportunity in the code with a `// TODO(contrib)` comment.
 
@@ -299,13 +309,46 @@ type Manager interface {
 }
 ```
 
-Native managers (`apt`, `dnf`, `brew` on macOS, and `pkg` on Termux) are
-returned by `packages.For(env)`. Non-native backends (`flatpak`, `snap`,
+Native managers (`apt`, `dnf`, `pacman`, `brew` on macOS, and `pkg` on
+Termux) are returned by `packages.For(env)`. Non-native backends (`flatpak`, `snap`,
 `brew` as a Linux backend, and any reserved future name) are returned by
 `packages.ForBackend(name)`. Both share the interface so the apply phases
 treat them identically — only the resolution rule (`PackagesFor` vs
 `PackagesForBackend`) differs. `Brew` is the one Manager used in both roles:
 the native macOS manager and an opt-in Linux backend.
+
+`Pacman` (Arch) is the one native backend that never refreshes its
+package index. `apt-get update` before an install is safe; the Arch
+equivalent isn't — `pacman -Sy` followed by an install is the documented
+partial-upgrade footgun, and the only safe refresh, `-Syu`, upgrades the
+whole system, which isn't a decision `hm apply` gets to make. So Install
+runs against the sync database as it stands and, when that's what failed
+(`target not found`), the error names `pacman -Syu` as the fix — spelled
+with or without `sudo` per `p.command`, since that failure lands most
+often in a root container with no `sudo` installed.
+
+Its installed check is two queries. A cached `pacman -Qq` dump answers
+literal package names from the local database (no sync needed), and a
+miss falls through to one memoized `pacman -T` (deptest), which is the
+only form that resolves a spec satisfied by a *provides* (`sh` from
+bash). `-Q` alone would miss those; `-T` alone would fork per package
+per pass.
+
+Groups (`xorg`) and repo-qualified names (`extra/tmux`) satisfy neither
+query, so they're re-offered to Install however converged the host is.
+The cost depends on the sync database, and that's the part worth
+knowing: with one present `--needed` makes the re-offer a no-op and only
+the *report* is wrong, but with none, `pacman -S` can't resolve the name
+at all — the package phase fails every run on a host where every member
+is installed, and the `pacman -Syu` hint makes it look transient. There's
+no code fix that doesn't reach for `pacman -Sg` and therefore the sync
+database Install refuses to refresh, so `/docs/config/` tells users to
+name packages. (`base-devel` is *not* an example of this — it's a plain
+meta-package now, verified against a live Arch container, which is also
+why the docs say so explicitly.)
+
+The AUR is out of scope: it needs a helper that isn't in a base install,
+and it's a natural `ForBackend` candidate if anyone wants it.
 
 `Pkg` (Termux) is `Apt`-shaped — the same `dpkg -s` installed check — but
 it installs via the `pkg` wrapper and has no `Sudo` field: Termux runs
@@ -324,10 +367,12 @@ bad suffix surfaces before any install, the same pattern as snap's
 confinement suffixes.
 
 Each backend checks `IsInstalled` before installing so runs are
-idempotent without a state file. Non-native backends additionally cache
-the parsed installed-set with `sync.Once` so a `bucket+Install` round
-shells out once per phase rather than 2N times. Unknown distros get a
-`NoopManager` that warns and skips.
+idempotent without a state file. The non-native backends and `Pacman`
+additionally cache the parsed installed-set with `sync.Once` so a
+`bucket+Install` round shells out once per phase rather than 2N times —
+`apt`/`dnf`/`pkg` still pay the 2N, since `dpkg -s` and `rpm -q` are
+per-package by construction. Unknown distros get a `NoopManager` that
+warns and skips.
 
 Adding a backend: extend `config.KnownBackends`, implement `Manager`
 in `internal/packages`, add a case to `packages.ForBackend`. The apply
@@ -485,6 +530,20 @@ v0.0.2. Since then:
   doesn't touch a template leaves the file, and its stamp, alone), and the
   scaffold-location tests pin `$HOME` instead of assuming `TMPDIR` sits
   outside it.
+- **v0.6.0 (unreleased)** — Arch Linux and `pacman`. An ordinary `ID=arch`
+  match (no pre-parse branch), a `Pacman` backend that deliberately never
+  syncs the package database (see "Package manager abstraction" above), and
+  `arch` in `knownDistroKeyOrder` — which is now the single source for both
+  the lookup set and the "known:" list rendered into parse warnings, since
+  keeping four copies in sync is what the previous shape asked for. Unlike
+  macOS and Termux, e2e covers it: `arch.Dockerfile` plus a fourth entry in
+  the harness table, so the full curl|bash → bootstrap → pacman → apply →
+  reapply path is verified — which is what caught `fd-find` in the scaffold
+  seed's `[packages].all`: that name exists only on apt/dnf, so the shipped
+  default failed on Arch (and would on macOS and Termux, which e2e doesn't
+  cover). Dropped from the seed rather than split into per-platform keys —
+  a starter file shouldn't carry the rename table, and `/docs/config/`
+  already documents it.
 
 **Layout migration** (one-time, for repos created against v0.0.2):
 `git mv dotfiles/* home/ && git mv templates/* home/ && rmdir dotfiles

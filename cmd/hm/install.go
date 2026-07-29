@@ -16,7 +16,7 @@ var installCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Install packages declared in homie.toml",
 	Long: `Install the packages declared in homie.toml — native first
-(apt or dnf on Linux, brew on macOS, pkg on Termux), then each non-native
+(apt, dnf or pacman on Linux, brew on macOS, pkg on Termux), then each non-native
 backend (flatpak, snap, ...) in alphabetical order. Already-installed
 packages are filtered out, so re-running is cheap.
 
