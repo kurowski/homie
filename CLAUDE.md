@@ -452,7 +452,7 @@ and stay).
 
 ## Current state
 
-v0.5.5 shipped. The MVP (detect, config, link, render, native packages,
+v0.6.0 shipped. The MVP (detect, config, link, render, native packages,
 runner, UI, `hm apply` end-to-end, `hm init` scaffold, `bootstrap.sh`
 template, `hm status` / `hm doctor`, GitHub Actions release pipeline,
 e2e container harness covering Ubuntu/Debian/Fedora, docs site) was
@@ -530,7 +530,7 @@ v0.0.2. Since then:
   doesn't touch a template leaves the file, and its stamp, alone), and the
   scaffold-location tests pin `$HOME` instead of assuming `TMPDIR` sits
   outside it.
-- **v0.6.0 (unreleased)** — Arch Linux and `pacman`. An ordinary `ID=arch`
+- **v0.6.0** — Arch Linux and `pacman`. An ordinary `ID=arch`
   match (no pre-parse branch), a `Pacman` backend that deliberately never
   syncs the package database (see "Package manager abstraction" above), and
   `arch` in `knownDistroKeyOrder` — which is now the single source for both
@@ -543,7 +543,12 @@ v0.0.2. Since then:
   default failed on Arch (and would on macOS and Termux, which e2e doesn't
   cover). Dropped from the seed rather than split into per-platform keys —
   a starter file shouldn't carry the rename table, and `/docs/config/`
-  already documents it.
+  already documents it. Review follow-ups: `IsInstalled` answers from a
+  cached `pacman -Qq` dump with a memoized `-T` fallback for *provides*
+  (first native backend with the `sync.Once` treatment — a converged
+  40-package run drops from 80 forks to one), and the group /
+  repo-qualified-spec gap is documented as what it actually is on an
+  unsynced host — a failing package phase, not a cosmetic warning.
 
 **Layout migration** (one-time, for repos created against v0.0.2):
 `git mv dotfiles/* home/ && git mv templates/* home/ && rmdir dotfiles
