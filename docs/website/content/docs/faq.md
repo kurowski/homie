@@ -144,11 +144,17 @@ package — so it stays an explicit choice you make in a `scripts/` step:
 # scripts/20-aur.sh
 command -v paru >/dev/null || {
   sudo pacman -S --needed --noconfirm base-devel git
+  rm -rf /tmp/paru   # a half-finished earlier run would fail the clone
   git clone https://aur.archlinux.org/paru-bin.git /tmp/paru && \
     (cd /tmp/paru && makepkg -si --noconfirm)
 }
 paru -S --needed --noconfirm my-aur-package
 ```
+
+**This one can't run as root.** `makepkg` refuses to, by design — so unlike
+the rest of `hm apply`, an AUR step only works on the run-as-your-user path,
+not the fresh-bare-metal-as-root one. It sudoes for the `pacman` calls it
+needs and no further.
 
 Homie also never runs `pacman -Sy` or `-Syu` for you: refreshing the
 database and then installing is the documented partial-upgrade footgun,

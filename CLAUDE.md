@@ -332,15 +332,23 @@ literal package names from the local database (no sync needed), and a
 miss falls through to one memoized `pacman -T` (deptest), which is the
 only form that resolves a spec satisfied by a *provides* (`sh` from
 bash). `-Q` alone would miss those; `-T` alone would fork per package
-per pass. Groups (`base-devel`) satisfy neither, which is why Install
-passes `--needed` — a re-offered group is a no-op rather than a
-reinstall. That keeps *state* right but leaves the *report* wrong:
-doctor warns forever and apply announces an install it won't perform.
-Expanding a group needs `pacman -Sg` and therefore the sync database
-Install refuses to refresh, so `/docs/config/` tells users to declare
-members, not groups. The AUR is out of scope:
-it needs a helper that isn't in a base install, and it's a natural
-`ForBackend` candidate if anyone wants it.
+per pass.
+
+Groups (`xorg`) and repo-qualified names (`extra/tmux`) satisfy neither
+query, so they're re-offered to Install however converged the host is.
+The cost depends on the sync database, and that's the part worth
+knowing: with one present `--needed` makes the re-offer a no-op and only
+the *report* is wrong, but with none, `pacman -S` can't resolve the name
+at all — the package phase fails every run on a host where every member
+is installed, and the `pacman -Syu` hint makes it look transient. There's
+no code fix that doesn't reach for `pacman -Sg` and therefore the sync
+database Install refuses to refresh, so `/docs/config/` tells users to
+name packages. (`base-devel` is *not* an example of this — it's a plain
+meta-package now, verified against a live Arch container, which is also
+why the docs say so explicitly.)
+
+The AUR is out of scope: it needs a helper that isn't in a base install,
+and it's a natural `ForBackend` candidate if anyone wants it.
 
 `Pkg` (Termux) is `Apt`-shaped — the same `dpkg -s` installed check — but
 it installs via the `pkg` wrapper and has no `Sudo` field: Termux runs

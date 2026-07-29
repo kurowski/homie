@@ -63,17 +63,26 @@ func (p *Pacman) IsAvailable() bool {
 // so staleness never surfaces — the same contract the non-native
 // backends' caches carry.
 //
-// Groups (`base-devel`) are the gap in both: a group is a label on a set
-// of packages, not a requirement, so neither -T nor -Q reports a
-// fully-installed one as present. The state stays correct — Install
-// re-offers the group every run and `pacman -S --needed` makes that a
-// no-op — but every *caller that reports* on this method is then wrong
-// about a converged machine: `hm doctor` warns "not installed" forever,
-// and `hm apply` announces an install it doesn't perform. Expanding a
-// group into its members needs `pacman -Sg`, which reads the sync
-// database Install deliberately never refreshes, so there's no fix here
-// that doesn't fight that rule. Documented instead — /docs/config/ tells
-// users to declare group members rather than groups.
+// Two spec shapes satisfy neither query, so both are re-offered to
+// Install on every run however converged the machine is: a group (`xorg`
+// — a label on a set of packages, absent from -Qq and not a dependency
+// -T can resolve) and a repo-qualified name (`extra/tmux` — -Qq prints
+// bare names and -T doesn't parse the prefix). `base-devel` is *not* an
+// example: it's an ordinary meta-package now and resolves normally.
+//
+// What that costs depends on the sync database. With one present,
+// `pacman -S --needed` re-offers and does nothing, so only the *report*
+// is wrong — doctor warns "not installed" forever, apply announces an
+// install it won't perform. With no synced database, which is the
+// environment Install's own error path is written for, that same call
+// exits 1 with "target not found": the package phase then *fails* every
+// run on a host where every member is already installed, and the
+// `pacman -Syu` remediation makes the failure look transient when the
+// underlying property isn't.
+//
+// Resolving a group in code means `pacman -Sg`, which reads the sync
+// database Install deliberately never refreshes. /docs/config/ tells
+// users to name packages instead.
 func (p *Pacman) IsInstalled(name string) bool {
 	p.loadOnce.Do(p.loadInstalled)
 	if _, ok := p.installed[name]; ok {
