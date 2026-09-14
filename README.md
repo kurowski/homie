@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/website/assets/img/scout.png" alt="Scout Homes" width="150"></p>
+
 # Homie
 
 A single-binary Linux & macOS environment manager. Dotfiles by symlink,
