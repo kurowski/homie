@@ -1,7 +1,7 @@
 package packages
 
 // Noop is the Manager returned when we don't recognize the host's
-// package manager. It silently no-ops Install so `hm apply` can still
+// package manager. It silently no-ops Install so `homie apply` can still
 // finish — the caller is expected to surface the unsupported-distro
 // warning to the user via the UI.
 //

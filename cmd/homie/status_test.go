@@ -30,7 +30,7 @@ func runStatusCmd(t *testing.T, args []string) (string, error) {
 func TestStatusJSON(t *testing.T) {
 	repo := fixtureRepo(t)
 	home := t.TempDir()
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 
 	out, err := runStatusCmd(t, []string{"status", "--json", "--home", home})
 	if err != nil {
@@ -72,18 +72,18 @@ func TestStatusJSON(t *testing.T) {
 	}
 }
 
-// TestStatusBadHMRepoErrors: $HM_REPO pointing at a directory with no
+// TestStatusBadHomieRepoErrors: $HOMIE_REPO pointing at a directory with no
 // homie.toml is a misconfiguration, not "no repo" — both output modes
 // must error rather than report the benign not-found state.
-func TestStatusBadHMRepoErrors(t *testing.T) {
-	t.Setenv("HM_REPO", t.TempDir())
+func TestStatusBadHomieRepoErrors(t *testing.T) {
+	t.Setenv("HOMIE_REPO", t.TempDir())
 
 	for _, args := range [][]string{
 		{"status", "--json"},
 		{"status"},
 	} {
 		if out, err := runStatusCmd(t, args); err == nil {
-			t.Errorf("%v: expected error for bad HM_REPO\noutput:\n%s", args, out)
+			t.Errorf("%v: expected error for bad HOMIE_REPO\noutput:\n%s", args, out)
 		}
 	}
 }
@@ -91,7 +91,7 @@ func TestStatusBadHMRepoErrors(t *testing.T) {
 // TestStatusJSONNoRepo: a missing environment repo is data, not an
 // error — the document carries "repo": null and the command exits zero.
 func TestStatusJSONNoRepo(t *testing.T) {
-	t.Setenv("HM_REPO", "")
+	t.Setenv("HOMIE_REPO", "")
 	t.Chdir(t.TempDir())
 
 	out, err := runStatusCmd(t, []string{"status", "--json"})

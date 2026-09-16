@@ -11,7 +11,7 @@ import (
 type State string
 
 const (
-	StateCurrent    State = "current"    // already byte-identical to what this hm writes
+	StateCurrent    State = "current"    // already byte-identical to what this homie writes
 	StateUpdated    State = "updated"    // rewritten from an older, unmodified generation
 	StateCreated    State = "created"    // wasn't there at all
 	StateCustomized State = "customized" // skipped: edited locally, or never stamped
@@ -22,9 +22,9 @@ const (
 type Result struct {
 	Path  string      // repo-relative
 	State State       // what happened, or why it didn't
-	From  string      // hm version that wrote the existing file, "" if unstamped
-	To    string      // hm version now stamped on it
-	Want  []byte      // what this hm would write — populated when State is StateCustomized
+	From  string      // homie version that wrote the existing file, "" if unstamped
+	To    string      // homie version now stamped on it
+	Want  []byte      // what this homie would write — populated when State is StateCustomized
 	Mode  os.FileMode // mode the file is written with; lets callers diff without a spurious mode change
 }
 
@@ -35,7 +35,7 @@ func (r Result) Skipped() bool { return r.State == StateCustomized }
 // Update refreshes the tool-owned files in an existing environment repo
 // — the ones Homie keeps current across releases, as opposed to the
 // seeds (homie.toml, home/, scripts/) that become the user's on day one.
-// It is the repeatable half of `hm init`: same templates, same answers,
+// It is the repeatable half of `homie init`: same templates, same answers,
 // but against a repo that already exists.
 //
 // A file is only rewritten when its provenance stamp proves nobody has
@@ -92,7 +92,7 @@ func updateOne(targetDir string, e entry, a Answers, version string, force bool)
 		// same version carries an identical stamp, so equal digests
 		// mean equal content.
 		case stamped && p.Digest == digestOf(want) && p.Digest == digestOf(have):
-			// Byte-identical to what this hm renders, so there's
+			// Byte-identical to what this homie renders, so there's
 			// nothing to write — a release that doesn't change a
 			// template shouldn't churn the file just to bump a label.
 			// To is what's actually stamped on disk, which is the

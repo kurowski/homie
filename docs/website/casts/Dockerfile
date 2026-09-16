@@ -10,8 +10,8 @@
 # On top we add just enough to be a believable personal Linux laptop that runs
 # the real curl|bash bootstrap:
 #   - curl / ca-certificates / git / sudo — fetch, clone, and (no-op) bootstrap
-#   - the packages the demo repo declares, pre-installed so `hm bootstrap` and
-#     `hm apply`'s package phase are offline no-ops at render time. A genuinely
+#   - the packages the demo repo declares, pre-installed so `homie bootstrap` and
+#     `homie apply`'s package phase are offline no-ops at render time. A genuinely
 #     fresh box installs these on first run; pre-baking just keeps the looping
 #     hero short and deterministic.
 #   - the committed e2e test CA, so the in-cast HTTPS to the nginx sidecar

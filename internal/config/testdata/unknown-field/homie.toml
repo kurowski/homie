@@ -3,4 +3,4 @@ name  = "Scout Homes"
 email = "scout@homie.sh"
 
 [future]
-new_feature = "from a newer hm"
+new_feature = "from a newer homie"

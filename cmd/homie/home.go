@@ -38,7 +38,7 @@ Files are partitioned by suffix:
     and written as real files with the .tmpl suffix stripped.
     ` + "`home/.gitconfig.tmpl`" + ` → ` + "`~/.gitconfig`" + `. The output is regenerated
     on every apply. Data fields and helper functions are listed in
-    ` + "`hm help templating`" + `.
+    ` + "`homie help templating`" + `.
 
 When two trees claim the same target, the more-specific tree (more
 required tags in its directory name) wins. Same-specificity collisions
@@ -47,10 +47,10 @@ are an error — disambiguate by adding a tag or merging the files.
 With --dry-run, nothing is written: the plan (every link and render
 target with its source) is printed instead, followed by the full
 rendered content of each template. Use it to preview what a template
-resolves to on this host before applying for real; ` + "`hm render <path>`" + `
+resolves to on this host before applying for real; ` + "`homie render <path>`" + `
 does the same for a single file.
 
-This is one phase of ` + "`hm apply`" + `. Run it alone to refresh dotfiles
+This is one phase of ` + "`homie apply`" + `. Run it alone to refresh dotfiles
 without touching packages or scripts. See https://homie.sh/docs/dotfiles/
 for the full model.`,
 	RunE: runHomeCmd,
@@ -85,7 +85,7 @@ func runHomeCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	// Route through the same phase apply uses so the output is
-	// byte-identical between `hm home` and `hm apply`'s home section.
+	// byte-identical between `homie home` and `homie apply`'s home section.
 	noTTY, _ := cmd.Root().PersistentFlags().GetBool("no-tty")
 	u := ui.New(cmd.OutOrStdout(), noTTY)
 	defer func() { _ = u.Close() }()

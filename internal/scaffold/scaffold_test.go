@@ -73,7 +73,7 @@ func TestRunSubstitutesAnswers(t *testing.T) {
 
 // TestBootstrapHandsChildrenTheTerminal guards the fix for #46. Under
 // `curl ... | bash` stdin is the pipe bash is reading the script from, so
-// every `sudo` in `hm bootstrap` and in the user's setup scripts dies with
+// every `sudo` in `homie bootstrap` and in the user's setup scripts dies with
 // "a terminal is required to read the password" unless bootstrap.sh passes
 // the controlling terminal down. Note the redirect can't be a script-wide
 // `exec </dev/tty` — bash still needs that stdin to read the rest of itself.
@@ -88,8 +88,8 @@ func TestBootstrapHandsChildrenTheTerminal(t *testing.T) {
 	}
 	for _, want := range []string{
 		"if (: </dev/tty) 2>/dev/null; then", // probe, in a subshell
-		"withtty hm bootstrap",
-		`exec hm apply <"$tty_in"`,
+		"withtty homie bootstrap",
+		`exec homie apply <"$tty_in"`,
 	} {
 		if !strings.Contains(string(boot), want) {
 			t.Errorf("bootstrap.sh missing %q:\n%s", want, boot)

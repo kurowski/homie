@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// scaffoldRepo creates a repo with `hm init` and turns it into a git repo
+// scaffoldRepo creates a repo with `homie init` and turns it into a git repo
 // with an origin remote, which is where --update reads the GitHub
 // coordinates from.
 func scaffoldRepo(t *testing.T, origin string) string {
@@ -82,7 +82,7 @@ func TestInitOutsideHomeKeepsThePortableDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(body), `REPO_DIR="${HM_REPO:-$HOME/dotfiles}"`) {
+	if !strings.Contains(string(body), `REPO_DIR="${HOMIE_REPO:-$HOME/dotfiles}"`) {
 		t.Errorf("expected the portable $HOME/<repo> default, got:\n%s", firstLines(string(body), 40))
 	}
 }
@@ -109,7 +109,7 @@ func TestInitUnderHomeDerivesTheLocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(body), `REPO_DIR="${HM_REPO:-$HOME/Documents/dotfiles}"`) {
+	if !strings.Contains(string(body), `REPO_DIR="${HOMIE_REPO:-$HOME/Documents/dotfiles}"`) {
 		t.Errorf("expected the derived nested location:\n%s", firstLines(string(body), 40))
 	}
 }
@@ -127,7 +127,7 @@ func TestInitRepoDirFlagWins(t *testing.T) {
 		t.Fatalf("init: %v", err)
 	}
 	body, _ := os.ReadFile(filepath.Join(dir, "bootstrap.sh"))
-	if !strings.Contains(string(body), `REPO_DIR="${HM_REPO:-/opt/dotfiles}"`) {
+	if !strings.Contains(string(body), `REPO_DIR="${HOMIE_REPO:-/opt/dotfiles}"`) {
 		t.Errorf("--repo-dir should override the derived value:\n%s", firstLines(string(body), 40))
 	}
 }
@@ -210,7 +210,7 @@ func TestInitUpdateForceTakesHomiesVersion(t *testing.T) {
 	if strings.Contains(string(body), "entirely mine") {
 		t.Errorf("--force should have replaced the file:\n%s", body)
 	}
-	if !strings.Contains(string(body), "withtty hm bootstrap") {
+	if !strings.Contains(string(body), "withtty homie bootstrap") {
 		t.Errorf("--force didn't write the current template:\n%s", body)
 	}
 }

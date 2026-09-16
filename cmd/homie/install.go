@@ -29,7 +29,7 @@ extra. Each backend phase resolves its corresponding [packages.<backend>]
 tables; a backend whose CLI tool isn't on PATH warns and skips — install
 the tool (or add a scripts/pre-*.sh that does) and re-run.
 
-This is the same phase ` + "`hm apply`" + ` runs; use ` + "`hm install`" + ` when you only
+This is the same phase ` + "`homie apply`" + ` runs; use ` + "`homie install`" + ` when you only
 want to update packages without touching dotfiles or scripts.
 
 See https://homie.sh/docs/config/#packages for the table reference.`,

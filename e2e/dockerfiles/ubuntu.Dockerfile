@@ -1,9 +1,9 @@
 FROM ubuntu:26.04
 
-# Minimal base. The point of `hm apply` is to install everything else,
+# Minimal base. The point of `homie apply` is to install everything else,
 # so we ship only what's needed to reach the first line of bootstrap.sh:
-# bash, sudo (so hm-as-user can apt-get install), curl (to fetch the
-# script and the hm binary), and ca-certificates (so curl can validate
+# bash, sudo (so homie-as-user can apt-get install), curl (to fetch the
+# script and the homie binary), and ca-certificates (so curl can validate
 # our nginx webserver's TLS cert once we install the test CA on top).
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \

@@ -75,10 +75,10 @@ func TestLatestRedirectWithoutTag(t *testing.T) {
 }
 
 func TestFetch(t *testing.T) {
-	bin := []byte("fake hm binary")
+	bin := []byte("fake homie binary")
 	assets := map[string][]byte{
-		AssetName():     bin,
-		"hm-other-arch": []byte("some other binary"),
+		AssetName():        bin,
+		"homie-other-arch": []byte("some other binary"),
 	}
 	assets["SHA256SUMS"] = sumsFor(assets)
 	u := newServer(t, "v1.2.3", assets)
@@ -93,7 +93,7 @@ func TestFetch(t *testing.T) {
 }
 
 func TestFetchChecksumMismatch(t *testing.T) {
-	assets := map[string][]byte{AssetName(): []byte("fake hm binary")}
+	assets := map[string][]byte{AssetName(): []byte("fake homie binary")}
 	assets["SHA256SUMS"] = sumsFor(map[string][]byte{AssetName(): []byte("different bytes")})
 	u := newServer(t, "v1.2.3", assets)
 
@@ -104,8 +104,8 @@ func TestFetchChecksumMismatch(t *testing.T) {
 
 func TestFetchMissingChecksumEntry(t *testing.T) {
 	assets := map[string][]byte{
-		AssetName():  []byte("fake hm binary"),
-		"SHA256SUMS": sumsFor(map[string][]byte{"hm-other-arch": []byte("x")}),
+		AssetName():  []byte("fake homie binary"),
+		"SHA256SUMS": sumsFor(map[string][]byte{"homie-other-arch": []byte("x")}),
 	}
 	u := newServer(t, "v1.2.3", assets)
 
@@ -115,7 +115,7 @@ func TestFetchMissingChecksumEntry(t *testing.T) {
 }
 
 func TestApplyReplacesAndPreservesMode(t *testing.T) {
-	target := filepath.Join(t.TempDir(), "hm")
+	target := filepath.Join(t.TempDir(), "homie")
 	if err := os.WriteFile(target, []byte("old"), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestApplyReplacesAndPreservesMode(t *testing.T) {
 	if fi.Mode().Perm() != 0o700 {
 		t.Errorf("target mode = %v, want 0700", fi.Mode().Perm())
 	}
-	leftovers, _ := filepath.Glob(filepath.Join(filepath.Dir(target), ".hm-selfupdate-*"))
+	leftovers, _ := filepath.Glob(filepath.Join(filepath.Dir(target), ".homie-selfupdate-*"))
 	if len(leftovers) > 0 {
 		t.Errorf("temp files left behind: %v", leftovers)
 	}
@@ -146,12 +146,12 @@ func TestApplyReplacesAndPreservesMode(t *testing.T) {
 
 func TestIsReleaseVersion(t *testing.T) {
 	for v, want := range map[string]bool{
-		"v0.4.0":                 true,
-		"v12.34.56":              true,
-		"dev":                    false,
-		"(devel)":                false,
-		"0.4.0":                  false,
-		"v0.4.0-1-g64ad4cc":      false,
+		"v0.4.0":                  true,
+		"v12.34.56":               true,
+		"dev":                     false,
+		"(devel)":                 false,
+		"0.4.0":                   false,
+		"v0.4.0-1-g64ad4cc":       false,
 		"v0.4.0-1-g64ad4cc-dirty": false,
 	} {
 		if got := IsReleaseVersion(v); got != want {
@@ -162,12 +162,12 @@ func TestIsReleaseVersion(t *testing.T) {
 
 func TestBrewManaged(t *testing.T) {
 	for p, want := range map[string]bool{
-		"/opt/homebrew/Cellar/hm/0.4.0/bin/hm":          true,
-		"/usr/local/Cellar/hm/0.4.0/bin/hm":             true,
-		"/home/linuxbrew/.linuxbrew/Cellar/hm/0.4.0/bin/hm": true,
-		"/usr/local/bin/hm":                             false,
-		"/home/scout/.local/bin/hm":                     false,
-		"/home/scout/code/Cellar/hm/bin/hm":             false,
+		"/opt/homebrew/Cellar/homie/0.4.0/bin/homie":              true,
+		"/usr/local/Cellar/homie/0.4.0/bin/homie":                 true,
+		"/home/linuxbrew/.linuxbrew/Cellar/homie/0.4.0/bin/homie": true,
+		"/usr/local/bin/homie":                                    false,
+		"/home/scout/.local/bin/homie":                            false,
+		"/home/scout/code/Cellar/homie/bin/homie":                 false,
 	} {
 		if got := BrewManaged(p); got != want {
 			t.Errorf("BrewManaged(%q) = %v, want %v", p, got, want)

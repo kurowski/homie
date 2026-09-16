@@ -41,21 +41,21 @@ current directory if none given). The scaffold includes:
 Interactive by default — prompts for name, email, GitHub user, profile,
 shell. Pass the flags below for a non-interactive run, useful in CI:
 
-  hm init \
+  homie init \
     --name "Scout Homes" --email scout@homie.sh \
     --github-user scouthomes --profile personal ~/dotfiles
 
 Init refuses to overwrite an existing homie.toml — your work is safe.
-Run ` + "`hm apply`" + ` against the scaffolded repo to materialize it.
+Run ` + "`homie apply`" + ` against the scaffolded repo to materialize it.
 
 REFRESHING AN EXISTING REPO
 
 Most of the scaffold is a seed: homie.toml, home/, scripts/ become
 yours the moment they're written, and Homie never touches them again.
-bootstrap.sh is the exception — it encodes how the current hm wants to
-be launched, so it goes stale when you upgrade hm. Refresh it in place:
+bootstrap.sh is the exception — it encodes how the current homie wants to
+be launched, so it goes stale when you upgrade homie. Refresh it in place:
 
-  cd ~/dotfiles && hm init --update
+  cd ~/dotfiles && homie init --update
 
 Update needs no answers — it reads them off the repo: name and email
 from homie.toml, GitHub user/repo from the origin remote, and the clone
@@ -64,10 +64,10 @@ repo actually lives ($HOME-relative when it's under $HOME). Move the
 repo, re-run --update, commit. Pass --github-user / --github-repo if
 there's no remote to read.
 
-Generated files carry an ` + "`hm:generated`" + ` stamp recording the hm version
+Generated files carry a ` + "`homie:generated`" + ` stamp recording the homie version
 and a digest of the file as written. Update rewrites a file only when
 that digest still matches — if you've edited it (or it predates stamps,
-like every repo scaffolded before v0.5.2), update prints the diff and
+like every repo scaffolded before v0.7.0), update prints the diff and
 stops. Pass --force to take Homie's version anyway, or delete the stamp
 line to opt the file out for good. Either way the change lands in your
 working tree, so ` + "`git diff`" + ` is the final review.`,
@@ -140,8 +140,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(stdout, "\nNext steps:")
 	fmt.Fprintf(stdout, "  cd %s\n", target)
 	fmt.Fprintln(stdout, "  git init && git add . && git commit -m 'initial homie scaffold'")
-	fmt.Fprintf(stdout, "  hm apply --home %s   # try it against a sandbox first\n", filepath.Join(abs, ".test-home"))
-	fmt.Fprintln(stdout, "  hm apply              # apply against $HOME for real")
+	fmt.Fprintf(stdout, "  homie apply --home %s   # try it against a sandbox first\n", filepath.Join(abs, ".test-home"))
+	fmt.Fprintln(stdout, "  homie apply              # apply against $HOME for real")
 	return nil
 }
 

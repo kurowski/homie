@@ -25,9 +25,9 @@ appear here: the hasTag helper ({{ if hasTag "fedora" }}), which tests
 membership in Tags, and the Sprig function library.
 
 Pairs with the render preview commands: introspect the context with
-` + "`hm context`" + `, then check a template with ` + "`hm render <path>`" + ` or
-` + "`hm home --dry-run`" + `. Field meanings and helper functions are listed
-in ` + "`hm help templating`" + `.`,
+` + "`homie context`" + `, then check a template with ` + "`homie render <path>`" + ` or
+` + "`homie home --dry-run`" + `. Field meanings and helper functions are listed
+in ` + "`homie help templating`" + `.`,
 	Args: cobra.NoArgs,
 	RunE: runContext,
 }

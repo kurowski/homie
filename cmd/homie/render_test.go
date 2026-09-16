@@ -17,13 +17,13 @@ func runRenderCli(t *testing.T, args []string) (string, error) {
 	return buf.String(), err
 }
 
-// TestRenderToStdout pins the contract for `hm render <path>`: the raw
+// TestRenderToStdout pins the contract for `homie render <path>`: the raw
 // rendered content goes to stdout with no UI chrome, using the same
-// data a real `hm home` would. The repo-relative path exercises the
+// data a real `homie home` would. The repo-relative path exercises the
 // fallback — the test's cwd is not the repo.
 func TestRenderToStdout(t *testing.T) {
 	repo := fixtureRepo(t)
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 
 	out, err := runRenderCli(t, []string{"render", "home/.gitconfig.tmpl"})
 	if err != nil {
@@ -38,7 +38,7 @@ func TestRenderToStdout(t *testing.T) {
 // TestRenderAbsolutePath confirms an absolute path works as given.
 func TestRenderAbsolutePath(t *testing.T) {
 	repo := fixtureRepo(t)
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 
 	out, err := runRenderCli(t, []string{"render", filepath.Join(repo, "home", ".gitconfig.tmpl")})
 	if err != nil {
@@ -53,7 +53,7 @@ func TestRenderAbsolutePath(t *testing.T) {
 // loop depends on: a missing file and a template that fails to execute.
 func TestRenderErrorsExitNonZero(t *testing.T) {
 	repo := fixtureRepo(t)
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 
 	if out, err := runRenderCli(t, []string{"render", "home/.does-not-exist.tmpl"}); err == nil {
 		t.Errorf("expected error for missing file\noutput:\n%s", out)

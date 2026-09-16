@@ -9,7 +9,7 @@ dotfile under management, and bootstrapping the same environment on a
 second machine. About five minutes if you already have git + GitHub set
 up.
 
-## 1. Install `hm`
+## 1. Install `homie`
 
 One static binary, no runtime, no dependencies:
 
@@ -22,12 +22,12 @@ download, version pinning, and building from source.
 
 ## 2. Scaffold a user environment repo
 
-`hm init` writes a starter repo — `homie.toml`, a `bootstrap.sh`, an
+`homie init` writes a starter repo — `homie.toml`, a `bootstrap.sh`, an
 example dotfile, an example template, and a sample script — that's
 yours to grow into.
 
 ```sh
-hm init ~/dotfiles
+homie init ~/dotfiles
 ```
 
 It'll ask for your name, email, and GitHub username so it can wire up
@@ -36,7 +36,7 @@ It'll ask for your name, email, and GitHub username so it can wire up
 ## 3. Push it to GitHub
 
 Create an empty repo at `github.com/<you>/dotfiles` (or whatever you
-named it during `hm init`), then:
+named it during `homie init`), then:
 
 ```sh
 cd ~/dotfiles
@@ -52,7 +52,7 @@ git push -u origin main
 Reconcile your `$HOME` with the scaffolded repo:
 
 ```sh
-hm apply
+homie apply
 ```
 
 You'll see Charm-styled progress as Homie installs the listed packages,
@@ -67,22 +67,22 @@ Codespace — run:
 curl https://raw.githubusercontent.com/<you>/dotfiles/main/bootstrap.sh | bash
 ```
 
-That downloads the right `hm` binary for the OS and CPU, clones your
-repo, and runs `hm apply`. Done.
+That downloads the right `homie` binary for the OS and CPU, clones your
+repo, and runs `homie apply`. Done.
 
 `bootstrap.sh` makes sure `git` is present first. On Linux it also
 installs `ca-certificates` if needed. On macOS `git` comes from the
 Xcode Command Line Tools (`xcode-select --install`), and Homebrew is
 *not* required — install it only if you declare `[packages]`.
 
-Even piped into `bash`, it hands your terminal down to `hm`, so a `sudo`
+Even piped into `bash`, it hands your terminal down to `homie`, so a `sudo`
 password prompt from one of your setup scripts reaches you instead of
 failing. Run it in a container or CI, where there's no terminal to hand
 down, and nothing changes.
 
 ## Where to next?
 
-- [Commands](/docs/commands/) — every `hm` subcommand explained.
+- [Commands](/docs/commands/) — every `homie` subcommand explained.
 - [`homie.toml`](/docs/config/) — full config reference.
 - [Dotfiles](/docs/dotfiles/) — symlinks, templates, tag-gated trees, overrides.
 - [Recipes](/docs/recipes/) — concrete patterns for common setups.

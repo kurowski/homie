@@ -1,7 +1,7 @@
 FROM fedora:44
 
 # dnf and ca-certificates ship with the base image. We add curl (for
-# fetching bootstrap.sh + hm) and sudo (so hm-as-user can dnf install).
+# fetching bootstrap.sh + homie) and sudo (so homie-as-user can dnf install).
 RUN dnf install -y sudo curl \
  && dnf clean all
 

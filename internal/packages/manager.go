@@ -3,7 +3,7 @@
 // of Homie doesn't care whether we're on apt, dnf or pacman.
 //
 // Idempotency: Install filters out already-installed packages before
-// invoking the manager, so repeated `hm apply` runs are cheap. There is
+// invoking the manager, so repeated `homie apply` runs are cheap. There is
 // no state file — IsInstalled queries the package database directly.
 package packages
 
@@ -46,7 +46,7 @@ func execRunner(name string, args ...string) ([]byte, error) {
 }
 
 // For returns the Manager appropriate for env. Unknown distros get a
-// NoopManager that warns and skips, keeping `hm apply` non-fatal.
+// NoopManager that warns and skips, keeping `homie apply` non-fatal.
 func For(env detect.Env) Manager {
 	switch env.PackageManager {
 	case "apt":

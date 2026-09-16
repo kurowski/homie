@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// testVersion stands in for the ldflags-injected hm version.
+// testVersion stands in for the ldflags-injected homie version.
 const testVersion = "v9.9.9"
 
 // bootstrapPath is the only tool-owned file today; the tests read it
@@ -82,7 +82,7 @@ func TestUpdateRefreshesAnUntouchedOlderGeneration(t *testing.T) {
 	dir := seedRepo(t, "v0.1.0")
 	// Simulate an older release whose template lacked a line we now ship.
 	path := filepath.Join(dir, bootstrapPath)
-	old := strings.Replace(readBootstrap(t, dir), "withtty hm bootstrap", "hm bootstrap", 1)
+	old := strings.Replace(readBootstrap(t, dir), "withtty homie bootstrap", "homie bootstrap", 1)
 	writeStamped(t, path, old, "v0.1.0")
 
 	got := only(t, mustUpdate(t, dir, testVersion, false))
@@ -92,7 +92,7 @@ func TestUpdateRefreshesAnUntouchedOlderGeneration(t *testing.T) {
 	if got.From != "v0.1.0" || got.To != testVersion {
 		t.Errorf("From/To = %q/%q, want v0.1.0/%s", got.From, got.To, testVersion)
 	}
-	if body := readBootstrap(t, dir); !strings.Contains(body, "withtty hm bootstrap") {
+	if body := readBootstrap(t, dir); !strings.Contains(body, "withtty homie bootstrap") {
 		t.Errorf("update didn't bring the file current:\n%s", body)
 	}
 }
@@ -115,7 +115,7 @@ func TestUpdateSkipsLocallyEditedFiles(t *testing.T) {
 	if readBootstrap(t, dir) != edited {
 		t.Error("update overwrote a locally edited file without --force")
 	}
-	if !strings.Contains(string(got.Want), "withtty hm bootstrap") {
+	if !strings.Contains(string(got.Want), "withtty homie bootstrap") {
 		t.Error("Want should carry the content update would have written, for the diff")
 	}
 }
@@ -155,7 +155,7 @@ func TestUpdateForceOverwritesEdits(t *testing.T) {
 		t.Fatalf("state = %q, want %q", got.State, StateForced)
 	}
 	body := readBootstrap(t, dir)
-	if strings.Contains(body, "mine now") || !strings.Contains(body, "withtty hm bootstrap") {
+	if strings.Contains(body, "mine now") || !strings.Contains(body, "withtty homie bootstrap") {
 		t.Errorf("--force didn't take Homie's version:\n%s", body)
 	}
 }
@@ -274,7 +274,7 @@ func mustUpdate(t *testing.T, dir, version string, force bool) []Result {
 }
 
 // writeStamped writes body with a stamp claiming version, i.e. what an
-// older hm would have left behind.
+// older homie would have left behind.
 func writeStamped(t *testing.T, path, body, version string) {
 	t.Helper()
 	if err := os.WriteFile(path, stampProvenance([]byte(body), version), 0o755); err != nil {

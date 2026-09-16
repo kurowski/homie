@@ -1,10 +1,10 @@
 // Package scaffold generates a fresh user environment repo. It's the
-// guts of `hm init`: take a few answers, materialize a working
+// guts of `homie init`: take a few answers, materialize a working
 // homie.toml + bootstrap.sh + sample home/ tree + script so the user
 // has a runnable repo immediately.
 //
 // The source files live under files/ and are embedded into the binary
-// so `hm init` has no runtime dependency on the Homie tool repo's
+// so `homie init` has no runtime dependency on the Homie tool repo's
 // layout. Files ending in .scaffold are rendered as Go text/templates
 // against Answers; everything else is copied verbatim.
 package scaffold
@@ -67,7 +67,7 @@ type entry struct {
 	rendered bool        // if true, run through text/template with Answers
 	// toolOwned marks a file Homie keeps current across releases rather
 	// than handing to the user on day one: it gets a provenance stamp on
-	// write and `hm init --update` refreshes it in place. Everything else
+	// write and `homie init --update` refreshes it in place. Everything else
 	// in the manifest is a seed — Homie writes it once and never again.
 	toolOwned bool
 }
@@ -75,7 +75,7 @@ type entry struct {
 var manifest = []entry{
 	{src: "files/homie.toml", dst: "homie.toml", mode: 0o644, rendered: true},
 	// bootstrap.sh is the one generated file that stays Homie's: it
-	// encodes how the current hm wants to be launched (which release URL,
+	// encodes how the current homie wants to be launched (which release URL,
 	// which os/arch names, how stdin is handed to sudo — see #46), so it
 	// goes stale on upgrade in a way a sample .zshrc never does.
 	{src: "files/bootstrap.sh", dst: "bootstrap.sh", mode: 0o755, rendered: true, toolOwned: true},
@@ -95,7 +95,7 @@ var manifest = []entry{
 // — running scaffold against a non-empty dir errors out so we don't
 // clobber user work. Refreshing an existing repo is Update's job.
 //
-// version is the hm version stamped onto tool-owned files so a later
+// version is the homie version stamped onto tool-owned files so a later
 // Update can tell an untouched generation from an edited one.
 func Run(targetDir string, a Answers, version string) error {
 	if err := a.fillDefaults(); err != nil {

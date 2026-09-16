@@ -5,7 +5,7 @@
 // like `command -v X >/dev/null && exit 0` at the top). The runner's job
 // is to find the scripts, sort them lexically, invoke each one as a
 // bash subprocess with the right environment, and report which ones
-// failed so the rest of `hm apply` can keep going.
+// failed so the rest of `homie apply` can keep going.
 package runner
 
 import (
@@ -56,7 +56,7 @@ const PrePrefix = "pre-"
 // `[packages]` resolves — see issue #2 for the rationale.
 //
 // PhasePost is iota (the zero value) so a default-constructed Phase
-// matches `hm run`'s default.
+// matches `homie run`'s default.
 type Phase int
 
 const (
@@ -64,7 +64,7 @@ const (
 	PhasePre               // pre-*.sh
 )
 
-// String returns the lowercase name used by `hm run --phase=<name>`.
+// String returns the lowercase name used by `homie run --phase=<name>`.
 func (p Phase) String() string {
 	switch p {
 	case PhasePre:
@@ -102,7 +102,7 @@ type Result struct {
 
 // Run executes the *.sh scripts matching the given phase from the active
 // script trees (scripts/ plus any active scripts.tag-X siblings), ordered
-// by filename across all trees. Each script gets HM_REPO, HM_HOME, HM_TAGS
+// by filename across all trees. Each script gets HOMIE_REPO, HOMIE_HOME, HOMIE_TAGS
 // (comma-joined) plus every cfg.Vars entry exported in its environment.
 //
 // Script stdio depends on whether stdin is a terminal:
@@ -146,7 +146,7 @@ func Run(repoDir, home string, cfg config.Config, tags []string, phase Phase, ou
 // the given phase, in execution order — the bare scripts/ tree plus any
 // active scripts.tag-X[.tag-Y...] siblings, filtered to phase. It returns
 // an error if two active trees provide the same filename. Run, doctor,
-// and the `hm run` hint all go through Plan so they stay in sync.
+// and the `homie run` hint all go through Plan so they stay in sync.
 //
 // Tree discovery is shared with the home/ tree via tree.Active. The merge
 // rule, though, differs from tree.Resolve: scripts have no override/
@@ -216,9 +216,9 @@ func buildEnv(repoDir, home string, vars map[string]string, tags []string) []str
 		}
 	}
 	env = append(env,
-		"HM_REPO="+repoDir,
-		"HM_HOME="+home,
-		"HM_TAGS="+strings.Join(tags, ","),
+		"HOMIE_REPO="+repoDir,
+		"HOMIE_HOME="+home,
+		"HOMIE_TAGS="+strings.Join(tags, ","),
 	)
 	for k, v := range vars {
 		env = append(env, k+"="+v)

@@ -23,9 +23,9 @@ var runCmd = &cobra.Command{
 	Long: `Run scripts/*.sh in lexical order. Each script gets a clean
 bash subprocess with these environment variables set:
 
-  HM_REPO   — absolute path of the user repo
-  HM_HOME   — absolute path being treated as $HOME
-  HM_TAGS   — comma-joined active tag set
+  HOMIE_REPO   — absolute path of the user repo
+  HOMIE_HOME   — absolute path being treated as $HOME
+  HOMIE_TAGS   — comma-joined active tag set
   <each>    — every key from [vars] in homie.toml
 
 Scripts are user code — Homie does not enforce idempotency. The
@@ -50,13 +50,13 @@ is an error.
 Phases:
 
   --phase=post   (default) every script whose name does NOT start with
-                 "pre-". The scripts step of ` + "`hm apply`" + `.
+                 "pre-". The scripts step of ` + "`homie apply`" + `.
   --phase=pre    only pre-*.sh scripts — the step that runs ahead of
-                 the package install in ` + "`hm apply`" + `. Used for adding
+                 the package install in ` + "`homie apply`" + `. Used for adding
                  third-party package sources (dnf COPRs, apt keyrings,
                  RPM Fusion, flatpak remote setup, ...).
   --phase=all    pre-scripts then post-scripts, matching the order
-                 ` + "`hm apply`" + ` uses.
+                 ` + "`homie apply`" + ` uses.
 
 A failing script doesn't abort the rest of the phase — failures are
 collected and surfaced in a non-zero exit code at the end.`,
@@ -133,7 +133,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 		// nudge them toward the right flag rather than leave them wondering.
 		if len(phases) == 1 {
 			if other := otherPhase(phases[0]); hasScripts(repoDir, tags, other) {
-				fmt.Fprintf(w, "Hint: %s-scripts exist — try `hm run --phase=%s`.\n", other, other)
+				fmt.Fprintf(w, "Hint: %s-scripts exist — try `homie run --phase=%s`.\n", other, other)
 			}
 		}
 	}
@@ -141,7 +141,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 }
 
 // otherPhase returns the phase opposite to p — used to suggest the flag
-// when `hm run` runs the requested phase and finds nothing.
+// when `homie run` runs the requested phase and finds nothing.
 func otherPhase(p runner.Phase) runner.Phase {
 	if p == runner.PhasePre {
 		return runner.PhasePost

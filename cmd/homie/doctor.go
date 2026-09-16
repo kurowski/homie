@@ -25,7 +25,7 @@ var doctorCmd = &cobra.Command{
 	Use:   "doctor",
 	Short: "Check for broken symlinks, missing deps, common problems",
 	Long: `Doctor walks the user environment repo and host without making
-changes, reporting issues hm apply would care about: broken or stale
+changes, reporting issues homie apply would care about: broken or stale
 dotfile symlinks, unrendered or out-of-date templates, missing packages,
 scripts that aren't executable, and unknown distros.
 
@@ -50,7 +50,7 @@ func init() {
 	rootCmd.AddCommand(doctorCmd)
 }
 
-// doctorOutput is the document emitted by `hm doctor --json`.
+// doctorOutput is the document emitted by `homie doctor --json`.
 type doctorOutput struct {
 	Findings []doctor.Finding `json:"findings"`
 	Errors   int              `json:"errors"`
@@ -108,7 +108,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 func writeReport(w io.Writer, r doctor.Report, noTTY bool) {
 	s := newDoctorStyles(w, noTTY)
 
-	fmt.Fprintln(w, s.header.Render("hm doctor"))
+	fmt.Fprintln(w, s.header.Render("homie doctor"))
 	fmt.Fprintln(w)
 
 	if len(r.Findings) == 0 {

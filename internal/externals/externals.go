@@ -1,7 +1,7 @@
 // Package externals keeps declared external git repositories present
 // and current on disk: cloned when missing, updated in place when
 // already checked out. It is the engine behind the `externals` phase of
-// `hm apply` and the [externals] table in homie.toml.
+// `homie apply` and the [externals] table in homie.toml.
 //
 // Idempotency follows the same no-state-file rule as the rest of Homie:
 // every run inspects the checkout directly (HEAD, remote URL, the

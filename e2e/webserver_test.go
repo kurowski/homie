@@ -27,19 +27,19 @@ type webserver struct {
 const (
 	userrepoOwner = "scouthomes"
 	userrepoName  = "dotfiles"
-	hmOwner       = "kurowski"
-	hmName        = "homie"
+	homieOwner    = "kurowski"
+	homieName     = "homie"
 )
 
 // prepWebserver builds everything nginx will serve:
-//   - the hm release artifacts (binary + SHA256SUMS) at the same path
+//   - the homie release artifacts (binary + SHA256SUMS) at the same path
 //     shape used by GitHub Releases
 //   - a bare git repo of the user environment, produced by running the
-//     real `hm init` binary
+//     real `homie init` binary
 //   - bootstrap.sh exposed at /<owner>/<repo>/main/bootstrap.sh on the
 //     raw.githubusercontent.com vhost
 //   - nginx.conf wired against the committed test CA + leaf cert
-func prepWebserver(t *testing.T, hmBinary string) *webserver {
+func prepWebserver(t *testing.T, homieBinary string) *webserver {
 	t.Helper()
 
 	root := t.TempDir()
@@ -48,13 +48,13 @@ func prepWebserver(t *testing.T, hmBinary string) *webserver {
 		certsDir: filepath.Join(repoRoot(t), "e2e", "certs"),
 	}
 
-	// 1. Run the real `hm init` (the same binary we serve to test
+	// 1. Run the real `homie init` (the same binary we serve to test
 	// containers) so the entire user repo — homie.toml, bootstrap.sh,
 	// .zshrc, .gitconfig.tmpl, 01-shell.sh — comes from the production
 	// command path. The test asserts post-state against these scaffold
 	// defaults verbatim; nothing is overlaid.
 	repoSrc := filepath.Join(root, "userrepo-src")
-	runOrFail(t, "", hmBinary, "init",
+	runOrFail(t, "", homieBinary, "init",
 		"--name", "Scout Homes",
 		"--email", "scout@homie.sh",
 		"--github-user", userrepoOwner,
@@ -77,18 +77,18 @@ func prepWebserver(t *testing.T, hmBinary string) *webserver {
 
 	// 3. Release artifacts at the github.com path GitHub uses.
 	relDir := filepath.Join(root, "content", "github",
-		hmOwner, hmName, "releases", "latest", "download")
+		homieOwner, homieName, "releases", "latest", "download")
 	if err := os.MkdirAll(relDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	binName := "hm-linux-" + runtime.GOARCH
+	binName := "homie-linux-" + runtime.GOARCH
 	binDst := filepath.Join(relDir, binName)
-	if err := copyFile(hmBinary, binDst, 0o755); err != nil {
-		t.Fatalf("copy hm binary: %v", err)
+	if err := copyFile(homieBinary, binDst, 0o755); err != nil {
+		t.Fatalf("copy homie binary: %v", err)
 	}
 	sum, err := sha256Hex(binDst)
 	if err != nil {
-		t.Fatalf("sha256 hm binary: %v", err)
+		t.Fatalf("sha256 homie binary: %v", err)
 	}
 	sumLine := fmt.Sprintf("%s  %s\n", sum, binName)
 	if err := os.WriteFile(filepath.Join(relDir, "SHA256SUMS"), []byte(sumLine), 0o644); err != nil {

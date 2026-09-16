@@ -50,7 +50,7 @@ func TestRepoDirRendersIntoBootstrap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(body), `REPO_DIR="${HM_REPO:-$HOME/Documents/dotfiles}"`) {
+	if !strings.Contains(string(body), `REPO_DIR="${HOMIE_REPO:-$HOME/Documents/dotfiles}"`) {
 		t.Errorf("bootstrap.sh didn't take RepoDir:\n%s", body)
 	}
 	// A nested destination is exactly when git clone needs the parent.
@@ -67,7 +67,7 @@ func TestRepoDirDefaultsToHomeSlashRepo(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 	body, _ := os.ReadFile(filepath.Join(dir, bootstrapPath))
-	if !strings.Contains(string(body), `REPO_DIR="${HM_REPO:-$HOME/dotfiles}"`) {
+	if !strings.Contains(string(body), `REPO_DIR="${HOMIE_REPO:-$HOME/dotfiles}"`) {
 		t.Errorf("expected the $HOME/<repo> default:\n%s", body)
 	}
 }

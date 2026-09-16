@@ -29,11 +29,11 @@ But to get back to the original story: it's a single copy-pasted curl-bash line 
 
 ## Get started
 
-1. Install `hm`:
+1. Install `homie`:
    ```sh
    curl -fsSL https://homie.sh/install.sh | bash
    ```
-2. `hm init ~/dotfiles` to scaffold a starter repo.
+2. `homie init ~/dotfiles` to scaffold a starter repo.
 3. Edit `homie.toml`, commit, and push to your preferred git hosting service.
 4. On any other Linux or macOS box: `curl …/bootstrap.sh | bash`.
 
@@ -43,7 +43,7 @@ But to get back to the original story: it's a single copy-pasted curl-bash line 
 
 - **Symlinks, not copies.** Edit `~/.zshrc` and you're editing the file in your repo. `git diff` shows what changed. No `chezmoi edit` indirection.
 - **One repo, three jobs.** Dotfiles + system packages + setup scripts, declared in one `homie.toml`. No glue between separate tools.
-- **No state file.** Every `hm apply` is a full reconciliation. Idempotent by construction — re-running is always safe.
+- **No state file.** Every `homie apply` is a full reconciliation. Idempotent by construction — re-running is always safe.
 - **Static binary.** No Python, no Ruby, no daemon. ~3 MB, single file.
 - **Charm-powered TUI.** Spinners, progress, a friendly summary at the end. Plain output in CI.
 

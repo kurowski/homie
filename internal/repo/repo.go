@@ -10,22 +10,22 @@ import (
 const ConfigFilename = "homie.toml"
 
 // ErrNotFound reports that the walk-up search located no environment
-// repo. An $HM_REPO that doesn't resolve is deliberately NOT this error
+// repo. An $HOMIE_REPO that doesn't resolve is deliberately NOT this error
 // — a user-asserted pointer that's wrong is a misconfiguration, and
-// callers that treat "no repo" as a benign state (`hm status`) must
+// callers that treat "no repo" as a benign state (`homie status`) must
 // still surface it.
 var ErrNotFound = fmt.Errorf("no %s found", ConfigFilename)
 
-// Find returns the user environment repo root. It checks $HM_REPO first, then
+// Find returns the user environment repo root. It checks $HOMIE_REPO first, then
 // walks up from the current working directory looking for a homie.toml.
 func Find() (string, error) {
-	if env := os.Getenv("HM_REPO"); env != "" {
+	if env := os.Getenv("HOMIE_REPO"); env != "" {
 		abs, err := filepath.Abs(env)
 		if err != nil {
-			return "", fmt.Errorf("resolve HM_REPO=%q: %w", env, err)
+			return "", fmt.Errorf("resolve HOMIE_REPO=%q: %w", env, err)
 		}
 		if _, err := os.Stat(filepath.Join(abs, ConfigFilename)); err != nil {
-			return "", fmt.Errorf("HM_REPO=%q has no %s: %w", abs, ConfigFilename, err)
+			return "", fmt.Errorf("HOMIE_REPO=%q has no %s: %w", abs, ConfigFilename, err)
 		}
 		return abs, nil
 	}
@@ -41,7 +41,7 @@ func Find() (string, error) {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("%w in %s or any parent (set $HM_REPO to point at your environment repo)", ErrNotFound, cwd)
+			return "", fmt.Errorf("%w in %s or any parent (set $HOMIE_REPO to point at your environment repo)", ErrNotFound, cwd)
 		}
 		dir = parent
 	}

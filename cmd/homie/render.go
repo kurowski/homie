@@ -16,7 +16,7 @@ var renderCmd = &cobra.Command{
 	Use:   "render <path>",
 	Short: "Render one template to stdout, no writes",
 	Long: `Render a single .tmpl file to stdout using the exact same data
-a real ` + "`hm home`" + ` would use on this host — active tags, [vars], user
+a real ` + "`homie home`" + ` would use on this host — active tags, [vars], user
 identity, distro, and the hasTag helper — without writing anything to
 $HOME.
 
@@ -27,13 +27,13 @@ before applying it for real.
 
 The path is tried as given first (absolute or relative to the current
 directory), then relative to the repo root, so
-` + "`hm render home/.gitconfig.tmpl`" + ` works from anywhere.
+` + "`homie render home/.gitconfig.tmpl`" + ` works from anywhere.
 
 Output is the raw rendered content, suitable for piping. A parse or
 execution error exits non-zero.
 
-To preview every active template at once, use ` + "`hm home --dry-run`" + `.
-Data fields and helper functions are listed in ` + "`hm help templating`" + `;
+To preview every active template at once, use ` + "`homie home --dry-run`" + `.
+Data fields and helper functions are listed in ` + "`homie help templating`" + `;
 the full guide is at https://homie.sh/docs/dotfiles/.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runRender,
@@ -57,7 +57,7 @@ func runRender(cmd *cobra.Command, args []string) error {
 	raw, err := os.ReadFile(path)
 	if err != nil && !filepath.IsAbs(path) {
 		// Not found from the cwd — fall back to repo-relative, so
-		// `hm render home/.gitconfig.tmpl` works from anywhere.
+		// `homie render home/.gitconfig.tmpl` works from anywhere.
 		alt := filepath.Join(repoDir, path)
 		if altRaw, altErr := os.ReadFile(alt); altErr == nil {
 			raw, err = altRaw, nil

@@ -81,7 +81,7 @@ func TestInitThenApplySucceeds(t *testing.T) {
 	}
 
 	// Apply against the freshly scaffolded repo.
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 	out := new(bytes.Buffer)
 	rootCmd.SetOut(out)
 	rootCmd.SetErr(out)

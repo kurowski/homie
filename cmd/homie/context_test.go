@@ -22,7 +22,7 @@ func runContextCmd(t *testing.T) (string, error) {
 // with the values a render would use on this host.
 func TestContextJSON(t *testing.T) {
 	repo := fixtureRepo(t)
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 
 	out, err := runContextCmd(t)
 	if err != nil {
@@ -59,7 +59,7 @@ func TestContextJSON(t *testing.T) {
 // TestContextNoRepoErrors: without an environment repo there is no
 // config to build a context from, so the command must fail.
 func TestContextNoRepoErrors(t *testing.T) {
-	t.Setenv("HM_REPO", "")
+	t.Setenv("HOMIE_REPO", "")
 	t.Chdir(t.TempDir())
 
 	if out, err := runContextCmd(t); err == nil {

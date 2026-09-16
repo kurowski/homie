@@ -4,7 +4,7 @@ FROM archlinux:base
 # install would fail with "target not found" before it ever reached the
 # network. -Syu (not -Sy) because a refresh followed by an install is the
 # partial-upgrade footgun; inside the image build, upgrading first is
-# free. hm itself never syncs — see internal/packages/pacman.go.
+# free. homie itself never syncs — see internal/packages/pacman.go.
 #
 # The sync databases this leaves behind are what the test run installs
 # against, so the cleanup only clears downloaded packages. `pacman -Scc`

@@ -30,7 +30,7 @@ func runDoctorCmd(t *testing.T, args []string) (string, error) {
 func TestDoctorAfterApplyReportsClean(t *testing.T) {
 	repo := fixtureRepo(t)
 	home := t.TempDir()
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 
 	// Bring home into a fully-synced state first.
 	if _, err := runApplyCmd(t, []string{"apply", "--home", home, "--skip-packages", "--skip-scripts"}); err != nil {
@@ -49,7 +49,7 @@ func TestDoctorAfterApplyReportsClean(t *testing.T) {
 func TestDoctorReportsBrokenSymlinkAsError(t *testing.T) {
 	repo := fixtureRepo(t)
 	home := t.TempDir()
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 
 	if _, err := runApplyCmd(t, []string{"apply", "--home", home, "--skip-packages", "--skip-scripts"}); err != nil {
 		t.Fatalf("apply: %v", err)
@@ -74,7 +74,7 @@ func TestDoctorReportsBrokenSymlinkAsError(t *testing.T) {
 func TestDoctorJSONClean(t *testing.T) {
 	repo := fixtureRepo(t)
 	home := t.TempDir()
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 
 	if _, err := runApplyCmd(t, []string{"apply", "--home", home, "--skip-packages", "--skip-scripts"}); err != nil {
 		t.Fatalf("apply: %v", err)
@@ -102,7 +102,7 @@ func TestDoctorJSONClean(t *testing.T) {
 func TestDoctorJSONReportsErrors(t *testing.T) {
 	repo := fixtureRepo(t)
 	home := t.TempDir()
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 
 	if _, err := runApplyCmd(t, []string{"apply", "--home", home, "--skip-packages", "--skip-scripts"}); err != nil {
 		t.Fatalf("apply: %v", err)

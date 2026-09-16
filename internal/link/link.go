@@ -7,7 +7,7 @@
 // destination. Apply executes the plan, backing up real files that would
 // otherwise be overwritten. Apply collects non-fatal errors instead of
 // aborting at the first one, so a single misbehaving file doesn't block
-// the rest of `hm apply`.
+// the rest of `homie apply`.
 package link
 
 import (

@@ -6,7 +6,7 @@ weight: 60
 
 Working examples for the setups that come up most. Each recipe shows
 just the relevant slice of `homie.toml` and the files you'd add — drop
-into a `hm init`-scaffolded repo and adapt.
+into a `homie init`-scaffolded repo and adapt.
 
 ---
 
@@ -79,7 +79,7 @@ arch = [
 ]
 ```
 
-`hm apply` resolves the active set as `all ∪ <distro>`, deduped, and
+`homie apply` resolves the active set as `all ∪ <distro>`, deduped, and
 only installs the missing ones.
 
 ---
@@ -144,7 +144,7 @@ mkdir -p "$PREFIX/bin"
 curl -fsSL https://mise.run | MISE_INSTALL_PATH="$PREFIX/bin/mise" sh
 ```
 
-Run with `hm apply` as usual — `hm install` will print a friendly
+Run with `homie apply` as usual — `homie install` will print a friendly
 notice when there's nothing to install.
 
 ---
@@ -177,7 +177,7 @@ Then source the checkouts from your dotfiles as usual, e.g. in
 source ~/.zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
 ```
 
-Updating a plugin is a one-line diff: bump the `ref`, run `hm apply`,
+Updating a plugin is a one-line diff: bump the `ref`, run `homie apply`,
 commit. Leaving `ref` off tracks the upstream default branch instead —
 fine for a theme, risky for the shell you'd need to debug a bad update.
 See [Config](/docs/config/#externals) for the full semantics.
@@ -235,7 +235,7 @@ hosts where secrets aren't available, and the template skips itself.
 `pacman`.
 To install something that lives in a *third-party* repo (VS Code,
 1Password, HashiCorp, Docker, RPM Fusion, etc.) you need that repo
-registered with the package manager **before** `hm apply`'s install
+registered with the package manager **before** `homie apply`'s install
 step. That's what `scripts/pre-*.sh` is for: every script whose name
 begins with `pre-` runs ahead of the package phase.
 
@@ -245,7 +245,7 @@ Lifecycle, end to end:
 detect → pre-scripts → packages → link → render → scripts
 ```
 
-Same env (`HM_REPO`, `HM_HOME`, `HM_TAGS`, `[vars]`) as the post-scripts
+Same env (`HOMIE_REPO`, `HOMIE_HOME`, `HOMIE_TAGS`, `[vars]`) as the post-scripts
 you already write. Both groups are ordered lexically inside their phase,
 and each script is responsible for its own idempotency.
 
@@ -279,14 +279,14 @@ fedora = ["code"]
 To run only the pre-scripts without touching packages or dotfiles:
 
 ```sh
-hm run --phase=pre
+homie run --phase=pre
 ```
 
 ---
 
 ## CI verification step
 
-A useful idiom: run `hm status` and `hm doctor` in CI on the user
+A useful idiom: run `homie status` and `homie doctor` in CI on the user
 environment repo itself, so you catch a broken template or a missing
 package reference before it bites on a fresh box.
 
@@ -300,21 +300,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Install hm
+      - name: Install homie
         run: |
-          curl -fsSL -o hm https://github.com/kurowski/homie/releases/latest/download/hm-linux-amd64
-          chmod +x hm
-          sudo mv hm /usr/local/bin/
-      - run: hm status --no-tty
-      - run: hm doctor --no-tty
+          curl -fsSL -o homie https://github.com/kurowski/homie/releases/latest/download/homie-linux-amd64
+          chmod +x homie
+          sudo mv homie /usr/local/bin/
+      - run: homie status --no-tty
+      - run: homie doctor --no-tty
 ```
 
-`hm doctor` exits non-zero on any problem, so the job fails loudly when
+`homie doctor` exits non-zero on any problem, so the job fails loudly when
 the repo drifts.
 
-The `hm-linux-amd64` binary is correct for the `ubuntu-latest` runner
-above; on a `macos-latest` runner, download `hm-darwin-arm64` (or
-`hm-darwin-amd64` on Intel) instead.
+The `homie-linux-amd64` binary is correct for the `ubuntu-latest` runner
+above; on a `macos-latest` runner, download `homie-darwin-arm64` (or
+`homie-darwin-amd64` on Intel) instead.
 
 ---
 
