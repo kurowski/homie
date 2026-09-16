@@ -452,7 +452,7 @@ and stay).
 
 ## Current state
 
-v0.6.0 shipped. The MVP (detect, config, link, render, native packages,
+v0.7.0 shipped. The MVP (detect, config, link, render, native packages,
 runner, UI, `homie apply` end-to-end, `homie init` scaffold, `bootstrap.sh`
 template, `homie status` / `homie doctor`, GitHub Actions release pipeline,
 e2e container harness covering Ubuntu/Debian/Fedora, docs site) was
@@ -549,6 +549,30 @@ v0.0.2. Since then:
   40-package run drops from 80 forks to one), and the group /
   repo-qualified-spec gap is documented as what it actually is on an
   unsynced host — a failing package phase, not a cosmetic warning.
+- **v0.7.0** — the binary is `homie`, not `hm`. Two letters saved keystrokes
+  on a command that's run rarely and cost a mental note every time; the
+  name now matches the project. Everything keyed off the old name moved
+  with it: `cmd/hm` → `cmd/homie`, release assets `hm-<os>-<arch>` →
+  `homie-<os>-<arch>` (so `selfupdate.AssetName` and `release.yml` still
+  agree), the script env `HM_REPO`/`HM_HOME`/`HM_TAGS` → `HOMIE_*`, the
+  `install.sh` / `bootstrap.sh` overrides `HM_RELEASE`/`HM_BINDIR` →
+  `HOMIE_*`, and the provenance stamp `# hm:generated` → `# homie:generated`.
+  No compatibility layer — nothing reads the old env names or stamp prefix,
+  and releases publish only the new asset name; with one user the shims
+  would be permanent noise for a one-time migration (see "Name migration"
+  below). The FAQ entry explaining the short name is gone. Every earlier
+  entry in this log was written with `hm` and renamed in place, so
+  "v0.2.0 — the `homie home` command" was `hm home` at the time. The hero
+  cast was re-recorded and inherits a doubled `✓ pre-scripts` line that
+  reproduces on pre-rename main — tracked in #51, not caused here.
+
+**Name migration** (one-time, for machines and repos set up against
+v0.6.0 or earlier): reinstall the binary with
+`curl -fsSL https://homie.sh/install.sh | bash` and delete the old `hm` —
+it can't self-update across the asset rename. In the environment repo,
+`homie init --update --force` rewrites `bootstrap.sh` (it fetches
+`hm-linux-*` and carries a stamp nothing reads now), and any
+`$HM_REPO`/`$HM_HOME`/`$HM_TAGS` in scripts becomes `$HOMIE_*`.
 
 **Layout migration** (one-time, for repos created against v0.0.2):
 `git mv dotfiles/* home/ && git mv templates/* home/ && rmdir dotfiles
