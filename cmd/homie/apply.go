@@ -57,7 +57,7 @@ Externals run before home so templates and symlinks can point into a
 checkout that is guaranteed to exist.
 
 Non-fatal errors are collected and surfaced in the summary rather than
-aborting. ` + "`hm apply`" + ` exits non-zero if any error was collected.
+aborting. ` + "`homie apply`" + ` exits non-zero if any error was collected.
 
 Flags ` + "`--skip-packages`" + `, ` + "`--skip-externals`" + `, and ` + "`--skip-scripts`" + ` skip the
 matching phases — ` + "`--skip-packages`" + ` covers native and all backend

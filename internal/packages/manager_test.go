@@ -346,7 +346,7 @@ func TestPacmanInstallSudo(t *testing.T) {
 
 // Install must not refresh the sync database first: `pacman -Sy` followed
 // by an install is the partial-upgrade footgun, and a full -Syu isn't
-// hm's call to make. See Pacman.Install.
+// homie's call to make. See Pacman.Install.
 func TestPacmanInstallDoesNotRefreshDatabase(t *testing.T) {
 	f := &fakeRunner{}
 	p := &Pacman{Runner: f.run}

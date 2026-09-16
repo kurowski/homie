@@ -7,12 +7,12 @@ import (
 	"strings"
 )
 
-// Provenance is the stamp `hm init` leaves on tool-owned files — the
+// Provenance is the stamp `homie init` leaves on tool-owned files — the
 // ones Homie keeps current across releases (today just bootstrap.sh)
 // rather than handing over to the user on day one.
 //
-// The stamp answers the only question `hm init --update` needs to ask:
-// is this file still exactly what some hm wrote, or has the user edited
+// The stamp answers the only question `homie init --update` needs to ask:
+// is this file still exactly what some homie wrote, or has the user edited
 // it since? Recording the digest rather than just the version makes that
 // check version-agnostic — we can tell an untouched v0.1.0 bootstrap.sh
 // from an edited one without carrying every old template in the binary.
@@ -20,14 +20,14 @@ import (
 // Deleting the stamp line is a supported way to opt out: an unstamped
 // file reads as "yours now", and update leaves it alone unless forced.
 type Provenance struct {
-	Version string // hm version that generated the file ("dev" for local builds)
+	Version string // homie version that generated the file ("dev" for local builds)
 	Digest  string // sha256 of the file with the stamp line removed
 }
 
 // provenancePrefix marks the stamp line. It's a shell comment because
 // every tool-owned file is a script; if a non-script ever joins the
 // manifest this needs a per-entry comment syntax.
-const provenancePrefix = "# hm:generated "
+const provenancePrefix = "# homie:generated "
 
 // digestOf hashes body with any stamp line removed, so the digest of a
 // stamped file and of the same file pre-stamp are identical. Callers can
@@ -94,7 +94,7 @@ func readProvenance(body []byte) (p Provenance, ok bool) {
 	return Provenance{}, false
 }
 
-// unchangedSince reports whether body is byte-identical to what hm wrote,
+// unchangedSince reports whether body is byte-identical to what homie wrote,
 // per its own stamp.
 func unchangedSince(body []byte) bool {
 	p, ok := readProvenance(body)

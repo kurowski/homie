@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// runInitUpdate is `hm init --update`: re-render the generated files in
+// runInitUpdate is `homie init --update`: re-render the generated files in
 // an existing environment repo. Where a fresh init asks the user for
 // everything, update derives it — the answers are already in the repo,
 // and a refresh you have to re-answer isn't a repeatable path.
@@ -61,14 +61,14 @@ func runInitUpdate(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(stdout)
 	switch {
 	case skipped > 0 && changed == 0:
-		fmt.Fprintf(stdout, "Nothing written. Take Homie's version with `hm init --update --force`,\n")
-		fmt.Fprintf(stdout, "or keep yours — deleting the hm:generated line opts the file out for good.\n")
+		fmt.Fprintf(stdout, "Nothing written. Take Homie's version with `homie init --update --force`,\n")
+		fmt.Fprintf(stdout, "or keep yours — deleting the homie:generated line opts the file out for good.\n")
 	case skipped > 0:
 		fmt.Fprintf(stdout, "Wrote %d file(s), skipped %d you've edited. Review with `git diff`, then commit.\n", changed, skipped)
 	case changed > 0:
 		fmt.Fprintf(stdout, "Wrote %d file(s) in %s. Review with `git diff`, then commit.\n", changed, dir)
 	default:
-		fmt.Fprintf(stdout, "Everything already current for hm %s.\n", version)
+		fmt.Fprintf(stdout, "Everything already current for homie %s.\n", version)
 	}
 	return nil
 }
@@ -77,9 +77,9 @@ func runInitUpdate(cmd *cobra.Command, args []string) error {
 func describe(r scaffold.Result) string {
 	switch r.State {
 	case scaffold.StateCurrent:
-		return fmt.Sprintf("current   (hm %s)", r.To)
+		return fmt.Sprintf("current   (homie %s)", r.To)
 	case scaffold.StateCreated:
-		return fmt.Sprintf("created   (hm %s)", r.To)
+		return fmt.Sprintf("created   (homie %s)", r.To)
 	case scaffold.StateUpdated, scaffold.StateForced:
 		verb := "updated"
 		if r.State == scaffold.StateForced {
@@ -88,9 +88,9 @@ func describe(r scaffold.Result) string {
 		return fmt.Sprintf("%s   %s → %s", verb, versionOrUnknown(r.From), r.To)
 	default:
 		if r.From == "" {
-			return "skipped   no hm:generated stamp — treating it as yours"
+			return "skipped   no homie:generated stamp — treating it as yours"
 		}
-		return fmt.Sprintf("skipped   edited since hm %s wrote it", r.From)
+		return fmt.Sprintf("skipped   edited since homie %s wrote it", r.From)
 	}
 }
 
@@ -102,7 +102,7 @@ func versionOrUnknown(v string) string {
 }
 
 // updateTarget resolves which repo to refresh: the argument if given,
-// otherwise the same walk-up every other command uses, so `hm init
+// otherwise the same walk-up every other command uses, so `homie init
 // --update` works from anywhere inside the repo.
 func updateTarget(args []string) (string, error) {
 	if len(args) == 1 {
@@ -194,7 +194,7 @@ func githubFromRemote(dir string) (user, name string, err error) {
 // paths. The proposed side is written with the real mode so git doesn't
 // report a mode change that isn't part of the update.
 func showDiff(w io.Writer, current string, r scaffold.Result) error {
-	tmp, err := os.MkdirTemp("", "hm-update-")
+	tmp, err := os.MkdirTemp("", "homie-update-")
 	if err != nil {
 		return err
 	}

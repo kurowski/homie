@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// linuxBootstrapPkgs is the list of CLI tools hm itself needs to clone a
+// linuxBootstrapPkgs is the list of CLI tools homie itself needs to clone a
 // user repo and run apply on a minimal Linux host (think Docker base image).
 // ca-certificates is in here because HTTPS git clones fail without it
 // in minimal containers — a class of issue that's confusing to debug
@@ -22,8 +22,8 @@ var linuxBootstrapPkgs = []string{"git", "ca-certificates"}
 
 var bootstrapCmd = &cobra.Command{
 	Use:   "bootstrap",
-	Short: "Install prerequisites needed before hm apply",
-	Long: `Bootstrap installs the small set of tools hm itself relies on:
+	Short: "Install prerequisites needed before homie apply",
+	Long: `Bootstrap installs the small set of tools homie itself relies on:
 git (to clone your environment repo) and ca-certificates (so HTTPS
 clones work on minimal hosts).
 
@@ -33,7 +33,7 @@ and points you at ` + "`xcode-select --install`" + ` if it isn't. brew is never
 required — install it from a scripts/pre-*.sh only if you declare
 [packages].
 
-Run this once on a fresh machine after downloading the hm binary,
+Run this once on a fresh machine after downloading the homie binary,
 before cloning your dotfiles repo. It's idempotent — packages already
 present are skipped.`,
 	RunE: runBootstrap,
@@ -64,7 +64,7 @@ func bootstrapMacOS(lookPath func(string) (string, error), w io.Writer) error {
 	return nil
 }
 
-// doBootstrap is the testable core of `hm bootstrap` — takes a Manager
+// doBootstrap is the testable core of `homie bootstrap` — takes a Manager
 // directly so unit tests can inject a fake instead of shelling out.
 func doBootstrap(mgr packages.Manager, distro string, w io.Writer) error {
 	if mgr.Name() == "noop" {

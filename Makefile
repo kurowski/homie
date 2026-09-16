@@ -5,10 +5,10 @@ GO ?= go
 .PHONY: build test lint e2e clean tidy install
 
 build:
-	CGO_ENABLED=0 $(GO) build -ldflags='$(LDFLAGS)' -o hm ./cmd/hm
+	CGO_ENABLED=0 $(GO) build -ldflags='$(LDFLAGS)' -o homie ./cmd/homie
 
 install:
-	CGO_ENABLED=0 $(GO) install -ldflags='$(LDFLAGS)' ./cmd/hm
+	CGO_ENABLED=0 $(GO) install -ldflags='$(LDFLAGS)' ./cmd/homie
 
 test:
 	$(GO) test ./...
@@ -24,5 +24,5 @@ tidy:
 	$(GO) mod tidy
 
 clean:
-	rm -f hm
+	rm -f homie
 	rm -rf dist/

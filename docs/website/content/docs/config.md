@@ -48,7 +48,7 @@ default_shell = "zsh"
 ```
 
 `profile.name` becomes an active tag automatically — so a template can
-branch on `{{ if hasTag "work" }}` and a script can read `$HM_TAGS`.
+branch on `{{ if hasTag "work" }}` and a script can read `$HOMIE_TAGS`.
 
 Both fields default to empty if omitted. Convention is `personal`,
 `work`, `devcontainer`, or whatever short label distinguishes the
@@ -81,7 +81,7 @@ tools.
 
 On Arch, `[packages]` covers the official repos. Homie never refreshes the
 package database — `pacman -Sy` followed by an install is the partial-upgrade
-footgun, and a full `pacman -Syu` isn't a call `hm apply` should make for you.
+footgun, and a full `pacman -Syu` isn't a call `homie apply` should make for you.
 Keep the system current the way you normally would; if a package can't be
 found, Homie says so and points at `pacman -Syu`. The AUR is out of scope:
 it needs a helper that isn't part of a base install, so drive it from a
@@ -92,8 +92,8 @@ of packages rather than something installable, and nothing in the local
 package database records that you asked for one — so Homie can't tell a
 fully-installed group from a missing one. A repo-qualified name like
 `extra/tmux` behaves the same way. On a machine whose package database is
-current, listing either is only noisy: `hm doctor` warns it isn't installed
-and `hm apply` re-announces it every run. On a machine that hasn't synced —
+current, listing either is only noisy: `homie doctor` warns it isn't installed
+and `homie apply` re-announces it every run. On a machine that hasn't synced —
 a fresh container, an `arch-chroot` — pacman can't resolve the name at all,
 so the package phase *fails* every run even though every member is already
 there. List the packages you actually want. (`base-devel` is fine: it's a
@@ -102,11 +102,11 @@ regular package these days, not a group.)
 On macOS, native packages install through Homebrew. A GUI app (a Homebrew
 **cask**) is named with a `/cask` suffix — `firefox/cask` installs with
 `brew install --cask firefox`; a bare name is a formula. A typo'd suffix
-is reported by `hm doctor` before any install runs.
+is reported by `homie doctor` before any install runs.
 
 **brew is optional.** macOS ships no system package manager, so if you only
-manage dotfiles (no `[packages]`), you never need it — `hm apply` and
-`hm doctor` won't complain. If brew isn't on `PATH` when packages *are*
+manage dotfiles (no `[packages]`), you never need it — `homie apply` and
+`homie doctor` won't complain. If brew isn't on `PATH` when packages *are*
 declared, the native phase warns and skips instead of failing; install brew
 (or add a `scripts/pre-*.sh` that does) to have those packages applied.
 
@@ -117,7 +117,7 @@ dotfiles, templates, scripts, externals — works as it does everywhere
 else against Termux's `$HOME`.
 
 On unsupported distros, the package phase prints a friendly notice and
-skips. The rest of `hm apply` continues normally.
+skips. The rest of `homie apply` continues normally.
 
 ### Tag-keyed package lists
 
@@ -175,7 +175,7 @@ form of the same rule. Nested backends (`.snap`, `.flatpak`, `.brew`)
 work under a chained key exactly as under a single-tag one.
 
 A malformed key — a segment that isn't `tag:<name>`, an empty `tag:`, a
-trailing `.` — is a hard error at load, not a silent no-op. `hm doctor`
+trailing `.` — is a hard error at load, not a silent no-op. `homie doctor`
 lists which AND-blocks were active for the current host.
 
 ---
@@ -184,7 +184,7 @@ lists which AND-blocks were active for the current host.
 
 External git repos to keep on disk — zsh/tmux/nvim plugins, themes,
 editor distributions. Each entry is keyed by its destination path;
-`hm apply` clones it when missing and updates it in place when present,
+`homie apply` clones it when missing and updates it in place when present,
 replacing the hand-rolled clone-or-pull script this usually takes.
 
 ```toml
@@ -225,7 +225,7 @@ handy for pinning a different `ref` on one machine.
 Keep externals destinations out of the directories `home/` manages:
 the home phase owns those paths and the two will fight over them.
 
-Skip the phase with `hm apply --skip-externals`.
+Skip the phase with `homie apply --skip-externals`.
 
 ---
 
@@ -253,7 +253,7 @@ The `arch` tag is Arch Linux, the platform. The CPU is `amd64` / `arm64`
 and is also available as `{{ .Arch }}` in templates.
 
 Duplicates are deduped; the resulting list is sorted, exposed to
-templates as `{{ .Tags }}`, and to scripts as `$HM_TAGS` (space-joined).
+templates as `{{ .Tags }}`, and to scripts as `$HOMIE_TAGS` (space-joined).
 
 ---
 
@@ -282,9 +282,9 @@ double as shell env vars.
 
 ---
 
-## What `hm init` writes
+## What `homie init` writes
 
-A fresh `hm init` produces something like:
+A fresh `homie init` produces something like:
 
 ```toml
 [user]
@@ -341,7 +341,7 @@ all = ["us.zoom.Zoom"]
 ```
 
 Backends are **opt-in by tool presence**. If the backend's CLI tool
-isn't on PATH, `hm apply` logs a warning and skips that phase — it
+isn't on PATH, `homie apply` logs a warning and skips that phase — it
 doesn't fail. Setting up a flatpak remote or installing brew belongs in
 `scripts/pre-*.sh` so it runs before the backend's install step.
 
@@ -370,11 +370,11 @@ only expresses confinement — non-default channels or tracks (`--channel`,
 distro package first, also belongs in `scripts/pre-*.sh`.
 
 Unknown backend names (a typo, or one that doesn't exist yet) decode
-with a warning rather than hard-failing the load — `hm doctor` and
-`hm apply` surface them so the file stays forward-compatible with
-newer `hm` binaries.
+with a warning rather than hard-failing the load — `homie doctor` and
+`homie apply` surface them so the file stays forward-compatible with
+newer `homie` binaries.
 
-The `hm apply` lifecycle becomes:
+The `homie apply` lifecycle becomes:
 `detect → pre-scripts → packages → backends → link → render → scripts`,
 where "backends" iterates whatever non-native backends you declared,
 in alphabetical order. Backends run after native packages so a brew or
@@ -410,7 +410,7 @@ Merge rules:
 The hostname used for the lookup is the short form — everything before
 the first dot — so `coach.lan` matches `hosts/coach.toml`. If
 `os.Hostname()` fails or returns something that looks unsafe (a path
-separator), no overlay is loaded and `hm doctor` surfaces a warning.
+separator), no overlay is loaded and `homie doctor` surfaces a warning.
 
 Validation runs *after* the merge, so an overlay can legitimately fill
 in required `[user]` fields if you'd rather not commit them to the base.
@@ -420,8 +420,8 @@ in required `[user]` fields if you'd rather not commit them to the base.
 ## Unknown fields
 
 Unknown TOML keys are recorded as warnings, not errors. This lets you
-add new fields for a newer `hm` binary without breaking older clients on
-the same repo. Run `hm status` to see warnings without applying.
+add new fields for a newer `homie` binary without breaking older clients on
+the same repo. Run `homie status` to see warnings without applying.
 
 Required-field violations (missing `user.name` or `user.email`) are
-hard errors — `hm apply` refuses to proceed.
+hard errors — `homie apply` refuses to proceed.

@@ -5,28 +5,28 @@
 #   curl -fsSL https://raw.githubusercontent.com/{{ .GitHubUser }}/{{ .GitHubRepo }}/main/bootstrap.sh | bash
 #
 # Flow:
-#   1. Download the hm binary for this os/arch.
-#   2. `hm bootstrap` ensures prerequisites: git + ca-certificates on
+#   1. Download the homie binary for this os/arch.
+#   2. `homie bootstrap` ensures prerequisites: git + ca-certificates on
 #      Linux, just git (via the Xcode CLT) on macOS, so HTTPS clones
-#      work and the next step plus all future `hm apply` runs can
+#      work and the next step plus all future `homie apply` runs can
 #      reach GitHub.
-#   3. Clone this repo and exec `hm apply`.
+#   3. Clone this repo and exec `homie apply`.
 #
-# This file is generated and stays Homie's — it tracks how the current hm
+# This file is generated and stays Homie's — it tracks how the current homie
 # wants to be launched, so it goes stale when you upgrade. Refresh it with
-# `hm init --update` from this repo, then commit the diff. Local edits are
+# `homie init --update` from this repo, then commit the diff. Local edits are
 # safe: update shows what it would change and stops rather than clobbering
-# (`--force` to override). Delete the hm:generated line below to opt out
+# (`--force` to override). Delete the homie:generated line below to opt out
 # and own this file yourself.
 set -euo pipefail
 
 REPO_URL="https://github.com/{{ .GitHubUser }}/{{ .GitHubRepo }}.git"
 # Where this repo lands on a fresh machine. Generated from wherever the
-# repo lived when you last ran `hm init` / `hm init --update`, so keeping
+# repo lived when you last ran `homie init` / `homie init --update`, so keeping
 # it somewhere other than $HOME/<repo> needs no hand-editing — move the
 # repo, re-run --update, commit.
-REPO_DIR="${HM_REPO:-{{ .RepoDir }}}"
-HM_RELEASE="${HM_RELEASE:-latest}"
+REPO_DIR="${HOMIE_REPO:-{{ .RepoDir }}}"
+HOMIE_RELEASE="${HOMIE_RELEASE:-latest}"
 
 os="$(uname -s)"
 case "$os" in
@@ -53,7 +53,7 @@ verify() {
 }
 
 # Under `curl ... | bash` stdin is the pipe this script is being read from,
-# not the terminal. Any child that needs to prompt — `sudo` inside `hm
+# not the terminal. Any child that needs to prompt — `sudo` inside `homie
 # bootstrap`, `sudo` inside a setup script during apply, a credential helper
 # during the clone — then dies with "a terminal is required to read the
 # password" and takes the run down with it. So hand those children the
@@ -86,15 +86,15 @@ else
   mkdir -p "$bindir"
 fi
 
-if ! command -v hm >/dev/null 2>&1; then
+if ! command -v homie >/dev/null 2>&1; then
   # The `latest` keyword has its own URL shape; specific tags use a
   # different one. Both end with /download.
-  if [ "$HM_RELEASE" = "latest" ]; then
+  if [ "$HOMIE_RELEASE" = "latest" ]; then
     base="https://github.com/kurowski/homie/releases/latest/download"
   else
-    base="https://github.com/kurowski/homie/releases/download/${HM_RELEASE}"
+    base="https://github.com/kurowski/homie/releases/download/${HOMIE_RELEASE}"
   fi
-  binary="hm-${os}-${arch}"
+  binary="homie-${os}-${arch}"
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
 
@@ -108,14 +108,14 @@ if ! command -v hm >/dev/null 2>&1; then
   # a regex metachar.
   ( cd "$tmp" && grep -F " ${binary}" SHA256SUMS > "$binary.sum" && verify "$binary.sum" )
 
-  install -m 0755 "$tmp/$binary" "$bindir/hm"
+  install -m 0755 "$tmp/$binary" "$bindir/homie"
   export PATH="$bindir:$PATH"
 fi
 
-# Let hm install the rest of its own prereqs (git, ca-certificates) so
+# Let homie install the rest of its own prereqs (git, ca-certificates) so
 # the distro-detection lives in one place (Go) and this script stays
 # tiny.
-withtty hm bootstrap
+withtty homie bootstrap
 
 if [ ! -d "$REPO_DIR/.git" ]; then
   echo "Cloning ${REPO_URL} -> ${REPO_DIR}"
@@ -127,6 +127,6 @@ fi
 
 cd "$REPO_DIR"
 if [ -n "$tty_in" ]; then
-  exec hm apply <"$tty_in"
+  exec homie apply <"$tty_in"
 fi
-exec hm apply
+exec homie apply

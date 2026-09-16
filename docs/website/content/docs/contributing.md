@@ -86,7 +86,7 @@ Key invariants every manager must hold:
   `pkg` (Termux): Termux runs unprivileged with no root and no `sudo`
   binary at all, so it never escalates regardless of the effective uid.
 - **No prompts.** Pass whatever flag suppresses interactive prompts
-  (`-y` for apt/dnf, `--noconfirm` for pacman, etc.). A `hm apply` mid-run
+  (`-y` for apt/dnf, `--noconfirm` for pacman, etc.). A `homie apply` mid-run
   should never block on a TTY question.
 - **Never upgrade the world.** Refresh the package index only where that's
   safe on its own. `apt-get update` is, so `apt.go` runs it. On Arch it
@@ -100,14 +100,14 @@ Key invariants every manager must hold:
 ## Running tests
 
 ```sh
-make build     # static binary at ./hm
+make build     # static binary at ./homie
 make test      # go test ./... — unit tests only
 make lint      # go vet + golangci-lint if installed
 make e2e       # container-based e2e suite (needs Docker / Podman)
 ```
 
 The e2e suite builds the binary, builds one image per distro, runs
-`hm apply` against a fixture user-repo, and asserts the resulting state.
+`homie apply` against a fixture user-repo, and asserts the resulting state.
 It's slow (~60s) but it's the only way to catch regressions in the
 package phase.
 
@@ -117,7 +117,7 @@ package phase.
 
 - **No `panic`** outside `main.go` initialization.
 - **Wrap errors** with context: `fmt.Errorf("link %s: %w", path, err)`.
-- **No public API.** Everything except `cmd/hm` lives under `internal/`.
+- **No public API.** Everything except `cmd/homie` lives under `internal/`.
 - **Tests next to source.** Fixtures in `<pkg>/testdata/`.
 - **No external state writes** other than `$HOME` and (when root) what
   the package manager touches on its behalf.
@@ -131,8 +131,8 @@ Bug reports and feature requests go to
 Useful things to include:
 
 - Distro and version (`cat /etc/os-release`).
-- `hm --version`.
-- Output of `hm doctor` if `hm apply` is the failing command.
+- `homie --version`.
+- Output of `homie doctor` if `homie apply` is the failing command.
 - Whether you're running in a container / Codespace.
 
 For security issues, please don't open a public issue — email the

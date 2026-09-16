@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Install the hm binary from a GitHub release.
+# Install the homie binary from a GitHub release.
 #
 # Usage:
 #   curl -fsSL https://homie.sh/install.sh | bash
 #
 # Environment overrides:
-#   HM_RELEASE  release tag to install (default: latest)
-#   HM_BINDIR   install location (default: /usr/local/bin if root, $HOME/.local/bin otherwise)
+#   HOMIE_RELEASE  release tag to install (default: latest)
+#   HOMIE_BINDIR   install location (default: /usr/local/bin if root, $HOME/.local/bin otherwise)
 
 set -euo pipefail
 
-HM_RELEASE="${HM_RELEASE:-latest}"
+HOMIE_RELEASE="${HOMIE_RELEASE:-latest}"
 
 os="$(uname -s)"
 case "$os" in
@@ -36,8 +36,8 @@ verify() {
   fi
 }
 
-if [ -n "${HM_BINDIR:-}" ]; then
-  bindir="$HM_BINDIR"
+if [ -n "${HOMIE_BINDIR:-}" ]; then
+  bindir="$HOMIE_BINDIR"
 elif [ "$(id -u)" = "0" ]; then
   bindir=/usr/local/bin
 else
@@ -45,12 +45,12 @@ else
 fi
 mkdir -p "$bindir"
 
-if [ "$HM_RELEASE" = "latest" ]; then
+if [ "$HOMIE_RELEASE" = "latest" ]; then
   base="https://github.com/kurowski/homie/releases/latest/download"
 else
-  base="https://github.com/kurowski/homie/releases/download/${HM_RELEASE}"
+  base="https://github.com/kurowski/homie/releases/download/${HOMIE_RELEASE}"
 fi
-binary="hm-${os}-${arch}"
+binary="homie-${os}-${arch}"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -65,12 +65,12 @@ curl -fsSL "$base/SHA256SUMS" -o "$tmp/SHA256SUMS"
 # fixed string in case a future arch name ever carries a regex metachar.
 ( cd "$tmp" && grep -F " ${binary}" SHA256SUMS > "$binary.sum" && verify "$binary.sum" )
 
-install -m 0755 "$tmp/$binary" "$bindir/hm"
+install -m 0755 "$tmp/$binary" "$bindir/homie"
 
 echo
-echo "hm installed to $bindir/hm"
+echo "homie installed to $bindir/homie"
 if ! printf '%s' ":$PATH:" | grep -q ":$bindir:"; then
   echo "Note: $bindir is not on your PATH. Add it with:"
   echo "  export PATH=\"$bindir:\$PATH\""
 fi
-echo "Run 'hm --help' to get started, or 'hm init ~/dotfiles' to scaffold a new environment repo."
+echo "Run 'homie --help' to get started, or 'homie init ~/dotfiles' to scaffold a new environment repo."

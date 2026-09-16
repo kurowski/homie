@@ -5,7 +5,7 @@ import (
 )
 
 // templatingCmd is a help-only topic: it has no Run function, so cobra
-// lists it under "Additional help topics" and `hm help templating`
+// lists it under "Additional help topics" and `homie help templating`
 // resolves to this reference instead of dead-ending. The point is to
 // keep the template reference reachable offline, where the docs site
 // isn't — keep the field table in sync with render.Data and the docs
@@ -17,10 +17,10 @@ var templatingCmd = &cobra.Command{
 	Long: `Files ending in .tmpl under home/ (and any active
 home.tag-X[.tag-Y...]/ tree) render through Go text/template and land
 in $HOME with the suffix stripped. This topic is the reference for what
-a template can use; see ` + "`hm help home`" + ` for how files are partitioned
+a template can use; see ` + "`homie help home`" + ` for how files are partitioned
 and overridden.
 
-Data fields — the same set ` + "`hm context`" + ` prints with live values:
+Data fields — the same set ` + "`homie context`" + ` prints with live values:
 
   .Name          string          [user].name
   .Email         string          [user].email
@@ -50,8 +50,8 @@ lookup errors before default ever runs. For optional vars use:
   {{ if hasKey .Vars "X" }}{{ .Vars.X }}{{ end }}
   {{ dig "X" "fallback" .Vars }}
 
-Preview tools: ` + "`hm context`" + ` prints the data as JSON, ` + "`hm render <path>`" + `
-renders one template to stdout, ` + "`hm home --dry-run`" + ` previews every
+Preview tools: ` + "`homie context`" + ` prints the data as JSON, ` + "`homie render <path>`" + `
+renders one template to stdout, ` + "`homie home --dry-run`" + ` previews every
 active template. Full guide: https://homie.sh/docs/dotfiles/`,
 }
 

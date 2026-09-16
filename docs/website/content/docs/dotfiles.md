@@ -26,7 +26,7 @@ whatever.
 
 ## Symlinks
 
-A plain file at `home/<path>` symlinks to `~/<path>` on `hm apply`. The
+A plain file at `home/<path>` symlinks to `~/<path>` on `homie apply`. The
 symlink points at the real file inside your repo, so:
 
 ```sh
@@ -40,7 +40,7 @@ $ ls -l ~/.zshrc
 - **Mode is preserved** by the filesystem, not by Homie — symlinks
   resolve through to the source's permissions.
 - **Conflicts are backed up.** If a real file already exists at the
-  destination, `hm apply` moves it aside to
+  destination, `homie apply` moves it aside to
   `<path>.homie-backup-<timestamp>` before creating the symlink. Your
   data is never silently overwritten.
 - **Stale symlinks are replaced.** If `~/.zshrc` already points
@@ -48,8 +48,8 @@ $ ls -l ~/.zshrc
   the old link and creates a fresh one to the repo. The previous
   target file isn't touched.
 
-`hm home` runs the symlink + render phases against this tree without
-touching packages or scripts. `hm doctor` reports broken symlinks (a
+`homie home` runs the symlink + render phases against this tree without
+touching packages or scripts. `homie doctor` reports broken symlinks (a
 symlink in `$HOME` pointing into your repo, but the source file no
 longer exists).
 
@@ -60,7 +60,7 @@ longer exists).
 A file at `home/<path>.tmpl` is parsed as a Go [`text/template`](https://pkg.go.dev/text/template)
 and rendered into `~/<path>` (with the `.tmpl` suffix stripped). The
 output is a **real file**, not a symlink — the template is the source
-of truth, the output is the artifact. Re-run `hm apply` (or `hm home`)
+of truth, the output is the artifact. Re-run `homie apply` (or `homie home`)
 to refresh.
 
 Source file mode carries through: `home/bin/foo.sh.tmpl` renders
@@ -72,8 +72,8 @@ To see what a template resolves to on the current host without writing
 into `$HOME`, render it to stdout:
 
 ```sh
-hm render home/.gitconfig.tmpl   # one template, raw output
-hm home --dry-run                # every active template, plus the link/render plan
+homie render home/.gitconfig.tmpl   # one template, raw output
+homie home --dry-run                # every active template, plus the link/render plan
 ```
 
 Both use the same data as a real run (active tags, `[vars]`, `hasTag`),
@@ -122,11 +122,11 @@ Every template has these fields available:
 | `.Vars`         | `map[string]any`    | the `[vars]` table |
 
 To see this table populated with the live values on the current host,
-run `hm context` — it prints the data as JSON with keys matching the
+run `homie context` — it prints the data as JSON with keys matching the
 field names above, so it doubles as a machine-readable reference for
 scripts and agents. The reference itself also ships inside the binary:
-`hm help templating` lists these fields, the `hasTag` helper, and the
-missing-key rules, so it works offline on any machine with `hm`
+`homie help templating` lists these fields, the `hasTag` helper, and the
+missing-key rules, so it works offline on any machine with `homie`
 installed.
 
 ### The `hasTag` helper
@@ -204,7 +204,7 @@ since the second one is malformed (`42` doesn't start with `tag-`),
 the whole directory is rejected. Use only `[A-Za-z0-9_-]`-style tag
 names when naming a tag-gated directory.
 
-`hm doctor` lists tag-gated trees that aren't active on the current
+`homie doctor` lists tag-gated trees that aren't active on the current
 host as informational findings — useful for sanity-checking a
 multi-tag layout from a host where only some of the trees apply.
 
@@ -212,7 +212,7 @@ The same naming convention extends to scripts: `scripts.tag-<X>/`
 directories run only when their tags are active. Unlike home trees,
 which resolve same-target collisions by specificity, scripts have no
 override rule — the same filename in two active script trees is an
-error. See [`hm run`](/docs/commands/#hm-run) for the ordering rules.
+error. See [`homie run`](/docs/commands/#homie-run) for the ordering rules.
 
 ---
 
@@ -365,7 +365,7 @@ The source file's executable bit carries through, so the rendered
 
 ### A symlink that points anywhere except `$HOME`
 
-`hm home` only writes into `$HOME` — it can't put a file at, say,
+`homie home` only writes into `$HOME` — it can't put a file at, say,
 `/etc/sudoers.d/scout`. Use a `scripts/*.sh` for that:
 
 ```sh
@@ -373,7 +373,7 @@ The source file's executable bit carries through, so the rendered
 set -euo pipefail
 
 dest=/etc/sudoers.d/scout
-sudo install -m 0440 -o root -g root "$HM_REPO/home/sudoers" "$dest"
+sudo install -m 0440 -o root -g root "$HOMIE_REPO/home/sudoers" "$dest"
 ```
 
 The source still lives in `home/`, so the install path stays in sync

@@ -28,11 +28,11 @@ import (
 // Vars is map[string]any (not map[string]string) so Sprig helpers like
 // hasKey and dig work — they require the any-valued type.
 //
-// No json tags: `hm context` marshals this struct directly so the JSON
+// No json tags: `homie context` marshals this struct directly so the JSON
 // keys are the template field names verbatim. Keep it that way — a new
-// field is then discoverable via `hm context` with no extra wiring.
+// field is then discoverable via `homie context` with no extra wiring.
 // A new field DOES need adding to the two hand-written field tables:
-// cmd/hm/templating.go (`hm help templating`) and the docs site's
+// cmd/homie/templating.go (`homie help templating`) and the docs site's
 // dotfiles page.
 type Data struct {
 	Name         string
@@ -77,8 +77,8 @@ func Render(input string, data Data) (string, error) {
 	tmpl, err := template.New("homie").
 		Funcs(sprig.TxtFuncMap()).
 		Funcs(template.FuncMap{
-			// Custom funcs are documented in cmd/hm/templating.go
-			// (`hm help templating`) and the docs site — keep in sync.
+			// Custom funcs are documented in cmd/homie/templating.go
+			// (`homie help templating`) and the docs site — keep in sync.
 			"hasTag": hasTagFn(data.Tags),
 		}).
 		Option("missingkey=error").

@@ -34,12 +34,12 @@ which matters because the output is committed binary media.
 | Cast | Page | Shows | ~len |
 |------|------|-------|------|
 | **`bootstrap`** (hero) | `_index.md` | a **fresh machine → working environment** via the exact `curl … bootstrap.sh \| bash` one-liner we tell people to run. The outcome, not the internals. | 15–25s |
-| `apply` | `commands.md` | `hm apply` reconciling: detect → packages → home (link/render) → scripts → pass/warn/fail summary | 12–18s |
-| `status` / `doctor` | `commands.md` | `hm status`, then `hm doctor`'s read-only audit + summary | 8–12s ea |
-| `home` | `commands.md` | `hm home` materializing the tree | ~8s |
+| `apply` | `commands.md` | `homie apply` reconciling: detect → packages → home (link/render) → scripts → pass/warn/fail summary | 12–18s |
+| `status` / `doctor` | `commands.md` | `homie status`, then `homie doctor`'s read-only audit + summary | 8–12s ea |
+| `home` | `commands.md` | `homie home` materializing the tree | ~8s |
 | `symlink` | `dotfiles.md` | `ls -l ~/.zshrc` → repo; edit; `git diff` — proves the no-indirection model | ~12s |
 
-The homepage shows only the **outcome** (bootstrap). The `hm`-subcommand demos
+The homepage shows only the **outcome** (bootstrap). The `homie`-subcommand demos
 live on their respective pages. No long `init → push → bootstrap` *authoring*
 cast — too long for a loop.
 
@@ -48,11 +48,11 @@ cast — too long for a loop.
 The hero runs the *real* `curl | bash` bootstrap, so it must be both isolated
 and offline/deterministic. We get all of that by reusing the **e2e harness**:
 
-- **`hm init`** scaffolds the demo repo (Scout Homes / scout@homie.sh /
+- **`homie init`** scaffolds the demo repo (Scout Homes / scout@homie.sh /
   scouthomes/dotfiles), exactly as e2e does.
 - An **nginx sidecar** impersonates `github.com` + `raw.githubusercontent.com`
   over the **committed e2e test CA** (`e2e/certs`), serving the scaffolded repo
-  (dumb-HTTP git) + the hm release artifacts. Docker network aliases point both
+  (dumb-HTTP git) + the homie release artifacts. Docker network aliases point both
   hostnames at nginx, so the in-cast HTTPS resolves locally — no internet, fully
   reproducible, but the displayed command is the genuine one.
 - The **recording container** (the pinned VHS image + a thin "fresh Linux box"
@@ -60,7 +60,7 @@ and offline/deterministic. We get all of that by reusing the **e2e harness**:
   *inside* the fresh box, the tape is literally what a user types — no hidden
   `docker exec`.
 - **Pre-baked packages.** The image pre-installs the demo repo's declared
-  packages (and git/ca-certificates), so `hm bootstrap` and `hm apply`'s package
+  packages (and git/ca-certificates), so `homie bootstrap` and `homie apply`'s package
   phase are no-ops at render time — fast, offline, deterministic. A genuinely
   fresh box installs these on first run; pre-baking just keeps the loop short.
   (Showing live installs would need a local apt cache — a later refinement.)
@@ -72,7 +72,7 @@ and offline/deterministic. We get all of that by reusing the **e2e harness**:
   without rc files and mangles non-ASCII typed input, so the ❯ glyph never goes
   through its keystroke path.
 
-Note: `hm` selects its TUI from **stdout** being a terminal, not stdin — so even
+Note: `homie` selects its TUI from **stdout** being a terminal, not stdin — so even
 under `curl | bash` (stdin is the pipe) the cast shows the full colorful TUI,
 because VHS provides a PTY on stdout.
 
@@ -105,7 +105,7 @@ docs/website/
   casts/
     Dockerfile         # recorder image: pinned VHS base + fresh-box layer
     nginx.conf         # TLS sidecar (impersonates github / raw.github)
-    record.sh          # orchestration (build hm, scaffold, nginx, vhs, collect)
+    record.sh          # orchestration (build homie, scaffold, nginx, vhs, collect)
     *.tape
     PLAN.md
   static/casts/        # rendered .gif/.webm (committed, served by Hugo)
@@ -119,7 +119,7 @@ docs/website/
 ./record.sh bootstrap.tape  # one cast
 ```
 
-`record.sh` builds hm, builds the pinned recorder image, stands up nginx,
+`record.sh` builds homie, builds the pinned recorder image, stands up nginx,
 renders, copies `.gif`/`.webm` into `static/casts/`, and tears everything down.
 Run it by hand when CLI output changes; commit the rendered media.
 
@@ -146,8 +146,8 @@ media back* (a bot pushing generated binaries into history). Not going there.
 
 - **P1 (now):** the `bootstrap` hero end-to-end + the `cast` shortcode +
   homepage embed. Proves the whole pipeline.
-- **P2:** the `hm`-subcommand casts (`apply`, `status`/`doctor`, `home`,
-  `symlink`) on their pages — same harness, simpler (no nginx; just run `hm`
+- **P2:** the `homie`-subcommand casts (`apply`, `status`/`doctor`, `home`,
+  `symlink`) on their pages — same harness, simpler (no nginx; just run `homie`
   against a scaffolded box).
 - **P3:** WebM hero + reduced-motion poster, size budgets, alt/captions, and
   the deferred render-in-CI step above.

@@ -33,7 +33,7 @@ func TestApplyExternalsEndToEnd(t *testing.T) {
 	src := sourceGitRepo(t)
 	repo := fixtureRepo(t)
 	home := t.TempDir()
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 
 	f, err := os.OpenFile(filepath.Join(repo, "homie.toml"), os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
@@ -71,7 +71,7 @@ func TestApplySkipExternals(t *testing.T) {
 	src := sourceGitRepo(t)
 	repo := fixtureRepo(t)
 	home := t.TempDir()
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 
 	f, err := os.OpenFile(filepath.Join(repo, "homie.toml"), os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {

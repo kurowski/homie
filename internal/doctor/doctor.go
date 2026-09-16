@@ -1,6 +1,6 @@
 // Package doctor performs a read-only audit of a user environment repo
 // and the host it's about to be applied to. It walks the same directories
-// as `hm apply` but never writes — surfacing issues like broken symlinks,
+// as `homie apply` but never writes — surfacing issues like broken symlinks,
 // missing packages, or unrendered templates so users can fix them before
 // (or independently of) running apply.
 package doctor
@@ -23,7 +23,7 @@ import (
 	"github.com/kurowski/homie/internal/tree"
 )
 
-// Severity classifies a finding. Errors cause `hm doctor` to exit 1;
+// Severity classifies a finding. Errors cause `homie doctor` to exit 1;
 // warnings are advisory.
 type Severity string
 
@@ -38,7 +38,7 @@ const (
 )
 
 // Finding is one issue surfaced by Run. The json tags define the
-// `hm doctor --json` record shape.
+// `homie doctor --json` record shape.
 type Finding struct {
 	Severity Severity `json:"severity"`
 	Area     string   `json:"area"` // env | config | home | link | render | packages | scripts
@@ -51,7 +51,7 @@ type Report struct {
 }
 
 // HasErrors reports whether any finding is at error severity. Useful
-// for `hm doctor`'s exit code in CI.
+// for `homie doctor`'s exit code in CI.
 func (r Report) HasErrors() bool {
 	for _, f := range r.Findings {
 		if f.Severity == SeverityError {
@@ -76,7 +76,7 @@ func (r Report) Counts() (errs, warns int) {
 
 // Run walks the user repo and host, returning everything that looks off.
 // The Manager is injected so tests can drive package checks without
-// shelling out — `cmd/hm/doctor.go` passes packages.For(env).
+// shelling out — `cmd/homie/doctor.go` passes packages.For(env).
 func Run(repoDir, home string, cfg config.Config, env detect.Env, mgr packages.Manager, backendLookup BackendManagerLookup) Report {
 	var r Report
 	r.checkEnv(env)
@@ -136,10 +136,10 @@ func (r *Report) checkLinks(repoDir, home string, cfg config.Config, env detect.
 				fmt.Sprintf("%s is a symlink to %s, expected %s", a.Target, actual, a.Source))
 		case link.KindBackup:
 			r.add(SeverityWarn, "link",
-				fmt.Sprintf("%s exists as a real file — `hm apply` would back it up", a.Target))
+				fmt.Sprintf("%s exists as a real file — `homie apply` would back it up", a.Target))
 		case link.KindCreate:
 			r.add(SeverityWarn, "link",
-				fmt.Sprintf("%s not yet linked — run `hm apply` or `hm home`", a.Target))
+				fmt.Sprintf("%s not yet linked — run `homie apply` or `homie home`", a.Target))
 		}
 	}
 	// Detect broken symlinks: a homie-managed symlink whose source file
@@ -289,7 +289,7 @@ func (r *Report) checkTemplates(repoDir, home string, cfg config.Config, env det
 			got, err := os.ReadFile(target)
 			if errors.Is(err, fs.ErrNotExist) {
 				r.add(SeverityWarn, "render",
-					fmt.Sprintf("%s not yet rendered — run `hm apply` or `hm home`", target))
+					fmt.Sprintf("%s not yet rendered — run `homie apply` or `homie home`", target))
 				return nil
 			}
 			if err != nil {
@@ -405,7 +405,7 @@ func (r *Report) checkScripts(repoDir string, cfg config.Config, env detect.Env)
 	tags := cfg.AllTags(env)
 	// Walk both phases so every active *.sh (pre and post) is checked.
 	// runner.Plan applies the same tag-tree merge and filename-collision
-	// rule as `hm apply`, so a collision surfaces here too.
+	// rule as `homie apply`, so a collision surfaces here too.
 	for _, phase := range []runner.Phase{runner.PhasePre, runner.PhasePost} {
 		paths, err := runner.Plan(repoDir, tags, phase)
 		if err != nil {

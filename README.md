@@ -36,10 +36,10 @@ native packages (apt/dnf/pacman, Homebrew formulae + casks on macOS, or
 `pkg` on Termux) plus flatpak and snap backends, declarative
 pinned git clones (`[externals]` — plugins, themes, editor distros), and
 ordered pre/post setup scripts — install → bootstrap → apply → idempotent
-reapply verified end-to-end. Template previews (`hm render`, `hm home
---dry-run`) and machine-readable host state (`hm status --json`, `hm doctor
---json`, `hm context`) give scripts and AI agents a clean interface, and
-`hm selfupdate` keeps the binary current from GitHub releases.
+reapply verified end-to-end. Template previews (`homie render`, `homie home
+--dry-run`) and machine-readable host state (`homie status --json`, `homie doctor
+--json`, `homie context`) give scripts and AI agents a clean interface, and
+`homie selfupdate` keeps the binary current from GitHub releases.
 User-facing docs at <https://homie.sh>; design brief in
 [`CLAUDE.md`](./CLAUDE.md).
 

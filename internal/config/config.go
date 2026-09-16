@@ -67,7 +67,7 @@ type Packages struct {
 
 	// Warnings is populated by UnmarshalTOML for typos and other
 	// non-fatal issues (unknown keys, empty tag names). Load drains
-	// these into Config.Warnings so `hm status` / `hm doctor` surface
+	// these into Config.Warnings so `homie status` / `homie doctor` surface
 	// them.
 	Warnings []string
 }
@@ -126,8 +126,8 @@ var knownDistroKeyList = strings.Join(knownDistroKeyOrder, ", ")
 //     are tag-keyed backend lists).
 //   - any other table → non-native backend sub-table. Backend names
 //     outside KnownBackends are accepted into Backends with a warning
-//     so the file is forward-compatible with newer hm binaries; the
-//     warning surfaces typos and gives `hm doctor` something to report
+//     so the file is forward-compatible with newer homie binaries; the
+//     warning surfaces typos and gives `homie doctor` something to report
 //     at apply time.
 func (p *Packages) UnmarshalTOML(data any) error {
 	m, ok := data.(map[string]any)
@@ -502,7 +502,7 @@ func merge(base, overlay Config) Config {
 // appendUnique appends every entry in extra to base that isn't already
 // present, preserving order. Used by merge so that overlapping package
 // lists between base and overlay don't leave duplicates in
-// Config.Packages — PackagesFor dedupes on read, but `hm status` and any
+// Config.Packages — PackagesFor dedupes on read, but `homie status` and any
 // future reader benefits from a clean in-memory shape.
 func appendUnique(base, extra []string) []string {
 	seen := make(map[string]struct{}, len(base)+len(extra))
@@ -615,7 +615,7 @@ func (c Config) resolvePackages(env detect.Env, base map[string][]string, byTag 
 // of every multi-tag [packages] block — native or any backend — whose tags
 // are all active for env. Single-tag blocks are omitted (they aren't an
 // AND-condition worth surfacing). Result is deduped and sorted; used by
-// `hm doctor` to confirm which AND-conditions applied on this host.
+// `homie doctor` to confirm which AND-conditions applied on this host.
 func (c Config) ActiveTagBlocks(env detect.Env) []string {
 	active := make(map[string]struct{})
 	for _, t := range c.AllTags(env) {

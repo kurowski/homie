@@ -1,6 +1,6 @@
 ---
 title: "Install"
-description: "Ways to get the hm binary onto your machine."
+description: "Ways to get the homie binary onto your machine."
 weight: 15
 ---
 
@@ -12,7 +12,7 @@ binary — there's nothing stopping you from grabbing it any way you like.
 ## Install script (recommended)
 
 Detects your OS (Linux or macOS) and arch, downloads the matching release,
-verifies its SHA256, and drops `hm` into `/usr/local/bin` (or `~/.local/bin`
+verifies its SHA256, and drops `homie` into `/usr/local/bin` (or `~/.local/bin`
 if you're not root):
 
 ```sh
@@ -20,24 +20,24 @@ curl -fsSL https://homie.sh/install.sh | bash
 ```
 
 The same one-liner works on Linux and macOS (Apple Silicon and Intel) — the
-script picks `hm-linux-*` or `hm-darwin-*` for you.
+script picks `homie-linux-*` or `homie-darwin-*` for you.
 
 The script honours two environment overrides:
 
-- `HM_RELEASE` — release tag to install (default: `latest`).
-- `HM_BINDIR` — install location (default: `/usr/local/bin` when root,
+- `HOMIE_RELEASE` — release tag to install (default: `latest`).
+- `HOMIE_BINDIR` — install location (default: `/usr/local/bin` when root,
   `$HOME/.local/bin` otherwise).
 
 ### Pin to a specific release
 
 ```sh
-curl -fsSL https://homie.sh/install.sh | HM_RELEASE=v0.1.0 bash
+curl -fsSL https://homie.sh/install.sh | HOMIE_RELEASE=v0.1.0 bash
 ```
 
 ### Install to a custom location
 
 ```sh
-curl -fsSL https://homie.sh/install.sh | HM_BINDIR=$HOME/bin bash
+curl -fsSL https://homie.sh/install.sh | HOMIE_BINDIR=$HOME/bin bash
 ```
 
 ---
@@ -46,14 +46,14 @@ curl -fsSL https://homie.sh/install.sh | HM_BINDIR=$HOME/bin bash
 
 If you'd rather not pipe a script into your shell, grab the binary
 directly. Each release publishes a binary per OS/arch
-(`hm-linux-<arch>`, `hm-darwin-<arch>`) plus a `SHA256SUMS` file that
+(`homie-linux-<arch>`, `homie-darwin-<arch>`) plus a `SHA256SUMS` file that
 covers them all.
 
 ```sh
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')   # linux or darwin
 ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 BASE=https://github.com/kurowski/homie/releases/latest/download
-BIN="hm-${OS}-${ARCH}"
+BIN="homie-${OS}-${ARCH}"
 
 cd "$(mktemp -d)"
 curl -fsSL -o "$BIN"      "$BASE/$BIN"
@@ -61,12 +61,12 @@ curl -fsSL -o SHA256SUMS  "$BASE/SHA256SUMS"
 
 # Download under the real name so the checklist matches. macOS has no
 # sha256sum, so filter to our line and fall back to shasum.
-grep " ${BIN}\$" SHA256SUMS > hm.sum
-if command -v sha256sum >/dev/null; then sha256sum -c hm.sum; else shasum -a 256 -c hm.sum; fi
+grep " ${BIN}\$" SHA256SUMS > homie.sum
+if command -v sha256sum >/dev/null; then sha256sum -c homie.sum; else shasum -a 256 -c homie.sum; fi
 
 chmod +x "$BIN"
-sudo mv "$BIN" /usr/local/bin/hm
-hm --version
+sudo mv "$BIN" /usr/local/bin/homie
+homie --version
 ```
 
 Swap `latest` for a tag (e.g.
@@ -83,22 +83,22 @@ Go toolchain is enough.
 ```sh
 git clone https://github.com/kurowski/homie.git
 cd homie
-make build              # CGO_ENABLED=0 go build -ldflags=... -o hm ./cmd/hm
-sudo install -m 0755 hm /usr/local/bin/hm
-hm --version
+make build              # CGO_ENABLED=0 go build -ldflags=... -o homie ./cmd/homie
+sudo install -m 0755 homie /usr/local/bin/homie
+homie --version
 ```
 
 Or skip the clone with `go install`:
 
 ```sh
-go install github.com/kurowski/homie/cmd/hm@latest
+go install github.com/kurowski/homie/cmd/homie@latest
 ```
 
-That drops `hm` into `$(go env GOBIN)` (or `$(go env GOPATH)/bin` if
+That drops `homie` into `$(go env GOBIN)` (or `$(go env GOPATH)/bin` if
 `GOBIN` is unset). Make sure that directory is on your `PATH`.
 
 The version string baked into the binary will say `(devel)` with
-`go install`; the `make build` path uses `git describe` so `hm --version`
+`go install`; the `make build` path uses `git describe` so `homie --version`
 prints the tag.
 
 ---
@@ -106,28 +106,28 @@ prints the tag.
 ## Verifying the install
 
 ```sh
-hm --version
-hm doctor
+homie --version
+homie doctor
 ```
 
-`hm doctor` runs a no-op health check — useful even right after install
+`homie doctor` runs a no-op health check — useful even right after install
 to confirm the binary is wired up correctly.
 
 ---
 
 ## Updating
 
-`hm` updates itself:
+`homie` updates itself:
 
 ```sh
-hm selfupdate          # replace the binary with the latest release
-hm selfupdate --check  # just see whether a newer release exists
+homie selfupdate          # replace the binary with the latest release
+homie selfupdate --check  # just see whether a newer release exists
 ```
 
 It downloads the right binary for your OS and architecture, verifies it
 against the release's `SHA256SUMS`, and replaces the binary in place —
 the same checks the install script performs. A binary in
-`/usr/local/bin` usually needs `sudo hm selfupdate`; the default user
+`/usr/local/bin` usually needs `sudo homie selfupdate`; the default user
 install in `~/.local/bin` doesn't.
 
 Re-running the install script does the same job, and is the way to pin
@@ -135,32 +135,32 @@ or downgrade:
 
 ```sh
 curl -fsSL https://homie.sh/install.sh | bash                      # latest
-curl -fsSL https://homie.sh/install.sh | HM_RELEASE=v0.2.0 bash    # pin / downgrade
-hm --version                                                       # confirm
+curl -fsSL https://homie.sh/install.sh | HOMIE_RELEASE=v0.2.0 bash    # pin / downgrade
+homie --version                                                       # confirm
 ```
 
 Builds from source update the way they were installed — re-run
 `go install …@latest`, or `git pull` and `make build` from the checkout.
-`hm selfupdate` refuses to overwrite a from-source build, so a dev
+`homie selfupdate` refuses to overwrite a from-source build, so a dev
 binary can't be clobbered by accident.
 
-If `hm --version` doesn't show the version you just installed, a copy
+If `homie --version` doesn't show the version you just installed, a copy
 left on `PATH` by a different install method is probably shadowing it —
-`which hm` to find which one wins.
+`which homie` to find which one wins.
 
 Re-running your environment repo's `bootstrap.sh` also pulls the latest
-`hm` before applying, but that's a full reapply of your environment, not
-just a binary bump — `hm selfupdate` when you only want the binary.
+`homie` before applying, but that's a full reapply of your environment, not
+just a binary bump — `homie selfupdate` when you only want the binary.
 
 After upgrading, refresh the generated files in your environment repo:
 
 ```sh
-cd ~/dotfiles && hm init --update
+cd ~/dotfiles && homie init --update
 ```
 
-`bootstrap.sh` is versioned against `hm` — it encodes which release URL
+`bootstrap.sh` is versioned against `homie` — it encodes which release URL
 to fetch and how to hand your terminal to `sudo` — so a repo scaffolded
 against an older release keeps launching the old way until you refresh
 it. `--update` is a no-op when there's nothing to do, and stops with a
 diff rather than clobbering anything you've edited. See
-[Commands](/docs/commands/#hm-init---update--refresh-generated-files).
+[Commands](/docs/commands/#homie-init---update--refresh-generated-files).

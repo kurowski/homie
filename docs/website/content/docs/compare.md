@@ -153,4 +153,4 @@ scripts managed alongside those packages, on Linux as well as macOS.
 - **Secrets management.** Out of scope. Pair Homie with `sops`, `age`,
   `pass`, or a cloud secret store and reference paths from your scripts.
 - **You need rollback.** Homie has no state, so it can't roll back.
-  Recovery is "edit your repo, `hm apply` again."
+  Recovery is "edit your repo, `homie apply` again."

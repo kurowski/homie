@@ -38,16 +38,16 @@ The output covers:
                  would install on this host.
   - Warnings:    anything captured by config load (unknown keys,
                  typos, etc.).
-  - Health:      a one-line counts summary from ` + "`hm doctor`" + ` — run that
+  - Health:      a one-line counts summary from ` + "`homie doctor`" + ` — run that
                  command for the detail.
 
 With --json the same information is emitted as a single JSON document
 on stdout, with per-backend package lists broken out, so scripts and
 agents can consume host state without scraping the text. When no
-environment repo is found, "repo" is null instead of an error; a $HM_REPO
+environment repo is found, "repo" is null instead of an error; a $HOMIE_REPO
 that points at a directory without a homie.toml is still an error.
 
-Exits zero even if doctor reports problems; use ` + "`hm doctor`" + ` for a
+Exits zero even if doctor reports problems; use ` + "`homie doctor`" + ` for a
 non-zero gate.`,
 	RunE: runStatus,
 }
@@ -58,7 +58,7 @@ func init() {
 	rootCmd.AddCommand(statusCmd)
 }
 
-// statusOutput is the document emitted by `hm status --json`.
+// statusOutput is the document emitted by `homie status --json`.
 type statusOutput struct {
 	Environment statusEnv     `json:"environment"`
 	Repo        *statusRepo   `json:"repo"` // null when no environment repo is found
@@ -120,12 +120,12 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	repoDir, err := repo.Find()
 	if err != nil {
 		// Only the walk-up finding nothing is benign; a set-but-wrong
-		// $HM_REPO is a misconfiguration the user needs to hear about.
+		// $HOMIE_REPO is a misconfiguration the user needs to hear about.
 		if !errors.Is(err, repo.ErrNotFound) {
 			return err
 		}
 		fmt.Fprintln(w)
-		fmt.Fprintln(w, "No user environment repo found (run `hm init` or set $HM_REPO).")
+		fmt.Fprintln(w, "No user environment repo found (run `homie init` or set $HOMIE_REPO).")
 		return nil
 	}
 
@@ -154,7 +154,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Run doctor's read-only walk for a one-line health summary.
-	// The deep dive lives in `hm doctor`; status just nudges users
+	// The deep dive lives in `homie doctor`; status just nudges users
 	// toward it when something looks off.
 	home := statusHome
 	if home == "" {
@@ -168,7 +168,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		case errs == 0 && warns == 0:
 			fmt.Fprintln(w, "Health: all checks passed.")
 		default:
-			fmt.Fprintf(w, "Health: %s, %s — run `hm doctor` for detail.\n",
+			fmt.Fprintf(w, "Health: %s, %s — run `homie doctor` for detail.\n",
 				pluralize(errs, "error"), pluralize(warns, "warning"))
 		}
 	}
@@ -177,7 +177,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 // runStatusJSON emits the same information as the text path as one JSON
 // document. Only a genuinely absent environment repo is data
-// ("repo": null); a set-but-wrong $HM_REPO or a repo with a broken
+// ("repo": null); a set-but-wrong $HOMIE_REPO or a repo with a broken
 // homie.toml is still an error so a misconfiguration can't be mistaken
 // for "no repo".
 func runStatusJSON(w io.Writer, env detect.Env) error {

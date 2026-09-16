@@ -51,7 +51,7 @@ email = {{ .Email }}
 editor = {{ .Vars.EDITOR }}
 `, 0o644)
 	writeFile(t, filepath.Join(repo, "scripts", "01-marker.sh"),
-		`touch "$HM_HOME/script-ran-marker"`, 0o755)
+		`touch "$HOMIE_HOME/script-ran-marker"`, 0o755)
 	return repo
 }
 
@@ -69,7 +69,7 @@ func runApplyCmd(t *testing.T, args []string) (string, error) {
 func TestApplyEndToEnd(t *testing.T) {
 	repo := fixtureRepo(t)
 	home := t.TempDir()
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 
 	out, err := runApplyCmd(t, []string{"apply", "--home", home, "--skip-packages"})
 	if err != nil {
@@ -119,11 +119,11 @@ func TestApplyEndToEnd(t *testing.T) {
 func TestApplyRunsPreScriptsBeforePackages(t *testing.T) {
 	repo := fixtureRepo(t)
 	home := t.TempDir()
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 	// pre-*.sh records the time it ran; the post-script in fixtureRepo
 	// records its own. Pre must run strictly before post.
 	writeFile(t, filepath.Join(repo, "scripts", "pre-00-repos.sh"),
-		`date +%s%N > "$HM_HOME/pre-marker"`, 0o755)
+		`date +%s%N > "$HOMIE_HOME/pre-marker"`, 0o755)
 
 	out, err := runApplyCmd(t, []string{"apply", "--home", home, "--skip-packages"})
 	if err != nil {
@@ -156,7 +156,7 @@ func TestApplyRunsPreScriptsBeforePackages(t *testing.T) {
 func TestApplySurfacesScriptCollision(t *testing.T) {
 	repo := fixtureRepo(t)
 	home := t.TempDir()
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 	// fixtureRepo already has scripts/01-marker.sh. Add a colliding copy
 	// in a tag tree that's active on this host (profile "personal" → the
 	// personal tag is active), so both claim 01-marker.sh.
@@ -179,7 +179,7 @@ func TestApplySurfacesScriptCollision(t *testing.T) {
 func TestApplyIsIdempotent(t *testing.T) {
 	repo := fixtureRepo(t)
 	home := t.TempDir()
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 
 	// First apply seeds the home.
 	if _, err := runApplyCmd(t, []string{"apply", "--home", home, "--skip-packages", "--skip-scripts"}); err != nil {

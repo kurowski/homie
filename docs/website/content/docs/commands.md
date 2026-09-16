@@ -1,29 +1,29 @@
 ---
 title: "Commands"
-description: "Reference for every `hm` subcommand."
+description: "Reference for every `homie` subcommand."
 weight: 20
 ---
 
-Every Homie command except `hm init` and `hm selfupdate` expects to be
-run from the root of a user environment repo, or with `HM_REPO` set to
+Every Homie command except `homie init` and `homie selfupdate` expects to be
+run from the root of a user environment repo, or with `HOMIE_REPO` set to
 its path.
 
 ---
 
-## `hm init`
+## `homie init`
 
 Interactively scaffolds a brand new user environment repo. Run this once
 on the first machine. Subsequent machines clone the result via
 `bootstrap.sh`.
 
 ```sh
-hm init ~/dotfiles
+homie init ~/dotfiles
 ```
 
 You can also pass flags non-interactively (useful in CI):
 
 ```sh
-hm init \
+homie init \
   --name "Scout Homes" \
   --email scout@homie.sh \
   --github-user scouthomes \
@@ -33,17 +33,17 @@ hm init \
   ~/dotfiles
 ```
 
-### `hm init --update` — refresh generated files
+### `homie init --update` — refresh generated files
 
 Init never overwrites; `--update` is the supported way back into an
 existing repo. It re-renders the files Homie keeps current across
-releases — today just `bootstrap.sh`, which tracks how the current `hm`
+releases — today just `bootstrap.sh`, which tracks how the current `homie`
 expects to be launched — and leaves your seeds (`homie.toml`, `home/`,
 `scripts/`) untouched.
 
 ```sh
 cd ~/dotfiles
-hm init --update
+homie init --update
 ```
 
 It derives its answers rather than asking: identity from `homie.toml`,
@@ -54,7 +54,7 @@ destination from where the repo actually sits. Keep your repo at
 up — `$HOME`-relative, so it stays portable across machines:
 
 ```sh
-REPO_DIR="${HM_REPO:-$HOME/Documents/dotfiles}"
+REPO_DIR="${HOMIE_REPO:-$HOME/Documents/dotfiles}"
 ```
 
 Move the repo, re-run `--update`, commit. Run it from anywhere inside
@@ -66,26 +66,26 @@ directory, a CI checkout) keeps the `$HOME/<repo>` default. Use
 `--repo-dir` to set it explicitly:
 
 ```sh
-hm init --update --repo-dir /opt/dotfiles
+homie init --update --repo-dir /opt/dotfiles
 ```
 
-Generated files carry an `hm:generated` stamp with the writing version
+Generated files carry a `homie:generated` stamp with the writing version
 and a digest, so update can tell an untouched file from an edited one:
 
 | State | Meaning |
 |---|---|
-| `current` | already what this `hm` writes — no-op |
-| `updated` | untouched since an older `hm` wrote it; refreshed |
+| `current` | already what this `homie` writes — no-op |
+| `updated` | untouched since an older `homie` wrote it; refreshed |
 | `created` | missing; written fresh |
 | `skipped` | edited locally, or unstamped — diff shown, nothing written |
 
-`--force` overwrites a skipped file. Deleting the `hm:generated` line
+`--force` overwrites a skipped file. Deleting the `homie:generated` line
 opts a file out for good. Nothing is committed for you — review with
 `git diff`.
 
 ---
 
-## `hm apply`
+## `homie apply`
 
 Full reconciliation pass — detect → load config → run pre-scripts →
 install native packages → install declared backends (alphabetical order:
@@ -99,7 +99,7 @@ entries fast-forward to the remote default branch (see
 [Config](/docs/config/#externals)).
 
 ```sh
-hm apply
+homie apply
 ```
 
 `apply` is idempotent. Running it twice in a row should produce a clean
@@ -116,7 +116,7 @@ Flags:
 
 ---
 
-## `hm home`
+## `homie home`
 
 Just the home phase of `apply`. Walks `home/` and any active sibling
 `home.tag-<X>[.tag-<Y>...]/` tree, then for each file:
@@ -145,15 +145,15 @@ Flags:
 
 ---
 
-## `hm render`
+## `homie render`
 
 Renders a single `.tmpl` file to stdout — no writes, no UI chrome, safe
-to pipe. The data is exactly what a real `hm home` would use on this
+to pipe. The data is exactly what a real `homie home` would use on this
 host: active tags, `[vars]`, user identity, distro, and the `hasTag`
 helper, so the preview is faithful.
 
 ```sh
-hm render home/.gitconfig.tmpl
+homie render home/.gitconfig.tmpl
 ```
 
 The path is tried as given first, then relative to the repo root, so
@@ -161,11 +161,11 @@ the command works from anywhere. A parse or execution error exits
 non-zero — handy as a template check in CI, and it gives automated
 agents a feedback loop for template authoring without touching your
 real `$HOME`. To preview every active template at once, use
-`hm home --dry-run`.
+`homie home --dry-run`.
 
 ---
 
-## `hm context`
+## `homie context`
 
 Prints the exact data passed to every template render on this host, as
 JSON. The keys match the template fields one-to-one — a key named
@@ -174,7 +174,7 @@ tells you (or an agent) every field a template can use, with the values
 it would resolve to right now.
 
 ```sh
-$ hm context
+$ homie context
 {
   "Name": "Scout Homes",
   "Email": "scout@homie.sh",
@@ -193,12 +193,12 @@ Output is always JSON, nothing else on stdout — safe to pipe into `jq`.
 The `hasTag` helper and the Sprig function library are callable from
 templates but aren't data fields, so they don't appear here. Pairs
 naturally with the preview commands: introspect the context, then check
-a template with `hm render` or `hm home --dry-run`. See
+a template with `homie render` or `homie home --dry-run`. See
 [Dotfiles](/docs/dotfiles/) for the full data reference.
 
 ---
 
-## `hm install`
+## `homie install`
 
 Just the package phases. Resolves `[packages].all + [packages].<distro>`
 plus matching `[packages."tag:X"]` against the detected package manager
@@ -211,10 +211,10 @@ warning and skips that backend.
 
 ---
 
-## `hm run`
+## `homie run`
 
 Just the script phase. Runs `scripts/*.sh` in lexical order, each as a
-separate bash subprocess with `HM_TAGS`, `HM_REPO`, `HM_HOME`, and every
+separate bash subprocess with `HOMIE_TAGS`, `HOMIE_REPO`, `HOMIE_HOME`, and every
 `[vars]` entry exported to its environment.
 
 Scripts are user code — Homie doesn't enforce idempotency. Convention is
@@ -243,16 +243,16 @@ has no single source of truth to override. See
 Flags:
 
 - `--phase=post` (default) — every script whose name does NOT begin with
-  `pre-`. The "scripts" step of `hm apply`.
+  `pre-`. The "scripts" step of `homie apply`.
 - `--phase=pre` — only `pre-*.sh` scripts. The "pre-scripts" step of
-  `hm apply`; useful for setting up third-party package sources before
-  `hm install`.
+  `homie apply`; useful for setting up third-party package sources before
+  `homie install`.
 - `--phase=all` — pre-scripts then post-scripts, matching the order
-  `hm apply` uses.
+  `homie apply` uses.
 
 ---
 
-## `hm status`
+## `homie status`
 
 Read-only view of what `apply` _would_ do. No changes, no installs, no
 file writes. Useful for previewing, for CI checks, or for confidence
@@ -264,12 +264,12 @@ Flags:
   environment, repo path, identity, profile, active tags, the native and
   per-backend package lists, config warnings, and the error/warning
   counts from a doctor pass. When no environment repo is found, `"repo"`
-  is `null` and the command still exits zero; an `HM_REPO` that points
+  is `null` and the command still exits zero; a `HOMIE_REPO` that points
   at a directory without a `homie.toml` is an error instead.
 
 ---
 
-## `hm doctor`
+## `homie doctor`
 
 Walks the repo and reports:
 
@@ -311,7 +311,7 @@ Flags:
 
 ---
 
-## `hm bootstrap`
+## `homie bootstrap`
 
 Installs the minimum tools needed for `apply` to proceed: `git` and
 `ca-certificates`. Called by `bootstrap.sh` on a fresh machine before
@@ -319,21 +319,21 @@ the user repo is cloned. Most users never invoke this directly.
 
 ---
 
-## `hm selfupdate`
+## `homie selfupdate`
 
-Updates the `hm` binary itself to the latest release. Resolves the
+Updates the `homie` binary itself to the latest release. Resolves the
 newest tag, downloads the binary for your OS and architecture, verifies
 it against the release's `SHA256SUMS`, and atomically replaces the
 running binary — the same checks the install script performs.
-`hm self-update` is an alias.
+`homie self-update` is an alias.
 
 ```sh
-hm selfupdate          # update in place
-hm selfupdate --check  # just report whether a newer release exists
+homie selfupdate          # update in place
+homie selfupdate --check  # just report whether a newer release exists
 ```
 
-Updating writes to the directory `hm` lives in: a binary in
-`/usr/local/bin` usually needs `sudo hm selfupdate`, while the default
+Updating writes to the directory `homie` lives in: a binary in
+`/usr/local/bin` usually needs `sudo homie selfupdate`, while the default
 user install in `~/.local/bin` needs no root. A build from source or a
 Homebrew-managed binary refuses to self-update — rebuild it, or let the
 tool that installed it do the upgrade.
@@ -349,10 +349,10 @@ Flags:
 
 Beyond per-command `--help`, the binary ships one reference topic:
 
-- `hm help templating` — the template data fields, the `hasTag` helper,
+- `homie help templating` — the template data fields, the `hasTag` helper,
   Sprig availability, and the missing-key rules. The offline version of
-  the [Dotfiles](/docs/dotfiles/) reference; `hm help template` and
-  `hm help templates` resolve to the same page.
+  the [Dotfiles](/docs/dotfiles/) reference; `homie help template` and
+  `homie help templates` resolve to the same page.
 
 ---
 
@@ -361,7 +361,7 @@ Beyond per-command `--help`, the binary ships one reference topic:
 These work on every subcommand:
 
 - `--repo <path>` — point at a user repo other than the cwd (or use
-  `HM_REPO=<path>`).
+  `HOMIE_REPO=<path>`).
 - `--no-tty` — force plain output.
 - `--verbose` — Debug-level logging.
 - `--version` — print version and exit.

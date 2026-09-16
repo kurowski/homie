@@ -67,7 +67,7 @@ func TestSelfupdateRefusesNonReleaseBuild(t *testing.T) {
 // and the binary, verify, and swap a scratch file standing in for the
 // running executable.
 func TestSelfupdateEndToEnd(t *testing.T) {
-	bin := []byte("new hm binary")
+	bin := []byte("new homie binary")
 	asset := selfupdate.AssetName()
 	sum := sha256.Sum256(bin)
 	sums := fmt.Sprintf("%s  %s\n", hex.EncodeToString(sum[:]), asset)
@@ -85,8 +85,8 @@ func TestSelfupdateEndToEnd(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	target := filepath.Join(t.TempDir(), "hm")
-	if err := os.WriteFile(target, []byte("old hm binary"), 0o755); err != nil {
+	target := filepath.Join(t.TempDir(), "homie")
+	if err := os.WriteFile(target, []byte("old homie binary"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 

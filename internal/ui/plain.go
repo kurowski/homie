@@ -5,7 +5,7 @@ import (
 	"io"
 )
 
-// Plain prints one line per event with no ANSI styling. It's what `hm`
+// Plain prints one line per event with no ANSI styling. It's what `homie`
 // uses when stdout isn't a terminal or when --no-tty is set, so log
 // capture stays readable.
 type Plain struct {

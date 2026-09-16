@@ -8,7 +8,7 @@ Managed by [Homie](https://homie.sh).
 curl -fsSL https://raw.githubusercontent.com/{{ .GitHubUser }}/{{ .GitHubRepo }}/main/bootstrap.sh | bash
 ```
 
-Downloads `hm`, clones this repo into `~/{{ .GitHubRepo }}`, and runs `hm apply`.
+Downloads `homie`, clones this repo into `~/{{ .GitHubRepo }}`, and runs `homie apply`.
 
 ## Daily use
 
@@ -17,9 +17,9 @@ with no indirection layer; files ending in `.tmpl` are rendered through
 Go `text/template` + Sprig. Commit and push when you're happy.
 
 ```sh
-hm apply     # full reconciliation
-hm status    # show what would change, no writes
-hm doctor    # check for broken symlinks and other drift
+homie apply     # full reconciliation
+homie status    # show what would change, no writes
+homie doctor    # check for broken symlinks and other drift
 ```
 
 ## Layout
@@ -31,4 +31,4 @@ hm doctor    # check for broken symlinks and other drift
 | `home.tag-X/`     | Same, but only on hosts where tag X is active                 |
 | `hosts/<name>.toml` | Per-host overlay merged onto `homie.toml`                   |
 | `scripts/`        | Ordered setup scripts (`scripts/*.sh`, `scripts/pre-*.sh`)    |
-| `bootstrap.sh`    | Curl-bash entrypoint that fetches `hm` and runs `apply`       |
+| `bootstrap.sh`    | Curl-bash entrypoint that fetches `homie` and runs `apply`    |

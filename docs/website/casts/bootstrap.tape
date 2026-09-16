@@ -3,8 +3,8 @@
 # A fresh Linux box runs the exact one-liner from homie.sh and ends up fully
 # configured. Rendered offline against the nginx sidecar that impersonates
 # github.com / raw.githubusercontent.com (see record.sh), so it's the *real*
-# bootstrap — just deterministic. hm shows its full TUI because VHS gives it a
-# PTY on stdout (hm keys the TUI off stdout, not the curl|bash pipe on stdin).
+# bootstrap — just deterministic. homie shows its full TUI because VHS gives it a
+# PTY on stdout (homie keys the TUI off stdout, not the curl|bash pipe on stdin).
 
 Output bootstrap.gif
 Output bootstrap.webm

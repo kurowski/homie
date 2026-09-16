@@ -73,8 +73,8 @@ templates, and scripts all behave exactly as they do on Linux.
 ## Do I need Homebrew?
 
 Only if you declare `[packages]`. macOS ships no system package manager,
-so a dotfiles-only setup (no `[packages]`) needs nothing extra — `hm
-apply` and `hm doctor` won't complain. If you *do* declare packages and
+so a dotfiles-only setup (no `[packages]`) needs nothing extra — `homie
+apply` and `homie doctor` won't complain. If you *do* declare packages and
 `brew` isn't installed, the native package phase just warns and skips
 (it doesn't fail). To actually install those packages, install Homebrew
 yourself, or add a `scripts/pre-*.sh` that installs it before the
@@ -90,7 +90,7 @@ formula; a `/cask` suffix is a Homebrew cask (a GUI app):
 macos = ["ripgrep", "firefox/cask", "rectangle/cask"]
 ```
 
-A bad suffix is caught by `hm doctor` before any install runs.
+A bad suffix is caught by `homie doctor` before any install runs.
 
 ## Does Homie work on Termux (Android)?
 
@@ -109,7 +109,7 @@ Homie detects Termux from the `TERMUX_VERSION` variable, and Termux
 exports it into the proot guest's environment. So a `proot-distro login
 ubuntu` session is still detected as `termux` (installing through `pkg`)
 rather than as `ubuntu` (installing through `apt`). Run Homie in native
-Termux, or `unset TERMUX_VERSION` before `hm apply` inside the guest to
+Termux, or `unset TERMUX_VERSION` before `homie apply` inside the guest to
 have it detected as the guest distro.
 
 ## Why no Windows support?
@@ -121,7 +121,7 @@ Linux and macOS story cleanly first.
 
 ## My distro isn't Ubuntu, Debian, Fedora, or Arch. Now what?
 
-`hm apply` will detect your distro as `unknown` and print a friendly
+`homie apply` will detect your distro as `unknown` and print a friendly
 notice with a link to the [contributing guide](/docs/contributing/).
 You can still use Homie — dotfiles, templates, and scripts all work —
 but the package install phase becomes a no-op. Adding distro support is
@@ -152,13 +152,13 @@ paru -S --needed --noconfirm my-aur-package
 ```
 
 **This one can't run as root.** `makepkg` refuses to, by design — so unlike
-the rest of `hm apply`, an AUR step only works on the run-as-your-user path,
+the rest of `homie apply`, an AUR step only works on the run-as-your-user path,
 not the fresh-bare-metal-as-root one. It sudoes for the `pacman` calls it
 needs and no further.
 
 Homie also never runs `pacman -Sy` or `-Syu` for you: refreshing the
 database and then installing is the documented partial-upgrade footgun,
-and upgrading your whole system isn't a decision `hm apply` should make.
+and upgrading your whole system isn't a decision `homie apply` should make.
 If a package can't be found, Homie says so and suggests `pacman -Syu`.
 
 ## `sudo` says "a terminal is required" when I pipe `bootstrap.sh` into bash
@@ -174,7 +174,7 @@ their children. Refresh yours in place:
 
 ```sh
 cd ~/dotfiles
-hm init --update
+homie init --update
 git diff              # review
 git commit -am "chore: refresh bootstrap.sh"
 ```
@@ -185,23 +185,23 @@ for what `--update` will and won't touch.
 ## How do I refresh a generated file?
 
 ```sh
-cd ~/dotfiles && hm init --update
+cd ~/dotfiles && homie init --update
 ```
 
-Most of what `hm init` writes is a *seed*: `homie.toml`, `home/`,
+Most of what `homie init` writes is a *seed*: `homie.toml`, `home/`,
 `scripts/` are yours the moment they exist, and Homie never touches them
-again. `bootstrap.sh` is the exception — it encodes how the current `hm`
+again. `bootstrap.sh` is the exception — it encodes how the current `homie`
 wants to be launched (which release URL, which os/arch names, how stdin
 reaches `sudo`), so it goes stale when you upgrade. `--update`
 re-renders it in place. It takes no answers: identity comes from your
 `homie.toml`, the GitHub user and repo from your `origin` remote. Pass
 `--github-user` / `--github-repo` if there's no remote to read.
 
-Generated files carry a stamp recording the `hm` version that wrote them
+Generated files carry a stamp recording the `homie` version that wrote them
 and a digest of the file as written:
 
 ```sh
-# hm:generated version=v0.5.2 sha256=7b7bdbc4…
+# homie:generated version=v0.5.2 sha256=7b7bdbc4…
 ```
 
 `--update` rewrites a file only when that digest still matches — i.e.
@@ -210,15 +210,15 @@ stamps (every repo scaffolded before v0.5.2), update prints the diff and
 stops:
 
 ```
-  bootstrap.sh   skipped   no hm:generated stamp — treating it as yours
+  bootstrap.sh   skipped   no homie:generated stamp — treating it as yours
 ```
 
 From there: `--force` takes Homie's version, or delete the
-`hm:generated` line to opt the file out permanently. Either way nothing
+`homie:generated` line to opt the file out permanently. Either way nothing
 leaves your working tree, so `git diff` is the final say.
 
 Running `--update` when everything is current is a no-op, so it's safe
-to run after every `hm selfupdate`.
+to run after every `homie selfupdate`.
 
 ## Can I share one Homie repo across multiple users on the same box?
 
@@ -237,9 +237,3 @@ Because every check Homie performs is cheap:
 State files create their own class of bugs — drift between the file and
 reality, lock contention, corruption after a crash. Going stateless
 trades a tiny amount of work-per-run for a *lot* less to go wrong.
-
-## Why is the binary called `hm`?
-
-Short, easy to type, doesn't collide with anything common. The longer
-form would be `homie`; we shipped the short one because you'll type it
-many times a week.

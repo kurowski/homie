@@ -1,4 +1,4 @@
-// Package selfupdate replaces the running hm binary with a released
+// Package selfupdate replaces the running homie binary with a released
 // one from GitHub. It performs the same steps as install.sh — download
 // the os/arch binary plus the release's SHA256SUMS, verify, install —
 // so the two update paths can't drift apart in what they check.
@@ -46,7 +46,7 @@ var brewCellars = []string{
 // BrewManaged reports whether path points into a Homebrew cellar,
 // where the formula owns the file and `brew upgrade` is the right
 // updater. Callers pass a symlink-resolved path: every Homebrew layout
-// links bin/hm into its Cellar, so the resolved path is the reliable
+// links bin/homie into its Cellar, so the resolved path is the reliable
 // signal. Anchored to the known cellar prefixes so an unrelated
 // directory that happens to be named Cellar doesn't match.
 func BrewManaged(path string) bool {
@@ -59,13 +59,13 @@ func BrewManaged(path string) bool {
 }
 
 // AssetName is the release asset for this OS and architecture, named
-// by the release workflow as hm-<os>-<arch>.
+// by the release workflow as homie-<os>-<arch>.
 func AssetName() string {
-	return "hm-" + runtime.GOOS + "-" + runtime.GOARCH
+	return "homie-" + runtime.GOOS + "-" + runtime.GOARCH
 }
 
 // ExecutablePath returns the running binary's real path, resolving any
-// symlink (e.g. a ~/bin/hm -> ~/.local/bin/hm link) so Apply replaces
+// symlink (e.g. a ~/bin/homie -> ~/.local/bin/homie link) so Apply replaces
 // the actual file rather than the link.
 func ExecutablePath() (string, error) {
 	exe, err := os.Executable()
@@ -180,7 +180,7 @@ func Apply(target string, data []byte) error {
 	if fi, err := os.Stat(target); err == nil {
 		mode = fi.Mode().Perm()
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(target), ".hm-selfupdate-*")
+	tmp, err := os.CreateTemp(filepath.Dir(target), ".homie-selfupdate-*")
 	if err != nil {
 		return err
 	}

@@ -3,11 +3,11 @@
 # produces the same artifacts as CI (see PLAN.md).
 #
 # For the bootstrap hero it reuses the e2e harness end-to-end:
-#   1. build hm (also the binary the hero "downloads")
+#   1. build homie (also the binary the hero "downloads")
 #   2. build the pinned recorder image (VHS stack + a fresh Linux box)
 #   3. stand up an nginx sidecar impersonating github.com /
 #      raw.githubusercontent.com over the committed e2e test CA, serving a
-#      freshly `hm init`-scaffolded demo repo + the hm release artifacts
+#      freshly `homie init`-scaffolded demo repo + the homie release artifacts
 #   4. run vhs inside a container on that network, so the in-cast
 #      `curl … | bash` is the real bootstrap, offline and deterministic
 #   5. copy the rendered .gif/.webm into static/casts/
@@ -27,7 +27,7 @@ NET="homie-cast-net"
 NGINX="homie-cast-nginx"
 
 OWNER="scouthomes"; REPO="dotfiles"
-HM_OWNER="kurowski"; HM_NAME="homie"
+HOMIE_OWNER="kurowski"; HOMIE_NAME="homie"
 ARCH="amd64"
 
 tapes=("$@")
@@ -44,7 +44,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "==> building hm"
+echo "==> building homie"
 make -C "$REPO_ROOT" build >/dev/null
 
 echo "==> building recorder image"
@@ -53,7 +53,7 @@ docker build -t "$RECORDER_IMAGE" -f "$CASTS_DIR/Dockerfile" "$REPO_ROOT/e2e/cer
 echo "==> scaffolding demo repo + release artifacts"
 WORK="$(mktemp -d)"
 SRC="$WORK/userrepo-src"
-"$REPO_ROOT/hm" init </dev/null \
+"$REPO_ROOT/homie" init </dev/null \
   --name "Scout Homes" --email "scout@homie.sh" \
   --github-user "$OWNER" --github-repo "$REPO" \
   --profile personal --shell bash "$SRC" >/dev/null
@@ -67,10 +67,10 @@ mkdir -p "$(dirname "$BARE")"
 git clone -q --bare "$SRC" "$BARE"
 git -C "$BARE" update-server-info
 
-REL="$WORK/content/github/$HM_OWNER/$HM_NAME/releases/latest/download"
+REL="$WORK/content/github/$HOMIE_OWNER/$HOMIE_NAME/releases/latest/download"
 mkdir -p "$REL"
-cp "$REPO_ROOT/hm" "$REL/hm-linux-$ARCH"
-( cd "$REL" && sha256sum "hm-linux-$ARCH" > SHA256SUMS )
+cp "$REPO_ROOT/homie" "$REL/homie-linux-$ARCH"
+( cd "$REL" && sha256sum "homie-linux-$ARCH" > SHA256SUMS )
 
 RAW="$WORK/content/raw/$OWNER/$REPO/main"
 mkdir -p "$RAW"

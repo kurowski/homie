@@ -1,7 +1,7 @@
 //go:build e2e
 
 // Package e2e drives the real curl|bash flow against Ubuntu, Debian,
-// Fedora, and Arch containers. A tiny nginx sidecar serves the hm release
+// Fedora, and Arch containers. A tiny nginx sidecar serves the homie release
 // artifacts, a bare clone of a scaffold-generated user repo, and the
 // bootstrap.sh, all over HTTPS using the committed test CA + leaf cert
 // under e2e/certs.
@@ -52,7 +52,7 @@ func TestApplyAcrossDistros(t *testing.T) {
 		t.Skip("docker not on PATH; skipping e2e")
 	}
 
-	binary := buildHmBinary(t)
+	binary := buildHomieBinary(t)
 	w := prepWebserver(t, binary)
 
 	network := makeNetwork(t)
@@ -70,10 +70,10 @@ func TestApplyAcrossDistros(t *testing.T) {
 			t.Cleanup(func() { _, _ = dockerRun("rm", "-f", cid) })
 
 			// The full curl|bash flow. bootstrap.sh:
-			//   1. downloads hm-linux-<arch> + SHA256SUMS, verifies hash
-			//   2. runs `hm bootstrap` to install git + ca-certificates
+			//   1. downloads homie-linux-<arch> + SHA256SUMS, verifies hash
+			//   2. runs `homie bootstrap` to install git + ca-certificates
 			//   3. git-clones the user repo
-			//   4. execs `hm apply`
+			//   4. execs `homie apply`
 			bootstrapURL := fmt.Sprintf(
 				"https://raw.githubusercontent.com/%s/%s/main/bootstrap.sh",
 				userrepoOwner, userrepoName,
@@ -105,13 +105,13 @@ func TestApplyAcrossDistros(t *testing.T) {
 
 			// Idempotency — second apply from the cloned repo must
 			// succeed and report the link as already in sync.
-			// bootstrap.sh installed hm under ~/.local/bin; that
+			// bootstrap.sh installed homie under ~/.local/bin; that
 			// dir is only on PATH inside bootstrap.sh's own shell,
 			// not a fresh docker exec, so spell out the absolute
 			// path.
 			out, err = dockerExecOutput(cid, "bash", "-c",
 				"cd "+containerHome+"/"+userrepoName+
-					" && "+containerHome+"/.local/bin/hm apply 2>&1")
+					" && "+containerHome+"/.local/bin/homie apply 2>&1")
 			if err != nil {
 				t.Fatalf("second apply failed: %v\n%s", err, out)
 			}
@@ -125,18 +125,18 @@ func TestApplyAcrossDistros(t *testing.T) {
 	}
 }
 
-// buildHmBinary compiles ./cmd/hm as linux/<host-arch> static. We run
+// buildHomieBinary compiles ./cmd/homie as linux/<host-arch> static. We run
 // inside docker on the host's architecture, so GOARCH = runtime.GOARCH.
-func buildHmBinary(t *testing.T) string {
+func buildHomieBinary(t *testing.T) string {
 	t.Helper()
 	root := repoRoot(t)
-	out := filepath.Join(t.TempDir(), "hm")
+	out := filepath.Join(t.TempDir(), "homie")
 
 	cmd := exec.Command("go", "build",
 		"-trimpath",
 		"-ldflags=-s -w -X main.version=e2e",
 		"-o", out,
-		"./cmd/hm",
+		"./cmd/homie",
 	)
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(),
@@ -145,7 +145,7 @@ func buildHmBinary(t *testing.T) string {
 		"CGO_ENABLED=0",
 	)
 	if buf, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("build hm: %v\n%s", err, buf)
+		t.Fatalf("build homie: %v\n%s", err, buf)
 	}
 	return out
 }

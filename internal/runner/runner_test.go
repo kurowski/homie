@@ -93,7 +93,7 @@ func TestRunInteractivePassesStdioThrough(t *testing.T) {
 
 	repo := t.TempDir()
 	home := t.TempDir()
-	writeScript(t, repo, "01-marker.sh", `printf done > "$HM_HOME/marker"`)
+	writeScript(t, repo, "01-marker.sh", `printf done > "$HOMIE_HOME/marker"`)
 
 	out := new(bytes.Buffer)
 	res := Run(repo, home, config.Config{}, nil, PhasePost, out)
@@ -125,9 +125,9 @@ func TestRunLexicalOrderAndEnv(t *testing.T) {
 
 	// Each script appends "<n>:<envvar>" so the marker file ends up
 	// recording both the order they ran in and the env they saw.
-	writeScript(t, repo, "02-second.sh", `printf "2:$HM_REPO=$HM_HOME=$EDITOR\n" >> "$HM_HOME/marker"`)
-	writeScript(t, repo, "01-first.sh", `printf "1:$HM_TAGS\n" >> "$HM_HOME/marker"`)
-	writeScript(t, repo, "10-third.sh", `printf "3:$WORK_EMAIL\n" >> "$HM_HOME/marker"`)
+	writeScript(t, repo, "02-second.sh", `printf "2:$HOMIE_REPO=$HOMIE_HOME=$EDITOR\n" >> "$HOMIE_HOME/marker"`)
+	writeScript(t, repo, "01-first.sh", `printf "1:$HOMIE_TAGS\n" >> "$HOMIE_HOME/marker"`)
+	writeScript(t, repo, "10-third.sh", `printf "3:$WORK_EMAIL\n" >> "$HOMIE_HOME/marker"`)
 	// Non-.sh file should be ignored.
 	if err := os.WriteFile(filepath.Join(repo, ScriptsDir, "README"), []byte("notes"), 0o644); err != nil {
 		t.Fatal(err)
@@ -178,7 +178,7 @@ func TestRunCollectsErrorsAndKeepsGoing(t *testing.T) {
 	home := t.TempDir()
 	writeScript(t, repo, "01-ok.sh", `echo first`)
 	writeScript(t, repo, "02-fail.sh", `echo failing; exit 7`)
-	writeScript(t, repo, "03-ok.sh", `echo third > "$HM_HOME/third"`)
+	writeScript(t, repo, "03-ok.sh", `echo third > "$HOMIE_HOME/third"`)
 
 	out := new(bytes.Buffer)
 	res := Run(repo, home, config.Config{}, nil, PhasePost, out)
@@ -201,10 +201,10 @@ func TestRunCollectsErrorsAndKeepsGoing(t *testing.T) {
 func TestRunPhaseFilter(t *testing.T) {
 	repo := t.TempDir()
 	home := t.TempDir()
-	writeScript(t, repo, "pre-01-repos.sh", `printf "pre1\n" >> "$HM_HOME/log"`)
-	writeScript(t, repo, "pre-02-keys.sh", `printf "pre2\n" >> "$HM_HOME/log"`)
-	writeScript(t, repo, "01-tools.sh", `printf "post1\n" >> "$HM_HOME/log"`)
-	writeScript(t, repo, "02-shell.sh", `printf "post2\n" >> "$HM_HOME/log"`)
+	writeScript(t, repo, "pre-01-repos.sh", `printf "pre1\n" >> "$HOMIE_HOME/log"`)
+	writeScript(t, repo, "pre-02-keys.sh", `printf "pre2\n" >> "$HOMIE_HOME/log"`)
+	writeScript(t, repo, "01-tools.sh", `printf "post1\n" >> "$HOMIE_HOME/log"`)
+	writeScript(t, repo, "02-shell.sh", `printf "post2\n" >> "$HOMIE_HOME/log"`)
 
 	pre := Run(repo, home, config.Config{}, nil, PhasePre, new(bytes.Buffer))
 	if len(pre.Errors) != 0 {
@@ -260,10 +260,10 @@ func TestRunMergesTagTreesInUnifiedOrder(t *testing.T) {
 	// Three trees; tag set activates fedora but not ubuntu. Filenames
 	// interleave across trees, so a correct merge orders by filename:
 	// 01 (plain) < 02 (fedora) < 03 (plain); the ubuntu 02b never runs.
-	writeScript(t, repo, "01-a.sh", `printf "a\n" >> "$HM_HOME/log"`)
-	writeScript(t, repo, "03-c.sh", `printf "c\n" >> "$HM_HOME/log"`)
-	writeTreeScript(t, repo, "scripts.tag-fedora", "02-b.sh", `printf "b\n" >> "$HM_HOME/log"`)
-	writeTreeScript(t, repo, "scripts.tag-ubuntu", "02b-skip.sh", `printf "SKIP\n" >> "$HM_HOME/log"`)
+	writeScript(t, repo, "01-a.sh", `printf "a\n" >> "$HOMIE_HOME/log"`)
+	writeScript(t, repo, "03-c.sh", `printf "c\n" >> "$HOMIE_HOME/log"`)
+	writeTreeScript(t, repo, "scripts.tag-fedora", "02-b.sh", `printf "b\n" >> "$HOMIE_HOME/log"`)
+	writeTreeScript(t, repo, "scripts.tag-ubuntu", "02b-skip.sh", `printf "SKIP\n" >> "$HOMIE_HOME/log"`)
 
 	res := Run(repo, home, config.Config{}, []string{"fedora"}, PhasePost, new(bytes.Buffer))
 	if len(res.Errors) != 0 {

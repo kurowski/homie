@@ -10,7 +10,7 @@ import (
 )
 
 // TestHelpTemplatingResolves pins the issue this topic exists to fix:
-// `hm help templating` — the guessable variants, and the bare command —
+// `homie help templating` — the guessable variants, and the bare command —
 // must resolve to the template reference instead of "Unknown help
 // topic", surfacing the one helper nobody can discover otherwise
 // (hasTag).
@@ -37,7 +37,7 @@ func TestTemplatingHelpListsAllDataFields(t *testing.T) {
 	for i := 0; i < rt.NumField(); i++ {
 		name := "." + rt.Field(i).Name
 		if !strings.Contains(out, name) {
-			t.Errorf("hm help templating omits %s — keep cmd/hm/templating.go in sync with render.Data", name)
+			t.Errorf("homie help templating omits %s — keep cmd/homie/templating.go in sync with render.Data", name)
 		}
 	}
 }

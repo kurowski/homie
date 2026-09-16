@@ -24,14 +24,14 @@ func runHomeCli(t *testing.T, args []string) (string, error) {
 	return buf.String(), err
 }
 
-// TestHomeMaterializesBothClasses pins the contract for `hm home`:
+// TestHomeMaterializesBothClasses pins the contract for `homie home`:
 // plain files in home/ become symlinks, .tmpl files render. Runs the
 // same shared phase apply uses, so any drift between the two paths
 // shows up here.
 func TestHomeMaterializesBothClasses(t *testing.T) {
 	repo := fixtureRepo(t)
 	home := t.TempDir()
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 
 	out, err := runHomeCli(t, []string{"home", "--home", home})
 	if err != nil {
@@ -78,13 +78,13 @@ func TestHomeMaterializesBothClasses(t *testing.T) {
 	}
 }
 
-// TestHomeDryRunWritesNothing pins the contract for `hm home --dry-run`:
+// TestHomeDryRunWritesNothing pins the contract for `homie home --dry-run`:
 // the plan and every template's rendered content go to stdout, and
 // $HOME is untouched.
 func TestHomeDryRunWritesNothing(t *testing.T) {
 	repo := fixtureRepo(t)
 	home := t.TempDir()
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 
 	out, err := runHomeCli(t, []string{"home", "--home", home, "--dry-run"})
 	if err != nil {
@@ -117,7 +117,7 @@ func TestHomeDryRunWritesNothing(t *testing.T) {
 func TestHomeDryRunBadTemplate(t *testing.T) {
 	repo := fixtureRepo(t)
 	home := t.TempDir()
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 	writeFile(t, filepath.Join(repo, "home", ".broken.tmpl"), "{{ .NoSuchField }}\n", 0o644)
 
 	out, err := runHomeCli(t, []string{"home", "--home", home, "--dry-run"})
@@ -137,7 +137,7 @@ func TestHomeDryRunBadTemplate(t *testing.T) {
 func TestHomeSecondRunIsIdempotent(t *testing.T) {
 	repo := fixtureRepo(t)
 	home := t.TempDir()
-	t.Setenv("HM_REPO", repo)
+	t.Setenv("HOMIE_REPO", repo)
 
 	if _, err := runHomeCli(t, []string{"home", "--home", home}); err != nil {
 		t.Fatalf("first run: %v", err)

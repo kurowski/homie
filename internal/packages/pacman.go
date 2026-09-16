@@ -133,7 +133,7 @@ func (p *Pacman) loadInstalled() {
 // and then installing — `pacman -Sy foo` — is the documented partial-
 // upgrade footgun: it can pull a package built against libraries newer
 // than the ones installed. The only safe refresh is a full `pacman -Syu`,
-// and upgrading the whole system is not a decision `hm apply` should make
+// and upgrading the whole system is not a decision `homie apply` should make
 // on the user's behalf. So we install against the database as it stands
 // and, when that's why an install failed, say so in the error.
 func (p *Pacman) Install(pkgs []string) error {

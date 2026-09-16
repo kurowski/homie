@@ -31,17 +31,17 @@ jobs:
           go build \
             -trimpath \
             -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" \
-            -o dist/hm-${GOOS}-${GOARCH} \
-            ./cmd/hm
+            -o dist/homie-${GOOS}-${GOARCH} \
+            ./cmd/homie
 
       - name: Checksum
         run: |
           cd dist
-          sha256sum hm-${{ matrix.os }}-${{ matrix.goarch }} > hm-${{ matrix.os }}-${{ matrix.goarch }}.sha256
+          sha256sum homie-${{ matrix.os }}-${{ matrix.goarch }} > homie-${{ matrix.os }}-${{ matrix.goarch }}.sha256
 
       - uses: actions/upload-artifact@v7
         with:
-          name: hm-${{ matrix.os }}-${{ matrix.goarch }}
+          name: homie-${{ matrix.os }}-${{ matrix.goarch }}
           path: dist/*
           if-no-files-found: error
           retention-days: 1
