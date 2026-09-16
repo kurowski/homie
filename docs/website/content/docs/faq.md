@@ -201,12 +201,12 @@ Generated files carry a stamp recording the `homie` version that wrote them
 and a digest of the file as written:
 
 ```sh
-# homie:generated version=v0.5.2 sha256=7b7bdbc4…
+# homie:generated version=v0.7.0 sha256=7b7bdbc4…
 ```
 
 `--update` rewrites a file only when that digest still matches — i.e.
 nobody has edited it since. If you *have* edited it, or it predates
-stamps (every repo scaffolded before v0.5.2), update prints the diff and
+stamps (every repo scaffolded before v0.7.0), update prints the diff and
 stops:
 
 ```

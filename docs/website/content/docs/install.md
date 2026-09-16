@@ -134,7 +134,7 @@ Re-running the install script does the same job, and is the way to pin
 or downgrade:
 
 ```sh
-curl -fsSL https://homie.sh/install.sh | bash                      # latest
+curl -fsSL https://homie.sh/install.sh | bash                         # latest
 curl -fsSL https://homie.sh/install.sh | HOMIE_RELEASE=v0.2.0 bash    # pin / downgrade
 homie --version                                                       # confirm
 ```

@@ -67,7 +67,7 @@ there's no remote to read.
 Generated files carry a ` + "`homie:generated`" + ` stamp recording the homie version
 and a digest of the file as written. Update rewrites a file only when
 that digest still matches — if you've edited it (or it predates stamps,
-like every repo scaffolded before v0.5.2), update prints the diff and
+like every repo scaffolded before v0.7.0), update prints the diff and
 stops. Pass --force to take Homie's version anyway, or delete the stamp
 line to opt the file out for good. Either way the change lands in your
 working tree, so ` + "`git diff`" + ` is the final review.`,
