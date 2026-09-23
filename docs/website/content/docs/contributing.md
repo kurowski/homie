@@ -20,17 +20,16 @@ in `.rolling/`, so Claude Code can teach you the code from it: a lesson
 at a time, each with an exercise on your own checkout, reviewed like a
 pull request. It covers the command layer, config and the home tree,
 the package backends, scripts, and the scaffold. You need Go and `git`;
-nothing else runs. In Claude Code, in your clone:
+nothing else runs. Open Claude Code in your clone and trust the folder:
+the repository's settings add the tutor's plugin. Then:
 
 ```
-/plugin marketplace add kurowski/rollingstart
-/plugin install rolling@rollingstart
 /clear
 /rolling:start
 ```
 
-The `/clear` starts a fresh session, so the plugin's hooks run before
-you begin.
+The `/clear` starts a fresh session, so the plugin that just arrived
+sets itself up before you begin.
 
 ---
 
