@@ -43,6 +43,10 @@ reapply verified end-to-end. Template previews (`homie render`, `homie home
 User-facing docs at <https://homie.sh>; design brief in
 [`CLAUDE.md`](./CLAUDE.md).
 
+## Contributing
+
+Contributions are welcome: see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+
 ## License
 
 MIT

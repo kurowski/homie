@@ -1,0 +1,6 @@
+{
+  "extraKnownMarketplaces": {
+    "rollingstart": { "source": { "source": "github", "repo": "kurowski/rollingstart" } }
+  },
+  "enabledPlugins": { "rolling@rollingstart": true }
+}
