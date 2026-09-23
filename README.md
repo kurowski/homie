@@ -45,7 +45,8 @@ User-facing docs at <https://homie.sh>; design brief in
 
 ## Contributing
 
-Contributions are welcome: see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+Contributions are welcome: see the
+[contributing guide](https://homie.sh/docs/contributing/).
 
 ## License
 

@@ -13,6 +13,27 @@ PRs welcome; the rest of this page walks through the common paths.
 
 ---
 
+## Learning the codebase with a tutor
+
+The repository carries a [Rolling Start](https://rollingstart.dev) map
+in `.rolling/`, so Claude Code can teach you the code from it: a lesson
+at a time, each with an exercise on your own checkout, reviewed like a
+pull request. It covers the command layer, config and the home tree,
+the package backends, scripts, and the scaffold. You need Go and `git`;
+nothing else runs. In Claude Code, in your clone:
+
+```
+/plugin marketplace add kurowski/rollingstart
+/plugin install rolling@rollingstart
+/clear
+/rolling:start
+```
+
+The `/clear` starts a fresh session, so the plugin's hooks run before
+you begin.
+
+---
+
 ## Adding a new distro
 
 Distro support has three touch points. Grep for `TODO(contrib)` to see
