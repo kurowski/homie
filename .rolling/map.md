@@ -37,10 +37,14 @@ about two seconds. Without a path they look for Go files at the
 repository root and find none. A `-run` pattern is a single word here
 (no `|`, no quotes), so a task that needs two tests names their common
 prefix. `vet` and `test` compile a package's test files with it, so
-when a fix changes a function a held test calls, `vet` on the held
-test's package fails with the reference in place (the learner's own
-copy of that test still calls the old form): vet the callers' packages
-instead, and let the held line and `build` cover the rest. `build` is
+`vet` sees a test before the code it tests exists. A shown test that
+calls a function the task adds fails `vet` on its package on the
+starting state as well as `test`, and both lines are expected
+failures. And when a fix changes a function a held test calls, `vet`
+on the held test's package fails with the reference in place (the
+learner's own copy of that test still calls the old form): vet the
+callers' packages instead, and let the held line and `build` cover
+the rest. `build` is
 CI's `go build ./...`: it compiles everything and
 writes nothing (`make build` is the same with the version stamped in,
 and leaves a `homie` binary at the root, which `.gitignore` covers).

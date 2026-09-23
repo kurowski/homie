@@ -84,8 +84,11 @@ exercises.
 
 The verifier is these three lines and no others: `build`; `vet` on the
 seam's package; and `test` on the seam's package with `-run` and the
-new test's name. The tutor does not add a check at `done` that the
-verifier did not run, and does not leave one of these out.
+new test's name. On the starting state `vet` fails as well as `test`,
+since it compiles the new test, which calls a function that does not
+exist yet: both are `expect-fail-on-base` lines. The tutor does not
+add a check at `done` that the verifier did not run, and does not
+leave one of these out.
 
 Notes for the tutor: the task is built from this page, with the test
 shown and committed into the starting state (`--here`); it is never a
